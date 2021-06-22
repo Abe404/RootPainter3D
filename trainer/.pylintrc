@@ -1,0 +1,3 @@
+[MESSAGES CONTROL]
+# import-error, no-member
+disable=E0401,E1101
