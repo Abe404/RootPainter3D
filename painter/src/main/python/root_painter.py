@@ -115,6 +115,9 @@ class RootPainter(QtWidgets.QMainWindow):
         with open(proj_file_path, 'r') as json_file:
             settings = json.load(json_file)
             self.dataset_dir = self.sync_dir / 'datasets' / PurePath(settings['dataset'])
+            
+            if 'guide_image_dir' in settings:
+                self.guide_image_dir = self.sync_dir / 'datasets' / PurePath(settings['guide_image_dir'])
 
             self.proj_location = self.sync_dir / PurePath(settings['location'])
             self.image_fnames = settings['file_names']
@@ -202,8 +205,19 @@ class RootPainter(QtWidgets.QMainWindow):
                                              self.train_annot_dir,
                                              self.val_annot_dir)
 
+        
         self.img_data = im_utils.load_image(self.image_path)
-        fname = os.path.basename(self.image_path)
+
+        # if a guide image directory is specified
+        if hasattr(self, 'guide_image_dir'):
+            guide_image_path = os.path.join(os.path.join(self.guide_image_dir, fname))
+            # and a guide image is available for the current image.
+            if os.path.isfile(guide_image_path):
+                self.guide_img_data = im_utils.load_image(guide_image_path)
+            else:
+                print('no guide image file found', guide_image_path)
+        else:
+            print('no guide image dir found')
 
         if self.annot_path and os.path.isfile(self.annot_path):
 
@@ -368,6 +382,11 @@ class RootPainter(QtWidgets.QMainWindow):
         for v in self.viewers:
             if v.isVisible():
                 v.update_outline()
+
+    def update_viewer_guide(self):
+        for v in self.viewers:
+            if v.isVisible():
+                v.update_guide_image()
 
     def before_nav_change(self):
         """
