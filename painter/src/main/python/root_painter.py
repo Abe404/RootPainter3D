@@ -368,6 +368,12 @@ class RootPainter(QtWidgets.QMainWindow):
         if hasattr(self, 'coronal_viewer'):
             self.coronal_viewer.close()
 
+
+    def contrast_updated(self):
+        self.update_viewer_image_slice()
+        self.update_viewer_guide()
+
+
     def update_viewer_image_slice(self):
         for v in self.viewers:
             if v.isVisible():
@@ -434,8 +440,7 @@ class RootPainter(QtWidgets.QMainWindow):
 
         container_layout.addWidget(self.viewers_container)
         self.contrast_slider = ContrastSlider(self.contrast_presets)
-        self.contrast_slider.changed.connect(self.update_viewer_image_slice)
-
+        self.contrast_slider.changed.connect(self.contrast_updated)
 
         self.nav = NavWidget(self.image_fnames, self.before_nav_change)
 
