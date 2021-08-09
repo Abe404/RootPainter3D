@@ -392,7 +392,7 @@ class RootPainter(QtWidgets.QMainWindow):
     def update_viewer_guide(self):
         for v in self.viewers:
             if v.isVisible():
-                v.update_guide_image()
+                v.update_guide_image_slice()
 
     def before_nav_change(self):
         """
