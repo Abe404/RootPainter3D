@@ -31,13 +31,13 @@ from skimage.exposure import rescale_intensity
 from skimage.io import imread, imsave
 import nibabel as nib
 from file_utils import ls
-
+import nrrd
 
 def is_image(fname):
     """ extensions that have been tested with so far """
     extensions = {".jpg", ".png", ".jpeg", '.tif', '.tiff'}
     fname_ext = os.path.splitext(fname)[1].lower()
-    return fname_ext in extensions or fname.endswith('.nii.gz') or fname.endswith('.npy')
+    return fname_ext in extensions or fname.endswith('.nii.gz') or fname.endswith('.npy') or fname.endswith('.nrrd')
 
 def normalize_tile(tile):
     if np.min(tile) < np.max(tile):
@@ -83,7 +83,7 @@ def load_train_image_and_annot(dataset_dir, train_annot_dir):
         fname = random.sample(fnames, 1)[0]
         annot_path = os.path.join(train_annot_dir, fname)
         image_path = os.path.join(dataset_dir, fname)
-        assert fname.endswith('.nii.gz')
+        assert (fname.endswith('.nii.gz') or fname.endswith('.nrrd'))
         image = load_image(image_path)
         annot = load_image(annot_path)
         assert np.any(annot) # should not be all zero
@@ -254,6 +254,8 @@ def load_image(image_path):
     dims = None
     if image_path.endswith('.npy'):
         image = np.load(image_path, mmap_mode='c')
+    elif image_path.endswith('.nrrd'):
+        image, _ = nrrd.read(image_path)
     elif image_path.endswith('.nii.gz'):
         # We don't currently use them during training but it's useful to be
         # able to load nifty files directory to give the user
