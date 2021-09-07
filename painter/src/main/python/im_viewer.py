@@ -46,8 +46,10 @@ class ImViewer(QtWidgets.QWidget):
         self.annot_visible = True
         self.seg_visible = False
         self.image_visible = True
+        self.guide_image_visible = False
         self.outline_visible = False
         self.image_pixmap_holder = None
+        self.guide_image_pixmap_holder = None
         self.seg_pixmap_holder = None
         self.blank_pixmap = None
         self.black_pixmap = None
@@ -105,22 +107,20 @@ class ImViewer(QtWidgets.QWidget):
         self.slice_nav.changed.connect(self.update_slice_index)
         self.inner_layout.addWidget(self.graphics_view)
         if self.mode == 'axial':
-            self.vis_widget = VisibilityWidget(QtWidgets.QVBoxLayout)
+            self.vis_widget = VisibilityWidget(QtWidgets.QVBoxLayout, self,
+                                               show_guide=hasattr(self.parent, 'guide_image_dir'))
             self.vis_widget.setMaximumWidth(200)
             # left, top, right, bottom
             self.bottom_bar_layout.setContentsMargins(20, 0, 20, 0)
         else:
-            self.vis_widget = VisibilityWidget(QtWidgets.QHBoxLayout)
+            self.vis_widget = VisibilityWidget(QtWidgets.QHBoxLayout, self,
+                                               show_guide=hasattr(self.parent, 'guide_image_dir'))
+
             self.vis_widget.setMaximumWidth(500)
             # left, top, right, bottom
             self.bottom_bar_layout.setContentsMargins(120, 0, 0, 10)
         self.vis_widget.setMinimumWidth(200)
-        self.vis_widget.seg_checkbox.stateChanged.connect(self.seg_checkbox_change)
-
-        self.vis_widget.annot_checkbox.stateChanged.connect(self.annot_checkbox_change)
-        self.vis_widget.im_checkbox.stateChanged.connect(self.im_checkbox_change)
-        self.vis_widget.outline_checkbox.stateChanged.connect(self.outline_checkbox_change)
-
+      
         self.bottom_bar_layout.addWidget(self.vis_widget)
 
     def set_color(self, _event, color=None):
@@ -152,6 +152,11 @@ class ImViewer(QtWidgets.QWidget):
         if checked is not self.outline_visible:
             self.show_hide_outline()
 
+    def guide_checkbox_change(self, state):
+        """ set checkbox to specified state and update visibility if required """
+        checked = (state == QtCore.Qt.Checked)
+        if checked is not self.guide_image_visible:
+            self.show_hide_guide_image()
 
     def store_annot_slice(self):
         if self.scene.annot_pixmap:
@@ -159,7 +164,6 @@ class ImViewer(QtWidgets.QWidget):
                                        self.parent.annot_data,
                                        self.cur_slice_idx,
                                        self.mode)
-
 
     def update_slice_index(self):
         """ Render the new slice as the slice index may have changed """
@@ -185,6 +189,8 @@ class ImViewer(QtWidgets.QWidget):
         
         # update image, seg and annot at current slice.
         self.update_image_slice()
+        self.update_guide_image_slice()
+
         self.update_seg_slice()
         self.update_annot_slice()
         self.update_outline()
@@ -250,6 +256,17 @@ class ImViewer(QtWidgets.QWidget):
             self.image_visible = True
         self.vis_widget.im_checkbox.setChecked(self.image_visible)
 
+    def show_hide_guide_image(self):
+        """ show or hide the guide image.
+            guide image can be used to help the annotator by providing another modality to inspect etc """
+        if hasattr(self.graphics_view, 'guide_image'):
+            if self.guide_image_visible:
+                self.guide_image_pixmap_holder.setPixmap(self.blank_pixmap)
+                self.guide_image_visible = False
+            else:
+                self.guide_image_pixmap_holder.setPixmap(self.graphics_view.guide_image)
+                self.guide_image_visible = True
+            self.vis_widget.guide_image_checkbox.setChecked(self.guide_image_visible)
 
     def show_hide_annot(self):
         """ show or hide the current annotations.
@@ -298,6 +315,8 @@ class ImViewer(QtWidgets.QWidget):
 
         # render image, seg and annot at current slice.
         self.update_image_slice()
+        self.update_guide_image_slice()
+
         self.update_seg_slice()
         self.update_annot_slice()
         self.update_outline()
@@ -337,7 +356,7 @@ class ImViewer(QtWidgets.QWidget):
         im_width, im_height = im_size.width(), im_size.height()
         assert im_width > 0
         assert im_height > 0
-        self.graphics_view.image = image_pixmap # for resize later
+        self.graphics_view.image = image_pixmap # for resize (and re-assignment after re-showing) later
         self.im_width = im_width
         self.im_height = im_height
         self.scene.setSceneRect(-15, -15, im_width+30, im_height+30)
@@ -349,7 +368,6 @@ class ImViewer(QtWidgets.QWidget):
         self.black_pixmap = QtGui.QPixmap(self.im_width, self.im_height)
         self.black_pixmap.fill(Qt.black)
         
-
         if self.image_pixmap_holder:
             self.image_pixmap_holder.setPixmap(image_pixmap)
         else:
@@ -359,7 +377,6 @@ class ImViewer(QtWidgets.QWidget):
         if not self.image_visible:
             self.image_pixmap_holder.setPixmap(self.black_pixmap)
 
-   
     def mouseMoveEvent(self, event):
         if self.scene.cursor_shown:
             self.scene.cursor_pixmap.fill(Qt.transparent)
@@ -481,6 +498,28 @@ class ImViewer(QtWidgets.QWidget):
         if not self.outline_visible:
             self.scene.outline_pixmap_holder.setPixmap(self.blank_pixmap)
 
+    def update_guide_image_slice(self):
+        """ guide shows another image on top of the main image """
+        if hasattr(self.parent, 'guide_img_data'):
+            img_slice = im_utils.get_slice(self.parent.guide_img_data, self.slice_nav.slice_idx, self.mode)
+            img_slice = im_utils.norm_slice(img_slice,
+                                            self.parent.contrast_slider.min_value,
+                                            self.parent.contrast_slider.max_value,
+                                            self.parent.contrast_slider.brightness_value)
+            q_image = qimage2ndarray.array2qimage(img_slice)
+            guide_image_pixmap = QtGui.QPixmap.fromImage(q_image)
+            self.graphics_view.guide_image = guide_image_pixmap # for re-assignment after re-showing
+
+            if self.guide_image_pixmap_holder:
+                self.guide_image_pixmap_holder.setPixmap(guide_image_pixmap)
+            else:
+                self.guide_image_pixmap_holder = self.scene.addPixmap(guide_image_pixmap)
+                # interpolate the image pixels to make it look less pixelated
+                self.guide_image_pixmap_holder.setTransformationMode(Qt.SmoothTransformation)
+            if not self.guide_image_visible:
+                self.guide_image_pixmap_holder.setPixmap(self.blank_pixmap)
+        else:
+            print('no guide image data available')
 
 
 class ImViewerWindow(QtWidgets.QMainWindow, ImViewer):

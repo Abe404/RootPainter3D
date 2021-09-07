@@ -35,12 +35,11 @@ import qimage2ndarray
 import nibabel as nib
 from scipy.ndimage import binary_fill_holes
 from skimage.segmentation import flood
-
-
+import nrrd
 
 
 def is_image(fname):
-    extensions = {".jpg", ".png", ".jpeg", '.tif', '.tiff', '.npy', 'gz'}
+    extensions = {".jpg", ".png", ".jpeg", '.tif', '.tiff', '.npy', 'gz', 'nrrd'}
     return any(fname.lower().endswith(ext) for ext in extensions)
 
 
@@ -50,6 +49,12 @@ def load_image(image_path):
     if image_path.endswith('.nii.gz'):
         image = nib.load(image_path)
         image = np.array(image.dataobj)
+        image = np.rot90(image, k=3)
+        image = np.moveaxis(image, -1, 0) # depth moved to beginning
+        # reverse lr and ud
+        image = image[::-1, :, ::-1]
+    if image_path.endswith('.nrrd'):
+        image, header = nrrd.read(image_path)
         image = np.rot90(image, k=3)
         image = np.moveaxis(image, -1, 0) # depth moved to beginning
         # reverse lr and ud
@@ -66,6 +71,7 @@ def load_annot(annot_path, img_data_shape):
     annot_data = np.array(annot_image.dataobj)
     name = os.path.basename(annot_path)
     name = name.replace('.nii.gz', '')
+    name = name.replace('.nrrd', '')
     parts = name.split('_')  
     x = int(parts[-15])
     y = int(parts[-13])
@@ -86,6 +92,8 @@ def load_seg(seg_path, img_data):
     seg_data = np.array(seg_image.dataobj)
     name = os.path.basename(seg_path)
     name = name.replace('.nii.gz', '')
+    name = name.replace('.nrrd', '')
+
     parts = name.split('_')  
     x = int(parts[-15])
     y = int(parts[-13])
