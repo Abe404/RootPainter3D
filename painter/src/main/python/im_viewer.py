@@ -518,8 +518,6 @@ class ImViewer(QtWidgets.QWidget):
                 self.guide_image_pixmap_holder.setTransformationMode(Qt.SmoothTransformation)
             if not self.guide_image_visible:
                 self.guide_image_pixmap_holder.setPixmap(self.blank_pixmap)
-        else:
-            print('no guide image data available')
 
 
 class ImViewerWindow(QtWidgets.QMainWindow, ImViewer):
