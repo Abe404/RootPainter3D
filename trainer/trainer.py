@@ -74,6 +74,7 @@ class Trainer():
         self.msg_dir = None
         self.epochs_without_progress = 0
         self.training_restart = False
+        self.restart_best_val_dice = 0
 
         # approx 30 minutes
         self.max_epochs_without_progress = 60
@@ -403,6 +404,18 @@ class Trainer():
             self.epochs_without_progress = 0
         else:
             self.epochs_without_progress += 1
+
+        # if we are doing a restart (from random weights) then lets consider the
+        # performance improvements local to that restart, rather than the best model from all starts.
+        if self.training_restart: 
+            # we know that data doesn't change during a restart 
+            # (because this would cause the restart to stop and typical training to resumse)
+            # so we keep track of the best dice so far for this specific restart, and extend
+            # training if we beat it, i.e set epochs_without_progress to 0
+            if cur_m['dice'] > self.restart_best_val_dice:
+                print('local restart dice improvement from', round(self.restart_best_val_dice, 4), 'to', round(cur_m['dice'], 4))
+                self.restart_best_val_dice = cur_m['dice']
+                self.epochs_without_progress = 0
 
         self.reset_progress_if_annots_changed()
 
