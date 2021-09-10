@@ -437,6 +437,7 @@ class Trainer():
         self.write_message('Restarting training from scratch')
         self.log('Restarting training from scratch')
         self.training_restart = True
+        self.restart_best_val_dice = 0 # need to beat this or restart will stop after 60 epochs
         self.val_tile_refs = [] # dont want to cache these
         self.epochs_without_progress = 0
         self.model = random_model(num_classes=len(self.train_config['classes']))
