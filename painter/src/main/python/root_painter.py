@@ -115,6 +115,9 @@ class RootPainter(QtWidgets.QMainWindow):
         with open(proj_file_path, 'r') as json_file:
             settings = json.load(json_file)
             self.dataset_dir = self.sync_dir / 'datasets' / PurePath(settings['dataset'])
+            
+            if 'guide_image_dir' in settings:
+                self.guide_image_dir = self.sync_dir / 'datasets' / PurePath(settings['guide_image_dir'])
 
             self.proj_location = self.sync_dir / PurePath(settings['location'])
             self.image_fnames = settings['file_names']
@@ -181,12 +184,15 @@ class RootPainter(QtWidgets.QMainWindow):
         # reset box information
         self.box = {'x':20, 'y':20, 'z': 20, 'width': 50, 'height': 50, 'depth': 20, 'visible': False}
 
+        original_fname_ext = '.nii.gz'
+        if fname.endswith('.nrrd'):
+            origin_fname_ext = '.nrrd'
+
         for f in bounded_fnames:
-            original_name = '_'.join(f.split('_')[0:-16]) + '.nii.gz'
+            original_name = '_'.join(f.split('_')[0:-16]) + origin_fname_ext
             if original_name == fname:
                 self.bounded_fname = f    
                 break
-
         self.seg_path = None
         self.annot_path = None
         self.view_state = ViewState.BOUNDING_BOX
@@ -195,15 +201,25 @@ class RootPainter(QtWidgets.QMainWindow):
             if v.scene.bounding_box:
                 v.scene.removeItem(v.scene.bounding_box)
                 v.scene.bounding_box = None
-
         if self.bounded_fname:
             self.seg_path = os.path.join(self.seg_dir, self.bounded_fname)
             self.annot_path = get_annot_path(self.bounded_fname,
                                              self.train_annot_dir,
                                              self.val_annot_dir)
 
+        
         self.img_data = im_utils.load_image(self.image_path)
-        fname = os.path.basename(self.image_path)
+
+        # if a guide image directory is specified
+        if hasattr(self, 'guide_image_dir'):
+            guide_image_path = os.path.join(os.path.join(self.guide_image_dir, fname))
+            # and a guide image is available for the current image.
+            if os.path.isfile(guide_image_path):
+                self.guide_img_data = im_utils.load_image(guide_image_path)
+            else:
+                print('no guide image file found', guide_image_path)
+        else:
+            print('no guide image dir found')
 
         if self.annot_path and os.path.isfile(self.annot_path):
 
@@ -354,6 +370,12 @@ class RootPainter(QtWidgets.QMainWindow):
         if hasattr(self, 'coronal_viewer'):
             self.coronal_viewer.close()
 
+
+    def contrast_updated(self):
+        self.update_viewer_image_slice()
+        self.update_viewer_guide()
+
+
     def update_viewer_image_slice(self):
         for v in self.viewers:
             if v.isVisible():
@@ -368,6 +390,11 @@ class RootPainter(QtWidgets.QMainWindow):
         for v in self.viewers:
             if v.isVisible():
                 v.update_outline()
+
+    def update_viewer_guide(self):
+        for v in self.viewers:
+            if v.isVisible():
+                v.update_guide_image_slice()
 
     def before_nav_change(self):
         """
@@ -415,8 +442,7 @@ class RootPainter(QtWidgets.QMainWindow):
 
         container_layout.addWidget(self.viewers_container)
         self.contrast_slider = ContrastSlider(self.contrast_presets)
-        self.contrast_slider.changed.connect(self.update_viewer_image_slice)
-
+        self.contrast_slider.changed.connect(self.contrast_updated)
 
         self.nav = NavWidget(self.image_fnames, self.before_nav_change)
 

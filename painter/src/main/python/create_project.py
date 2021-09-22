@@ -145,9 +145,10 @@ class CreateProjectWidget(QtWidgets.QWidget):
             return
 
         cur_files = os.listdir(self.selected_dir)
-        cur_files = [is_image(f) for f in cur_files]
+        cur_files = [f for f in cur_files if is_image(f)]
+
         if not cur_files:
-            message = "Folder contains no images."
+            message = "Folder contains no compatible images. Valid formats include NIfTI (.nii.gz) and nrrd"
             self.info_label.setText(message)
             self.create_project_btn.setEnabled(False)
             return

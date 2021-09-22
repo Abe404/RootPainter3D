@@ -21,11 +21,11 @@ from PyQt5 import QtWidgets
 
 class VisibilityWidget(QtWidgets.QWidget):
 
-    def __init__(self, layout_class):
+    def __init__(self, layout_class, parent, show_guide=False):
         super().__init__()
-        self.initUI(layout_class)
+        self.initUI(layout_class, parent, show_guide)
 
-    def initUI(self, layout_class):
+    def initUI(self, layout_class, parent, show_guide):
         # container goes full width to allow contents to be center aligned within it.
         widget = QtWidgets.QWidget()
         layout = QtWidgets.QHBoxLayout()
@@ -49,12 +49,29 @@ class VisibilityWidget(QtWidgets.QWidget):
         outline_checkbox = QtWidgets.QCheckBox("Outline (T)")
         container_layout.addWidget(outline_checkbox)
 
+        # the guide image is optional and only enabled for some projects
+        if show_guide:
+            guide_image_checkbox = QtWidgets.QCheckBox("Guide (H)")
+            container_layout.addWidget(guide_image_checkbox)
+            guide_image_checkbox.setChecked(False)
+            self.guide_image_checkbox = guide_image_checkbox
+            self.guide_image_checkbox.stateChanged.connect(parent.guide_checkbox_change)
+
         seg_checkbox.setChecked(False)
         annot_checkbox.setChecked(True)
         im_checkbox.setChecked(True)
         outline_checkbox.setChecked(False)
 
+  
+
         self.seg_checkbox = seg_checkbox
         self.annot_checkbox = annot_checkbox
         self.im_checkbox = im_checkbox
         self.outline_checkbox = outline_checkbox
+
+        # connecting events to parent - tight coupling is OK if that's all we want.
+        self.seg_checkbox.stateChanged.connect(parent.seg_checkbox_change)
+        self.annot_checkbox.stateChanged.connect(parent.annot_checkbox_change)
+        self.im_checkbox.stateChanged.connect(parent.im_checkbox_change)
+        self.outline_checkbox.stateChanged.connect(parent.outline_checkbox_change)
+ 

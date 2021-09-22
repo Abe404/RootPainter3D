@@ -155,7 +155,6 @@ def add_view_menu(window, im_viewer, menu_bar):
     actual_size_view_btn.triggered.connect(im_viewer.graphics_view.show_actual_size)
     view_menu.addAction(actual_size_view_btn)
 
-
     # toggle segmentation visibility
     toggle_seg_visibility_btn = QtWidgets.QAction(QtGui.QIcon('missing.png'),
                                                   'Toggle segmentation visibility', window)
@@ -163,7 +162,6 @@ def add_view_menu(window, im_viewer, menu_bar):
     toggle_seg_visibility_btn.setStatusTip('Show or hide segmentation')
     toggle_seg_visibility_btn.triggered.connect(im_viewer.show_hide_seg)
     view_menu.addAction(toggle_seg_visibility_btn)
-
 
     # toggle annotation visibility
     toggle_annot_visibility_btn = QtWidgets.QAction(QtGui.QIcon('missing.png'),
@@ -181,6 +179,15 @@ def add_view_menu(window, im_viewer, menu_bar):
     toggle_image_visibility_btn.triggered.connect(im_viewer.show_hide_image)
     view_menu.addAction(toggle_image_visibility_btn)
 
+
+    toggle_guide_image_visibility_btn = QtWidgets.QAction(QtGui.QIcon('missing.png'),
+                                                    'Toggle guide image visibility', window)
+    toggle_guide_image_visibility_btn.setShortcut('H')
+    toggle_guide_image_visibility_btn.setStatusTip('Show or hide image')
+    toggle_guide_image_visibility_btn.triggered.connect(im_viewer.show_hide_guide_image)
+    view_menu.addAction(toggle_guide_image_visibility_btn)
+
+
     # toggle outline visibility
     toggle_outline_visibility_btn = QtWidgets.QAction(QtGui.QIcon('missing.png'),
                                                       'Toggle outline visibility', window)
@@ -189,7 +196,6 @@ def add_view_menu(window, im_viewer, menu_bar):
     toggle_outline_visibility_btn.triggered.connect(im_viewer.show_hide_outline)
     view_menu.addAction(toggle_outline_visibility_btn)
 
-    # toggle image visibility
     up_slice_btn = QtWidgets.QAction(QtGui.QIcon('missing.png'),
                                                  'Move slice up', window)
     up_slice_btn.setShortcut('R')
