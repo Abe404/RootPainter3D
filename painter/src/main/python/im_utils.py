@@ -39,7 +39,7 @@ import nrrd
 
 
 def is_image(fname):
-    extensions = {".jpg", ".png", ".jpeg", '.tif', '.tiff', '.npy', 'gz', 'nrrd'}
+    extensions = {'.npy', 'gz', 'nrrd'}
     return any(fname.lower().endswith(ext) for ext in extensions)
 
 
