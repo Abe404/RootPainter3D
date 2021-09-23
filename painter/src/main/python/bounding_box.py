@@ -218,7 +218,7 @@ def apply_bounding_box(root_painter):
     im_fname = os.path.basename(im_fpath)
     proj_location = root_painter.proj_location
     bounded_im_dir = os.path.join(proj_location, 'bounded_images')
-    bounded_im_name = im_fname.replace('.nii.gz', '')
+    bounded_im_name = im_fname.replace('.nii.gz', '').replace('.nrrd', '')
 
     # add coordinates and pad size to file name so we know where to show the segmentation.
     bounded_im_name += (f"_x_{x}_y_{y}_z_{z}_pad_"
