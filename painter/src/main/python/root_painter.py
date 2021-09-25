@@ -174,7 +174,6 @@ class RootPainter(QtWidgets.QMainWindow):
 
         fname = os.path.basename(fpath)
         self.image_path = os.path.join(self.dataset_dir, fname)
-        seg_fname = os.path.splitext(fname)[0] + '.nii.gz'
        
         # Try to find the annotation and segmentation for this particular image.
         bounded_im_dir = os.path.join(self.proj_location, 'bounded_images')
@@ -184,19 +183,14 @@ class RootPainter(QtWidgets.QMainWindow):
         # reset box information
         self.box = {'x':20, 'y':20, 'z': 20, 'width': 50, 'height': 50, 'depth': 20, 'visible': False}
 
-        original_fname_ext = '.nii.gz'
-        if fname.endswith('.nrrd'):
-            origin_fname_ext = '.nrrd'
-
         for f in bounded_fnames:
-            original_name = '_'.join(f.split('_')[0:-16]) + origin_fname_ext
-            if original_name == fname:
+            original_name = '_'.join(f.split('_')[0:-16])
+            if original_name == fname.replace('.nrrd', '').replace('.nii.gz', ''):
                 self.bounded_fname = f    
                 break
         self.seg_path = None
         self.annot_path = None
         self.view_state = ViewState.BOUNDING_BOX
-
         for v in self.viewers:
             if v.scene.bounding_box:
                 v.scene.removeItem(v.scene.bounding_box)

@@ -32,9 +32,11 @@ def last_fname_with_segmentation(fnames, seg_dir):
     """
     last_fname = None
     seg_fnames = os.listdir(str(seg_dir))
-    seg_fnames = ['_'.join(f.split('_')[0:-16]) + '.nii.gz' for f in seg_fnames]
+    seg_fnames = ['_'.join(f.split('_')[0:-16]) for f in seg_fnames]
+
     for fname in fnames:
-        if fname in seg_fnames:
+        base_fname =  fname.replace('.nii.gz', '').replace('.nrrd', '')
+        if base_fname in seg_fnames:
             last_fname = fname
     return last_fname
 
@@ -49,8 +51,11 @@ def last_fname_with_annotations(fnames, train_annot_dir, val_annot_dir):
     val_annot_fnames = os.listdir(str(val_annot_dir))
     train_annot_fnames = os.listdir(str(train_annot_dir))
     annot_fnames = val_annot_fnames + train_annot_fnames
-    annot_fnames = ['_'.join(f.split('_')[0:-16]) + '.nii.gz' for f in annot_fnames]
+    annot_fnames = ['_'.join(f.split('_')[0:-16]) for f in annot_fnames]
+    
     for i, fname in enumerate(fnames):
+    
+        fname =  fname.replace('.nii.gz', '').replace('.nrrd', '')
         if fname in annot_fnames:
             if i+1 < len(fnames):
                 last_fname = fnames[i+1]
