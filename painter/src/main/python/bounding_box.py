@@ -149,9 +149,10 @@ def resegment_current_image(root_painter):
         root_painter.track_changes()
 
 
-def apply_bounding_box(root_painter):
+def apply_bounding_box(root_painter, full_size):
     """ Save the bounded image and show loading icon
         as the segmentation will now be loading """
+
 
     box = root_painter.box
 
@@ -160,43 +161,57 @@ def apply_bounding_box(root_painter):
         resegment_current_image(root_painter)
         return
 
-    if not box['visible']:
-        return
-
-    root_painter.log(f'apply_box,box:{json.dumps(box)}')
-    x = box['x']
-    y = box['y']
-    z = box['z']
-    depth = box['depth']
-    height = box['height']
-    width = box['width']
     im_shape = root_painter.img_data.shape 
 
-    # if it's a bit outside the image then just adjust to only include the bit
-    # covered by the image
+    if full_size:
+        print('segment full image')
+        x = 0
+        y = 0
+        z = 0
+        width = im_shape[2] - 1
+        height = im_shape[1] - 1
+        depth = im_shape[0] - 1
 
-    if x < 0:
-        width += x # substract 
-        x += -x # and shift accross
-    if y < 0:
-        height += y # substract 
-        y += -y # and shift accross
-    if z < 0:
-        depth += x # substract 
-        z += -z # and shift accross
+    else:
 
-    # make sure depth height and width don't go outside the box
-    depth -= max(0, (z + depth) - (im_shape[0] - 1))
-    height -= max(0, (y + height) - (im_shape[1] - 1))
-    width -= max(0, (x + width) - (im_shape[2] - 1))
+        if not box['visible']:
+            return
+        root_painter.log(f'apply_box,box:{json.dumps(box)}')
+        x = box['x']
+        y = box['y']
+        z = box['z']
+        depth = box['depth']
+        height = box['height']
+        width = box['width']
 
-    assert z+depth < im_shape[0]
-    assert y+height < im_shape[1]
-    assert x+width < im_shape[2]
+        # if it's a bit outside the image then just adjust to only include the bit
+        # covered by the image
 
-    assert z >= 0
-    assert y >= 0
-    assert x >= 0
+        if x < 0:
+            width += x # substract 
+            x += -x # and shift accross
+        if y < 0:
+            height += y # substract 
+            y += -y # and shift accross
+        if z < 0:
+            depth += x # substract 
+            z += -z # and shift accross
+
+        
+
+        # make sure depth height and width don't go outside the box
+        depth -= max(0, (z + depth) - (im_shape[0] - 1))
+        height -= max(0, (y + height) - (im_shape[1] - 1))
+        width -= max(0, (x + width) - (im_shape[2] - 1))
+
+        assert z+depth < im_shape[0]
+        assert y+height < im_shape[1]
+        assert x+width < im_shape[2]
+
+        assert z >= 0
+        assert y >= 0
+        assert x >= 0
+ 
 
     (z_start, z_end,
      z_pad_start, z_pad_end) = dimension_offsets(z, depth,

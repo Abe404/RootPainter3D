@@ -39,15 +39,22 @@ def add_network_menu(window, menu_bar):
 def add_bounding_box_menu(window, im_viewer, menu_bar):
     box_menu = menu_bar.addMenu("Bounding box")
     # Define
-    define_action = QtWidgets.QAction(QtGui.QIcon(""), "Define", window)
+    define_action = QtWidgets.QAction(QtGui.QIcon(""), "Define bounding box", window)
     define_action.setShortcut("Alt+B")
     box_menu.addAction(define_action)
     define_action.triggered.connect(partial(define_bounding_box, window))
     # Apply
-    apply_action = QtWidgets.QAction(QtGui.QIcon(""), "Apply", window)
+    apply_action = QtWidgets.QAction(QtGui.QIcon(""), "Apply bounding box", window)
     apply_action.setShortcut("Alt+A")
     box_menu.addAction(apply_action)
-    apply_action.triggered.connect(partial(apply_bounding_box, window))
+    apply_action.triggered.connect(partial(apply_bounding_box, window, False))
+
+    # Ctrl+S
+    segment_action = QtWidgets.QAction(QtGui.QIcon(""), "Segment full image", window)
+    segment_action.setShortcut("Alt+S")
+    box_menu.addAction(segment_action)
+    segment_action.triggered.connect(partial(apply_bounding_box, window, True))
+
     return box_menu
 
 
