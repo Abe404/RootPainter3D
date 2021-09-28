@@ -164,7 +164,6 @@ def apply_bounding_box(root_painter, full_size):
     im_shape = root_painter.img_data.shape 
 
     if full_size:
-        print('segment full image')
         x = 0
         y = 0
         z = 0
@@ -255,8 +254,7 @@ def apply_bounding_box(root_painter, full_size):
         "file_names": [bounded_im_name],
         "message_dir": root_painter.message_dir,
         "model_dir": root_painter.model_dir,
-        "classes": ["Foreground"],
-        "dimensions": 3
+        "classes": root_painter.classes # used for saving segmentation output to correct directories
     })
     root_painter.track_changes()
 

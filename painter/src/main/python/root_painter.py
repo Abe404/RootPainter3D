@@ -110,6 +110,22 @@ class RootPainter(QtWidgets.QMainWindow):
                                             'segmentation project (.seg_proj) file')
             self.init_missing_project_ui()
 
+
+    def get_train_annot_dir(self):
+        # taking into account the current class.
+        if len(self.classes) > 1:
+            return self.proj_location / 'annotations' / self.cur_class / 'train'
+        else:
+            return self.proj_location / 'annotations' / 'train'
+
+    def get_val_annot_dir(self):
+        # taking into account the current class.
+        if len(self.classes) > 1:
+            return self.proj_location / 'annotations' / self.cur_class / 'val'
+        else:
+            return self.proj_location / 'annotations' / 'val'
+
+
     def open_project(self, proj_file_path):
         # extract json
         with open(proj_file_path, 'r') as json_file:
@@ -123,11 +139,29 @@ class RootPainter(QtWidgets.QMainWindow):
             self.image_fnames = settings['file_names']
             self.seg_dir = self.proj_location / 'segmentations'
             self.log_dir = self.proj_location / 'logs'
-            self.train_annot_dir = self.proj_location / 'annotations' / 'train'
-            self.val_annot_dir = self.proj_location / 'annotations' / 'val'
+            
+            train_annot_dirs = []
+            val_annot_dirs = []
+            # if going with a single class or old style settings
+            # then use old style project structure with single train and val
+            # folder, without the class name being specified
+            if "classes" in settings and len(settings['classes']) > 1:
+                # if more than one class is present then create train and val folders for each class
+                self.classes = settings['classes']
+                self.cur_class = self.classes[0]
+                for c in self.classes:
+                    train_annot_dirs.append(self.proj_location / 'annotations' / c / 'train')
+                    val_annot_dirs.append(self.proj_location / 'annotations' / c / 'val')
+                self.train_annot_dirs = train_annot_dirs
+                self.val_annot_dirs = val_annot_dirs
+            else:         
+                self.classes = ['annotations'] # default class for single class project.
+                self.cur_class = self.classes[0]
+                self.train_annot_dirs = [self.proj_location / 'annotations' / 'train']
+                self.val_annot_dirs = [self.proj_location / 'annotations' / 'val']
+
             self.model_dir = self.proj_location / 'models'
             self.message_dir = self.proj_location / 'messages'
-            self.classes = settings['classes']
 
             # If there are any segmentations which have already been saved
             # then go through the segmentations in the order specified
@@ -144,8 +178,8 @@ class RootPainter(QtWidgets.QMainWindow):
             self.image_path = os.path.join(self.dataset_dir, fname)
             self.update_window_title()
             self.seg_path = os.path.join(self.seg_dir, fname)
-            self.annot_path = get_annot_path(fname, self.train_annot_dir,
-                                             self.val_annot_dir)
+            self.annot_path = get_annot_path(fname, self.get_train_annot_dir(),
+                                             self.get_val_annot_dir())
             self.init_active_project_ui()
 
             if self.view_state == ViewState.ANNOTATING:
@@ -188,18 +222,6 @@ class RootPainter(QtWidgets.QMainWindow):
             if original_name == fname.replace('.nrrd', '').replace('.nii.gz', ''):
                 self.bounded_fname = f    
                 break
-        self.seg_path = None
-        self.annot_path = None
-        self.view_state = ViewState.BOUNDING_BOX
-        for v in self.viewers:
-            if v.scene.bounding_box:
-                v.scene.removeItem(v.scene.bounding_box)
-                v.scene.bounding_box = None
-        if self.bounded_fname:
-            self.seg_path = os.path.join(self.seg_dir, self.bounded_fname)
-            self.annot_path = get_annot_path(self.bounded_fname,
-                                             self.train_annot_dir,
-                                             self.val_annot_dir)
 
         
         self.img_data = im_utils.load_image(self.image_path)
@@ -215,8 +237,28 @@ class RootPainter(QtWidgets.QMainWindow):
         else:
             print('no guide image dir found')
 
-        if self.annot_path and os.path.isfile(self.annot_path):
+        self.update_annot_and_seg()
 
+        self.contrast_slider.update_range(self.img_data)
+        self.update_window_title()
+        self.log(f'update_file_end,fname:{os.path.basename(fpath)},view_state:{self.view_state}')
+
+            
+    def update_annot_and_seg(self):
+        self.seg_path = None
+        self.annot_path = None
+        self.view_state = ViewState.BOUNDING_BOX
+        for v in self.viewers:
+            if v.scene.bounding_box:
+                v.scene.removeItem(v.scene.bounding_box)
+                v.scene.bounding_box = None
+        if self.bounded_fname:
+            self.seg_path = os.path.join(self.seg_dir, self.bounded_fname)
+            self.annot_path = get_annot_path(self.bounded_fname,
+                                             self.get_train_annot_dir(),
+                                             self.get_val_annot_dir())
+        
+        if self.annot_path and os.path.isfile(self.annot_path):
             self.annot_data = im_utils.load_annot(self.annot_path, self.img_data.shape)
         else:
             # otherwise create empty annotation array
@@ -243,13 +285,32 @@ class RootPainter(QtWidgets.QMainWindow):
                 # show seg in order to show the loading message
                 v.show_hide_seg()
 
-        self.contrast_slider.update_range(self.img_data)
-        self.update_window_title()
-        self.log(f'update_file_end,fname:{os.path.basename(fpath)},view_state:{self.view_state}')
+
+    def update_class(self, class_name):
+        # Save current annotation (if it exists) before moving on
+        self.save_annotation()
+        self.cur_class = class_name
+        self.annot_path = get_annot_path(self.bounded_fname,
+                                         self.get_train_annot_dir(),
+                                         self.get_val_annot_dir())
+        self.scene.history = []
+        self.scene.redo_list = []
+
+        self.update_annot_and_seg()
+
+    def get_seg_path(self):
+        if hasattr(self, 'classes') and len(self.classes) > 1:
+            return os.path.join(self.seg_dir,
+                                self.cur_class,
+                                self.bounded_fname)
+        else:
+            return os.path.join(self.seg_dir, self.bounded_fname)
 
     def update_segmentation(self):
-        if self.seg_path and os.path.isfile(self.seg_path):
-            self.seg_mtime = os.path.getmtime(self.seg_path)
+
+        # if seg file is present then load.
+        if os.path.isfile(self.get_seg_path()):
+            self.seg_mtime = os.path.getmtime(self.get_seg_path())
             self.nav.next_image_button.setText('Save && Next >')
             self.nav.next_image_button.setEnabled(True)
         else:
@@ -438,7 +499,9 @@ class RootPainter(QtWidgets.QMainWindow):
         self.contrast_slider = ContrastSlider(self.contrast_presets)
         self.contrast_slider.changed.connect(self.contrast_updated)
 
-        self.nav = NavWidget(self.image_fnames, self.before_nav_change)
+        self.nav = NavWidget(self.image_fnames,
+                             self.classes,
+                             self.before_nav_change)
 
         # bottom bar right
         bottom_bar_r = QtWidgets.QWidget()
@@ -448,8 +511,10 @@ class RootPainter(QtWidgets.QMainWindow):
         
         # Nav
         self.nav.file_change.connect(self.update_file)
+        self.nav.class_change.connect(self.update_class)
         self.nav.image_path = self.image_path
         self.nav.update_nav_label()
+
         # info label
         info_container = QtWidgets.QWidget()
         info_container_layout = QtWidgets.QHBoxLayout()
@@ -517,14 +582,14 @@ class RootPainter(QtWidgets.QMainWindow):
                 except Exception as e:
                     print('Caught exception when trying to detele msg', e)
             # if a segmentation exists (on disk)
-            if hasattr(self, 'seg_path') and self.seg_path and os.path.isfile(self.seg_path):
+            if os.path.isfile(self.get_seg_path()):
                 try:
                     # seg mtime is not actually used any more.
-                    new_mtime = os.path.getmtime(self.seg_path)
+                    new_mtime = os.path.getmtime(self.get_seg_path())
                     # seg_mtime is None before the seg is loaded.
                     if self.seg_mtime is None or new_mtime > self.seg_mtime:
-                        self.log(f'load_seg,fname:{os.path.basename(self.seg_path)}')
-                        self.seg_data, self.seg_props = im_utils.load_seg(self.seg_path,
+                        self.log(f'load_seg,fname:{os.path.basename(self.get_seg_path())}')
+                        self.seg_data, self.seg_props = im_utils.load_seg(self.get_seg_path(),
                                                                           self.img_data)
                         self.axial_viewer.update_seg_slice()
                         # Change to annotating state.                        
@@ -579,6 +644,7 @@ class RootPainter(QtWidgets.QMainWindow):
 
         menus.add_network_menu(self, self.menu_bar)
         menus.add_windows_menu(self)
+        menus.add_class_menu(self, self.menu_bar)
         menus.add_help_menu(self, self.menu_bar)
 
     def add_contrast_setting_options(self, view_menu):
@@ -609,12 +675,12 @@ class RootPainter(QtWidgets.QMainWindow):
         content = {
             "model_dir": self.model_dir,
             "dataset_dir": os.path.join(self.proj_location, 'bounded_images'),
-            "train_annot_dir": self.train_annot_dir,
-            "val_annot_dir": self.val_annot_dir,
+            "train_annot_dir": self.train_annot_dirs,
+            "val_annot_dir": self.val_annot_dirs,
             "seg_dir": self.seg_dir,
             "log_dir": self.log_dir,
             "message_dir": self.message_dir,
-            "classes": ['Foreground']
+            "classes": self.classes
         }
         self.send_instruction('start_training', content)
 
@@ -627,8 +693,8 @@ class RootPainter(QtWidgets.QMainWindow):
                                                        self.annot_data,
                                                        self.annot_path,
                                                        fname,
-                                                       self.train_annot_dir,
-                                                       self.val_annot_dir,
+                                                       self.get_train_annot_dir(),
+                                                       self.get_val_annot_dir(),
                                                        self.seg_props, self.log)
 
             if self.annot_path:

@@ -30,38 +30,27 @@ def last_fname_with_segmentation(fnames, seg_dir):
     Go through fnames and return the last one with a segmentation
     If no segmentations are found return None.
     """
+
+    # if the segmentation folder contains directories
+    # then we assume that each directory is for a class
+    
     last_fname = None
-    seg_fnames = os.listdir(str(seg_dir))
+    
+    seg_dirs = [os.path.join(seg_dir, d) for d
+                in os.path.listdir(seg_dir) if os.path.isdir(d)]
+    if not len(seg_dirs):
+        seg_dirs = [seg_dir]
+    
+    seg_fnames = []
+    for seg_dir in seg_dirs:
+        seg_fnames += os.listdir(seg_dir)
+        
     seg_fnames = ['_'.join(f.split('_')[0:-16]) for f in seg_fnames]
 
     for fname in fnames:
         base_fname =  fname.replace('.nii.gz', '').replace('.nrrd', '')
         if base_fname in seg_fnames:
             last_fname = fname
-    return last_fname
-
-
-def last_fname_with_annotations(fnames, train_annot_dir, val_annot_dir):
-    """
-    Go through fnames and return the one after
-    the last in the list with an annotation.
-    If no annotations are found return None.
-    """
-    last_fname = None
-    val_annot_fnames = os.listdir(str(val_annot_dir))
-    train_annot_fnames = os.listdir(str(train_annot_dir))
-    annot_fnames = val_annot_fnames + train_annot_fnames
-    annot_fnames = ['_'.join(f.split('_')[0:-16]) for f in annot_fnames]
-    
-    for i, fname in enumerate(fnames):
-    
-        fname =  fname.replace('.nii.gz', '').replace('.nrrd', '')
-        if fname in annot_fnames:
-            if i+1 < len(fnames):
-                last_fname = fnames[i+1]
-            else:
-                last_fname = fnames[0]
-
     return last_fname
 
 

@@ -49,7 +49,7 @@ def add_bounding_box_menu(window, im_viewer, menu_bar):
     box_menu.addAction(apply_action)
     apply_action.triggered.connect(partial(apply_bounding_box, window, False))
 
-    # Ctrl+S
+    # Alt+S
     segment_action = QtWidgets.QAction(QtGui.QIcon(""), "Segment full image", window)
     segment_action.setShortcut("Alt+S")
     box_menu.addAction(segment_action)
@@ -120,6 +120,18 @@ def add_brush_menu(classes, im_viewer, menu_bar):
     for name, rgba, shortcut in classes:
         add_brush(name, rgba, shortcut)
     add_brush('Eraser', (255, 205, 180, 0), 'E')
+
+
+def add_class_menu(self, menu_bar):
+    class_menu = menu_bar.addMenu('Classes')
+    for i, class_name in enumerate(self.classes):
+        class_action = QtWidgets.QAction(QtGui.QIcon('missing.png'), 
+                                            class_name, self)
+        # update class via nav to keep nav up to date whilst avoiding a double update.
+        class_action.triggered.connect(partial(self.nav.cb.setCurrentIndex,
+                                            self.classes.index(class_name)))
+        class_action.setShortcut(str(i+1))
+        class_menu.addAction(class_action)
 
 
 def add_help_menu(self,  menu_bar):
