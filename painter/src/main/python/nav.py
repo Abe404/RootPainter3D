@@ -26,6 +26,8 @@ class NavWidget(QtWidgets.QWidget):
     """ Shows next and previous buttons as well as image position in folder.
     """
     file_change = QtCore.pyqtSignal(str)
+    class_change = QtCore.pyqtSignal(str)
+
 
     def __init__(self, all_fnames, classes, before_change):
         super().__init__()
@@ -67,7 +69,6 @@ class NavWidget(QtWidgets.QWidget):
             self.cb.addItems(self.classes)
             self.cb.currentIndexChanged.connect(self.selection_change)
             nav_layout.addWidget(self.cb)
-
 
         container_layout = QtWidgets.QHBoxLayout()
         container_layout.setAlignment(Qt.AlignCenter)
