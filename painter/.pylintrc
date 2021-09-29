@@ -7,6 +7,7 @@ disable=trailing-whitespace,
 	broad-except,
 	no-member, # falsely detected by pylint
 	import-error, # falsely detected by pylint
+	c-extension-no-member, # falsely detected by pylint
 	ungrouped-imports, # perhaps something to come back to
 	wrong-import-order, # perhaps something to come back to
 	too-many-locals, # perhaps something to come back to

@@ -12,18 +12,13 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""
 
+
+Palette: Provides a way to add, edit and remove classes
 """
-Palette: Provides a way to add, edit and remove brushes / colours / classes
-"""
-import random
-from functools import partial
 
 from PyQt5 import QtWidgets
 from PyQt5 import QtCore
-from PyQt5 import QtGui
-
 
 class BrushEditWidget(QtWidgets.QWidget):
     """
@@ -33,10 +28,10 @@ class BrushEditWidget(QtWidgets.QWidget):
     changed = QtCore.pyqtSignal()
     removed = QtCore.pyqtSignal()
 
-    def __init__(self, name, rgba):
+    def __init__(self, name, show_remove):
         super().__init__()
         self.name = name
-        self.initUI()
+        self.initUI(show_remove)
 
     def initUI(self, show_remove):
         # Provide user with a way to edit the brush name
