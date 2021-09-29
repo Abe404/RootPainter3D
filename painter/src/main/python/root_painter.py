@@ -15,24 +15,15 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
 # pylint: disable=I1101,C0111,W0201,R0903,E0611, R0902, R0914
-
 # too many statements
 # pylint: disable=R0915
 
-# catching too general exception
-# pylint: disable=W0703
-
-# too many public methods
-# pylint: disable=R0904
-# pylint: disable=E0401 # import error
-# pylint: disable=C0103 # Method name "initUI" doesn't conform to snake_case naming style (invalid-name)
 
 import sys
 import os
 from pathlib import PurePath
 import json
 from functools import partial
-import copy
 import traceback
 from datetime import datetime
 import time
@@ -105,9 +96,11 @@ class RootPainter(QtWidgets.QMainWindow):
             # only warn if -psn not in the args. -psn is in the args when
             # user opened app in a normal way by clicking on the Application icon.
             if not '-psn' in sys.argv[1]:
-                QtWidgets.QMessageBox.about(self, 'Error', sys.argv[1] +
-                                            ' is not a valid '
-                                            'segmentation project (.seg_proj) file')
+                QtWidgets.QMessageBox.about(
+                    self,
+                    'Error',
+                    f"{sys.argv[1]} ' is not a valid "
+                    "segmentation project (.seg_proj) file")
             self.init_missing_project_ui()
 
 
@@ -115,15 +108,14 @@ class RootPainter(QtWidgets.QMainWindow):
         # taking into account the current class.
         if len(self.classes) > 1:
             return self.proj_location / 'annotations' / self.cur_class / 'train'
-        else:
-            return self.proj_location / 'annotations' / 'train'
+        return self.proj_location / 'annotations' / 'train'
+
 
     def get_val_annot_dir(self):
         # taking into account the current class.
         if len(self.classes) > 1:
             return self.proj_location / 'annotations' / self.cur_class / 'val'
-        else:
-            return self.proj_location / 'annotations' / 'val'
+        return self.proj_location / 'annotations' / 'val'
 
 
     def open_project(self, proj_file_path):
@@ -188,7 +180,7 @@ class RootPainter(QtWidgets.QMainWindow):
     def log_debounced(self):
         """ write to log file only so often to avoid lag """
         with open(os.path.join(self.log_dir, 'client.csv'), 'a+') as log_file:
-            while len(self.lines_to_log):
+            while self.lines_to_log:
                 line = self.lines_to_log[0]
                 log_file.write(line)
                 self.lines_to_log = self.lines_to_log[1:]
@@ -303,8 +295,7 @@ class RootPainter(QtWidgets.QMainWindow):
             return os.path.join(self.seg_dir,
                                 self.cur_class,
                                 self.bounded_fname)
-        else:
-            return os.path.join(self.seg_dir, self.bounded_fname)
+        return os.path.join(self.seg_dir, self.bounded_fname)
 
     def update_segmentation(self):
 
@@ -417,7 +408,7 @@ class RootPainter(QtWidgets.QMainWindow):
                             f" {os.path.basename(self.image_path)}"
                             " - Not approved for clinical use")
 
-    def closeEvent(self, event):
+    def closeEvent(self, _):
         if hasattr(self, 'contrast_slider'):
             self.contrast_slider.close()
         if hasattr(self, 'sagittal_viewer'):
@@ -461,17 +452,15 @@ class RootPainter(QtWidgets.QMainWindow):
                                                self.annot_data)
         if num_regions == 1:
             return True
-        button_reply = QtWidgets.QMessageBox.question(self,
+        button_reply = QtWidgets.QMessageBox.question(
+            self,
             'Confirm',
             f"There are {num_regions} regions in this image. "
             "Are you sure you want to proceed to the next image?",
             QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, 
             QtWidgets.QMessageBox.No)
 
-        if button_reply == QtWidgets.QMessageBox.Yes:
-            return True
-        else:
-            return False
+        return button_reply == QtWidgets.QMessageBox.Yes
 
     def init_active_project_ui(self):
         # container for both nav and im_viewer.
@@ -597,7 +586,8 @@ class RootPainter(QtWidgets.QMainWindow):
                         for v in self.viewers:
                             v.update_cursor()
                             # for some reason cursor doesn't update straight away sometimes.
-                            # trigger again half a second later to make sure correct cursor is shown.
+                            # trigger again half a second later to make sure 
+                            # the correct cursor is shown.
                             QtCore.QTimer.singleShot(500, v.update_cursor)
                             if v.isVisible():
                                 v.update_seg_slice()
@@ -671,7 +661,6 @@ class RootPainter(QtWidgets.QMainWindow):
     def start_training(self):
         self.info_label.setText("Starting training...")
         # 3D just uses the name of the first class
-        classes = self.classes
         content = {
             "model_dir": self.model_dir,
             "dataset_dir": os.path.join(self.proj_location, 'bounded_images'),

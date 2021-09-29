@@ -14,7 +14,9 @@ disable=trailing-whitespace,
 	# sometimes more arguments and attributes make sense, but we may want to investigate this as possible techincal debt
 	too-many-instance-attributes,
 	too-many-arguments,
+	too-many-public-methods,
 	inconsistent-return-statements, # sometimes these make sense
 	global-statement, # avoid it in general but sometimes it's useful :) 
-	missing-final-newline # is this actually a problem?
+	missing-final-newline, # is this actually a problem?
+	line-too-long # i do care about this but errors matter more
 
