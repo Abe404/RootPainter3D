@@ -61,6 +61,7 @@ class PaletteEditWidget(QtWidgets.QWidget):
 
     def __init__(self):
         super().__init__()
+        self.brush_widgets = []
         self.initUI()
 
 
