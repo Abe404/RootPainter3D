@@ -212,10 +212,9 @@ class RootPainter(QtWidgets.QMainWindow):
         for f in bounded_fnames:
             original_name = '_'.join(f.split('_')[0:-16])
             if original_name == fname.replace('.nrrd', '').replace('.nii.gz', ''):
-                self.bounded_fname = f    
+                self.bounded_fname = f
                 break
 
-        
         self.img_data = im_utils.load_image(self.image_path)
 
         # if a guide image directory is specified
@@ -626,7 +625,7 @@ class RootPainter(QtWidgets.QMainWindow):
         self.menu_bar = menu_bar
 
         # add brushes menu for axial slice navigation
-        menus.add_brush_menu(self.classes, self.axial_viewer, self.menu_bar)
+        menus.add_brush_menu(self.axial_viewer, self.menu_bar)
 
         # add view menu for axial slice navigation.
         view_menu = menus.add_view_menu(self, self.axial_viewer, self.menu_bar)
@@ -634,7 +633,8 @@ class RootPainter(QtWidgets.QMainWindow):
 
         menus.add_network_menu(self, self.menu_bar)
         menus.add_windows_menu(self)
-        menus.add_class_menu(self, self.menu_bar)
+        if len(self.classes) > 1:
+            menus.add_class_menu(self, self.menu_bar)
         menus.add_help_menu(self, self.menu_bar)
 
     def add_contrast_setting_options(self, view_menu):
