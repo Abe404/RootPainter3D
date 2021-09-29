@@ -37,7 +37,7 @@ def last_fname_with_segmentation(fnames, seg_dir):
     last_fname = None
     
     seg_dirs = [os.path.join(seg_dir, d) for d
-                in os.path.listdir(seg_dir) if os.path.isdir(d)]
+                in os.listdir(seg_dir) if os.path.isdir(d)]
     if not len(seg_dirs):
         seg_dirs = [seg_dir]
     
