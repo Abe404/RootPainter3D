@@ -15,5 +15,6 @@ disable=trailing-whitespace,
 	too-many-instance-attributes,
 	too-many-arguments,
 	inconsistent-return-statements, # sometimes these make sense
-	global-statement # avoid it in general but sometimes it's useful :) 
+	global-statement, # avoid it in general but sometimes it's useful :) 
+	missing-final-newline # is this actually a problem?
 
