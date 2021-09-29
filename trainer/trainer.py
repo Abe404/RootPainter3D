@@ -500,6 +500,7 @@ class Trainer():
                               out_w=segment_config['out_w'],
                               in_d=segment_config['in_d'],
                               out_d=segment_config['out_d'],
+                              classes=classes,
                               bounded=bounded,
                               sync_save=len(fnames) == 1,
                               overwrite=overwrite)
@@ -544,7 +545,7 @@ class Trainer():
         
 
     def segment_file(self, in_dir, seg_dir, fname, model_paths,
-                     in_w, out_w, in_d, out_d, bounded, sync_save, overwrite=False):
+                     in_w, out_w, in_d, out_d, classes, bounded, sync_save, overwrite=False):
         fpath = os.path.join(in_dir, fname)
         # Segmentations are always saved as PNG for 2d or nifty for 3d
         if fname.endswith('.nii.gz'):
@@ -575,10 +576,11 @@ class Trainer():
             return
         seg_start = time.time()
         print('segmented input shape', im.shape)
+        print('segment image, input shape = ', im.shape)
         segmented = ensemble_segment_3d(model_paths, im, fname, self.batch_size,
                                         in_w, out_w, in_d,
-                                        out_d, 1, bounded)
-        print('segmented output shape', segmented.shape)
+                                        out_d, classes, bounded)
+        print('segmented, output shape = ', segmented[0].shape)
         print(f'ensemble segment {fname}, dur', round(time.time() - seg_start, 2))
         # catch warnings as low contrast is ok here.
         with warnings.catch_warnings():
@@ -587,7 +589,7 @@ class Trainer():
             if sync_save:
                 # other wise do sync because we don't want to delete the segment
                 # instruction too early.
-                save_then_move(out_path, segmented)
+                save_then_move(out_path, segmented[0])
             else:
                 # TODO find a cleaner way to do this.
                 # if more than one file then optimize speed over stability.
