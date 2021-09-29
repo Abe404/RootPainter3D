@@ -17,16 +17,13 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 # pylint: disable=C0111, R0913, R0914, W0511
 import os
 import time
-import glob
 import math
 import numpy as np
 import torch
 import copy
-from skimage.io import imread
 from skimage import img_as_float32
 import im_utils
 from unet3d import UNet3D
-from metrics import get_metrics
 from file_utils import ls
 from torch.nn.functional import softmax
 
@@ -151,14 +148,14 @@ def ensemble_segment_3d(model_paths, image, fname, batch_size, in_w, out_w, in_d
 
     if not bounded:
         assert pred_maps[0].shape == input_image_shape
-    """
-    end of fname is constructed like this
-    the indices e.g -14 are inserted here for convenience
-    f"_x_{box['x'] (-14) }_y_{box['y'] (-13) }_z_{box['z'] (-11) }_pad_"
-    f"x_{x_pad_start (-8) }_{x_pad_end (-7) }"
-    f"y_{y_pad_start (-5) }_{y_pad_end (-4 )}"
-    f"z_{z_pad_start (-2) }_{z_pad_end (-1) }.nii.gz")
-    """
+
+    # end of fname is constructed like this
+    # the indices e.g -14 are inserted here for convenience
+    # f"_x_{box['x'] (-14) }_y_{box['y'] (-13) }_z_{box['z'] (-11) }_pad_"
+    # f"x_{x_pad_start (-8) }_{x_pad_end (-7) }"
+    # f"y_{y_pad_start (-5) }_{y_pad_end (-4 )}"
+    # f"z_{z_pad_start (-2) }_{z_pad_end (-1) }.nii.gz")
+
     if bounded: 
         fname_parts = fname.replace('.nii.gz', '').split('_')
         x_crop_start = int(fname_parts[-8])
@@ -179,10 +176,10 @@ def ensemble_segment_3d(model_paths, image, fname, batch_size, in_w, out_w, in_d
         x_crop_start -= width_diff // 2
         x_crop_end -= width_diff // 2
 
-        for i in range(len(pred_maps)):
-            pred_maps[i] = pred_maps[i][z_crop_start:pred_maps[i].shape[0] - z_crop_end,
-                                        y_crop_start:pred_maps[i].shape[1] - y_crop_end,
-                                        x_crop_start:pred_maps[i].shape[2] - x_crop_end]
+        for i, pred_map in enumerate(pred_maps):
+            pred_maps[i] = pred_map[z_crop_start:pred_maps[i].shape[0] - z_crop_end,
+                                    y_crop_start:pred_maps[i].shape[1] - y_crop_end,
+                                    x_crop_start:pred_maps[i].shape[2] - x_crop_end]
 
     print('time to segment image', time.time() - t)
     return pred_maps
@@ -210,16 +207,8 @@ def segment_3d(cnn, image, batch_size, in_tile_shape, out_tile_shape):
                     image.shape[2] - width_diff)
 
     coords = im_utils.get_coords_3d(out_im_shape, out_tile_shape)
-
     coord_idx = 0
-
-    # segmentation for the full image
-    # assign once we get number of classes from the cnn output shape.
-    seg = np.zeros(out_im_shape, dtype=np.int8)
-
-
     class_output_tiles = None # list of tiles for each class
-
 
     while coord_idx < len(coords):
         tiles_to_process = []
@@ -268,9 +257,9 @@ def segment_3d(cnn, image, batch_size, in_tile_shape, out_tile_shape):
                 class_output_tiles[i].append(out_tile)
 
     class_pred_maps = []
-    for i in range(len(class_output_tiles)):
+    for i, output_tiles in enumerate(class_output_tiles):
         # reconstruct for each class
-        reconstructed = im_utils.reconstruct_from_tiles(class_output_tiles[i],
+        reconstructed = im_utils.reconstruct_from_tiles(output_tiles,
                                                         coords, image.shape[:-1])
         class_pred_maps.append(reconstructed)
     return class_pred_maps
