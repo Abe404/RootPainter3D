@@ -13,5 +13,6 @@ disable=trailing-whitespace,
 	missing-docstring, # not something that's going to cuase errors - consider coming back to this.
 	# sometimes more arguments and attributes make sense, but we may want to investigate this as possible techincal debt
 	too-many-instance-attributes,
-	too-many-arguments 
+	too-many-arguments,
+	inconsistent-return-statements # sometimes these make sense
 
