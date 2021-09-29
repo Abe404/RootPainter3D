@@ -34,6 +34,7 @@ import torch
 from torch.nn.functional import softmax
 from torch.utils.data import DataLoader
 from loss import combined_loss as criterion
+from loss import get_batch_loss
 
 from datasets import RPDataset
 from metrics import get_metrics, get_metrics_str, get_metric_csv_row
@@ -44,7 +45,7 @@ import model_utils
 from model_utils import save_if_better, save_model
 from metrics import metrics_from_val_tile_refs
 
-from im_utils import is_image, load_image, save_then_move, load_train_image_and_annot
+from im_utils import is_image, load_image, save_then_move
 import im_utils
 from file_utils import ls
 
@@ -192,6 +193,24 @@ class Trainer():
 
         if not self.training:
             self.train_config = config
+            
+            classes = ['annotations']
+            if 'classes' in self.train_config:
+                classes = self.train_config['classes']
+            else:
+                self.train_config['classes'] = classes
+
+            # as train_annot_dir and val_annot_dir
+            # are lists in the multi-class case.
+            # convert to list containing one item for single class case
+            # to allow consistent handling of the variables.
+            if isinstance(self.train_config['train_annot_dir'], list):
+                self.train_config['train_annot_dirs'] = self.train_config['train_annot_dir']
+                self.train_config['val_annot_dirs'] = self.train_config['val_annot_dir']
+            else:
+                self.train_config['train_annot_dirs'] = [self.train_config['train_annot_dir']]
+                self.train_config['val_annot_dirs'] = [self.train_config['val_annot_dir']]
+
             self.val_tile_refs = [] # dont want to cache these between projects
             self.epochs_without_progress = 0
             self.msg_dir = self.train_config['message_dir']
@@ -210,11 +229,12 @@ class Trainer():
             self.model.train()
             self.training = True
 
+
     def reset_progress_if_annots_changed(self):
-        train_annot_dir = self.train_config['train_annot_dir']
-        val_annot_dir = self.train_config['val_annot_dir']
+        train_annot_dirs = self.train_config['train_annot_dirs']
+        val_annot_dirs = self.train_config['val_annot_dirs']
         new_annot_mtimes = []
-        for annot_dir in [train_annot_dir, val_annot_dir]:
+        for annot_dir in train_annot_dirs + val_annot_dirs:
             for fname in ls(annot_dir):
                 fpath = os.path.join(annot_dir, fname)
                 new_annot_mtimes.append(os.path.getmtime(fpath))
@@ -228,13 +248,29 @@ class Trainer():
         """ write a message for the user (client) """
         Path(os.path.join(self.msg_dir, message)).touch()
 
+
+    def train_and_val_annotation_exists(self):
+        train_annot_dirs = self.train_config['train_annot_dirs']
+        val_annot_dirs = self.train_config['val_annot_dirs']
+        found_train_annot = False
+        for d in train_annot_dirs:
+            if [is_image(a) for a in ls(d)]:
+                found_train_annot = True
+
+        found_val_annot = False
+        for d in val_annot_dirs:
+            if [is_image(a) for a in ls(d)]:
+                found_val_annot = True
+        return found_train_annot and found_val_annot
+
     def one_epoch(self, model, mode='train', val_tile_refs=None, length=None):
         #torch.cuda.empty_cache() # we need to make sure we have enough memory
         # mode is train or val
         annot_dir = self.train_config[f'{mode}_annot_dir']
-        if not [is_image(a) for a in ls(annot_dir)]:
-            print(f'skip {mode} epoch because no annotations')
-            return None
+
+        if not self.train_and_val_annotation_exists():
+            # no training until data ready
+            return
 
         if self.first_loop:
             self.first_loop = False
@@ -242,25 +278,25 @@ class Trainer():
             self.log('Starting Training')
 
         if mode == 'val':
-            dataset = RPDataset(self.train_config['val_annot_dir'],
+            dataset = RPDataset(self.train_config['val_annot_dirs'],
                                 self.train_config['dataset_dir'],
                                 self.train_config['in_w'],
                                 self.train_config['out_w'],
                                 self.train_config['in_d'],
                                 self.train_config['out_d'],
-                                self.train_config['classes'], 'val',
+                                'val',
                                 val_tile_refs)
             torch.set_grad_enabled(False)
             loader = DataLoader(dataset, self.batch_size * 2, shuffle=True,
                                 num_workers=16, drop_last=False, pin_memory=True)
         elif mode == 'train':
-            dataset = RPDataset(self.train_config['train_annot_dir'],
+            dataset = RPDataset(self.train_config['train_annot_dirs'],
                                 self.train_config['dataset_dir'],
                                 self.train_config['in_w'],
                                 self.train_config['out_w'],
                                 self.train_config['in_d'],
                                 self.train_config['out_d'],
-                                self.train_config['classes'], 'train',
+                                'train',
                                 val_tile_refs,
                                 length=length)
             torch.set_grad_enabled(True)
@@ -276,49 +312,33 @@ class Trainer():
         fps = []
         tns = []
         fns = []
-
-        for step, (im_tiles,
-                   target_tiles,
-                   defined_tiles) in enumerate(loader):
+        loss_sum = 0
+        for step, (batch_im_tiles, batch_fg_tiles,
+                   batch_bg_tiles, batch_classes) in enumerate(loader):
 
             self.check_for_instructions()
-            im_tiles = im_tiles.cuda()
-            defined_tiles = defined_tiles.cuda()
-            target_tiles = target_tiles.cuda()
+
+            batch_im_tiles = torch.from_numpy(np.array(batch_im_tiles)).cuda()
             self.optimizer.zero_grad()
-            outputs = model(im_tiles)
-            outputs[:, 0] *= defined_tiles
-            outputs[:, 1] *= defined_tiles
-
-            loss = criterion(outputs, target_tiles)
-            softmaxed = softmax(outputs, 1)
-            # just the foreground probability.
-            foreground_preds = softmaxed[:, 1] > 0.5
-
-            # we only want to calculate metrics on the
-            # part of the predictions for which annotations are defined
-            # so remove all predictions and foreground labels where
-            # we didn't have any annotation.
-
-            for batch_index in range(defined_tiles.shape[0]):
-                defined_list = defined_tiles[batch_index].view(-1)
-                preds_list = foreground_preds[batch_index].view(-1)[defined_list > 0]
-                foregrounds_list = target_tiles[batch_index, 1].reshape(-1)[defined_list > 0]
-
-                # # calculate all the false positives, false negatives etc
-                tps.append(torch.sum((foregrounds_list == 1) * (preds_list == 1)).cpu().numpy())
-                tns.append(torch.sum((foregrounds_list == 0) * (preds_list == 0)).cpu().numpy())
-                fps.append(torch.sum((foregrounds_list == 0) * (preds_list == 1)).cpu().numpy())
-                fns.append(torch.sum((foregrounds_list == 1) * (preds_list == 0)).cpu().numpy())
+            outputs = model(batch_im_tiles)
+            (batch_loss, batch_tps, batch_tns,
+             batch_fps, batch_fns, defined_total) = get_batch_loss(
+                    outputs, batch_fg_tiles, batch_bg_tiles,
+                    batch_classes, self.train_config['classes'])
+            tps += batch_tps
+            fps += batch_fps
+            tns += batch_tns
+            fns += batch_fns
+            loss_sum += batch_loss.item() # float
 
             if mode == 'train':
-                loss.backward()
+                batch_loss.backward()
                 self.optimizer.step()
 
             if mode == 'train':
                 sys.stdout.write(f"{mode} {(step+1) * self.batch_size}/"
                                  f"{len(loader.dataset)} "
-                                 f" loss={round(loss.item(), 3)} \r")
+                                 f" loss={round(batch_loss.item(), 3)} \r")
 
             self.check_for_instructions() # could update training parameter
             if not self.training: # in this context we consider validation part of training.
@@ -336,9 +356,8 @@ class Trainer():
             # go through the val tile refs to find the equivalent tile ref
             self.val_tile_refs[i][3] = [tp, fp, tn, fn]
 
-
     def get_new_val_tiles_refs(self):
-        return im_utils.get_val_tile_refs(self.train_config['val_annot_dir'],
+        return im_utils.get_val_tile_refs(self.train_config['val_annot_dirs'],
                                           copy.deepcopy(self.val_tile_refs),
                                           in_shape=(self.train_config['in_d'],
                                                     self.train_config['in_w'],
@@ -369,7 +388,7 @@ class Trainer():
         """
         model_dir = self.train_config['model_dir']
         prev_model, prev_path = model_utils.get_prev_model(model_dir,
-                                                           len(self.train_config['classes']))
+                                                           self.train_config['classes'])
         self.val_tile_refs = self.get_new_val_tiles_refs()
 
         if not self.val_tile_refs:
@@ -485,7 +504,7 @@ class Trainer():
             # if latest is not found then create a model with random weights
             # and use that.
             if not model_paths:
-                create_first_model_with_random_weights(model_dir, len(classes))
+                create_first_model_with_random_weights(model_dir, classes)
                 model_paths = model_utils.get_latest_model_paths(model_dir, 1)
         if "overwrite" in segment_config:
             overwrite = segment_config['overwrite']
@@ -543,7 +562,7 @@ class Trainer():
 
         prev_m = metrics_from_val_tile_refs(self.val_tile_refs)
         return prev_m
-
+        
 
     def segment_file(self, in_dir, seg_dir, fname, model_paths, classes,
                      in_w, out_w, in_d, out_d, bounded, sync_save, overwrite=False):
