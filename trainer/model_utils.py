@@ -260,6 +260,6 @@ def segment_3d(cnn, image, batch_size, in_tile_shape, out_tile_shape):
     for i, output_tiles in enumerate(class_output_tiles):
         # reconstruct for each class
         reconstructed = im_utils.reconstruct_from_tiles(output_tiles,
-                                                        coords, image.shape[:-1])
+                                                        coords, out_im_shape)
         class_pred_maps.append(reconstructed)
     return class_pred_maps
