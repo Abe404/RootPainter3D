@@ -15,23 +15,18 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-# pylint: disable=C0111, R0913, R0903, R0914, W0511
-# pylint: disable=E1101 # Instance of 'tuple' has no 'shape' member (no-member)
-# pylint: disable=R0902 # Too many instance attributes (9/7)
-
 import random
 import math
 import os
-import glob
 
-from torch.utils.data import Dataset
-from skimage import img_as_float32, img_as_ubyte
-from skimage.exposure import rescale_intensity
 import torch
 import numpy as np
+from skimage import img_as_float32
+from torch.utils.data import Dataset
+
+from file_utils import get_crop_start
 
 from im_utils import load_train_image_and_annot
-from file_utils import ls
 import im_utils
 
 def rnd():
@@ -84,16 +79,6 @@ class RPDataset(Dataset):
     def get_train_item(self, tile_ref=None):
         return self.get_train_item_3d(tile_ref)
 
-    def get_crop_start(self, fname):
-        fname_parts = fname.replace('.nii.gz', '').split('_')
-
-        # This padding information allows us to convert between bounded image
-        # and annotation coordinates
-        x_crop_start = int(fname_parts[-8])
-        y_crop_start = int(fname_parts[-5])
-        z_crop_start = int(fname_parts[-2])
-        return x_crop_start, y_crop_start, z_crop_start
-
     def get_random_tile_3d(self, annots, image, fname):
         # this will find something eventually as we know
         # all annotation contain labels somewhere
@@ -105,7 +90,7 @@ class RPDataset(Dataset):
 
         (x_crop_start,
          y_crop_start,
-         z_crop_start) = self.get_crop_start(fname)
+         z_crop_start) = get_crop_start(fname)
 
         pad_d = (self.in_d - self.out_d) // 2
         pad_h = (self.in_w - self.out_w) // 2
@@ -129,12 +114,12 @@ class RPDataset(Dataset):
 
             annot_tile_centers = []
 
-            for i in range(len(annots)):
+            for annot in annots:
                 # Get the corresponding region of the annotation after network crop
-                annot_tile_centers.append(annots[i][:,
-                                                    max(0, z_in_annot):z_in_annot+self.out_d,
-                                                    max(0, y_in_annot):y_in_annot+self.out_w,
-                                                    max(0, x_in_annot):x_in_annot+self.out_w])
+                annot_tile_centers.append(annot[:,
+                                                max(0, z_in_annot):z_in_annot+self.out_d,
+                                                max(0, y_in_annot):y_in_annot+self.out_w,
+                                                max(0, x_in_annot):x_in_annot+self.out_w])
 
             # we only want annotations with defiend regions in the output area.
             # Otherwise we will have nothing to update the loss.
@@ -167,14 +152,14 @@ class RPDataset(Dataset):
 
         # if the annotation is not big enough then pad it out. 
         if  annot_tiles[0].shape[1:] != (self.out_d, self.out_w, self.out_w):
-            for i in range(len(annot_tiles)):
-                annot_tiles[i] = self.get_padded_annot(fname, annot_tiles[i])
+            for i, annot_tile in enumerate(annot_tiles):
+                annot_tiles[i] = self.get_padded_annot(fname, annot_tile)
             
         assert annot_tiles[0].shape[1:] == (self.out_d, self.out_w, self.out_w), (
-             f" annot is {annots[0].shape}")
+            f" annot is {annots[0].shape}")
 
         assert im_tile.shape == (self.in_d, self.in_w, self.in_w), (
-             f" shape is {im_tile.shape}")
+            f" shape is {im_tile.shape}")
 
         im_tile = img_as_float32(im_tile)
         im_tile = im_utils.normalize_tile(im_tile)
@@ -184,6 +169,9 @@ class RPDataset(Dataset):
         foregrounds = []
         backgrounds = []
         for annot_tile in annot_tiles:
+            print('annot tile shape is ', annot_tile.shape)
+            print('does this match the assumptions of the next lines?')
+            exit()
             foreground = np.array(annot_tile)[:, :, 0]
             background = np.array(annot_tile)[:, :, 1]
             foreground = foreground.astype(np.int64)
@@ -212,14 +200,14 @@ class RPDataset(Dataset):
         x_start = (x_crop_start - pad_w)
         y_start = (y_crop_start - pad_h)
         z_start = (z_crop_start - pad_d)
-        annot_tile_zeros[:, z_start:z_start+annot_tile.shape[1],
-                            y_start:y_start+annot_tile.shape[2], 
-                            x_start:x_start+annot_tile.shape[3]] = annot_tile
+        annot_tile_zeros[:,
+                         z_start:z_start+annot_tile.shape[1],
+                         y_start:y_start+annot_tile.shape[2], 
+                         x_start:x_start+annot_tile.shape[3]] = annot_tile
         annot_tile = annot_tile_zeros
         return annot_tile
 
     def get_val_item(self, tile_ref):
-        _, coord, _, _ = tile_ref
         return self.get_tile_from_ref_3d(tile_ref)
 
     def get_tile_from_ref_3d(self, tile_ref):
@@ -237,9 +225,9 @@ class RPDataset(Dataset):
             annot = im_utils.load_with_retry(im_utils.load_image, annot_path)
             # The x, y and z are in reference to the annotation tile before padding.
             annot_tile = annot[:,
-                                tile_z:tile_z+self.out_d,
-                                tile_y:tile_y+self.out_w,
-                                tile_x:tile_x+self.out_w]
+                               tile_z:tile_z+self.out_d,
+                               tile_y:tile_y+self.out_w,
+                               tile_x:tile_x+self.out_w]
 
             annot_tile = self.get_padded_annot(fname, annot_tile)
 
@@ -270,14 +258,11 @@ class RPDataset(Dataset):
         im_tile = im_utils.normalize_tile(im_tile)
         # ensure image is still 32 bit after normalisation.
         im_tile = im_tile.astype(np.float32)
-
         mask = annot_tile[0] + annot_tile[1]
         mask[mask > 1] = 1
         mask = mask.astype(np.float32)
         mask = torch.from_numpy(mask)
         im_tile = torch.from_numpy(np.expand_dims(im_tile, axis=0))
         annot_tile = torch.from_numpy(annot_tile).long()
-
         classes = [os.path.basename(d) for d in self.annot_dirs]
-
         return im_tile, foregrounds, backgrounds, classes
