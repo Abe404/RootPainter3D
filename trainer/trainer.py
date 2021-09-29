@@ -41,6 +41,7 @@ from model_utils import random_model
 import model_utils
 from model_utils import save_if_better, save_model
 from metrics import metrics_from_val_tile_refs
+import data_utils
 
 from im_utils import is_image, load_image, save_then_move
 import im_utils
@@ -231,24 +232,18 @@ class Trainer():
         Path(os.path.join(self.msg_dir, message)).touch()
 
 
-    def train_and_val_annotation_exists(self):
+    def train_annotation_exists(self):
         train_annot_dirs = self.train_config['train_annot_dirs']
-        val_annot_dirs = self.train_config['val_annot_dirs']
         found_train_annot = False
         for d in train_annot_dirs:
             if [is_image(a) for a in ls(d)]:
                 found_train_annot = True
-
-        found_val_annot = False
-        for d in val_annot_dirs:
-            if [is_image(a) for a in ls(d)]:
-                found_val_annot = True
-        return found_train_annot and found_val_annot
+        return found_train_annot 
 
     def one_epoch(self, model, mode='train', val_tile_refs=None, length=None):
-        if not self.train_and_val_annotation_exists():
+        if not self.train_annotation_exists():
             # no training until data ready
-            return
+            return False
 
         if self.first_loop:
             self.first_loop = False
@@ -266,6 +261,7 @@ class Trainer():
                                 val_tile_refs)
             torch.set_grad_enabled(False)
             loader = DataLoader(dataset, self.batch_size * 2, shuffle=True,
+                                collate_fn=data_utils.collate_fn,
                                 num_workers=16, drop_last=False, pin_memory=True)
         elif mode == 'train':
             dataset = RPDataset(self.train_config['train_annot_dirs'],
@@ -278,7 +274,9 @@ class Trainer():
                                 val_tile_refs,
                                 length=length)
             torch.set_grad_enabled(True)
-            loader = DataLoader(dataset, self.batch_size, shuffle=False, num_workers=16,
+            loader = DataLoader(dataset, self.batch_size, shuffle=False,
+                                collate_fn=data_utils.collate_fn,
+                                num_workers=16,
                                 drop_last=False, pin_memory=True)
             model.train()
         else:
@@ -295,7 +293,7 @@ class Trainer():
                    batch_bg_tiles, batch_classes) in enumerate(loader):
 
             self.check_for_instructions()
-
+            # [4, 228, 52, 228]
             batch_im_tiles = torch.from_numpy(np.array(batch_im_tiles)).cuda()
             self.optimizer.zero_grad()
             outputs = model(batch_im_tiles)
