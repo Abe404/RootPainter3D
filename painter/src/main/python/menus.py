@@ -105,7 +105,7 @@ def add_windows_menu(main_window):
     #menu.addAction(show_coronal_view_action)
 
 
-def add_brush_menu(classes, im_viewer, menu_bar):
+def add_brush_menu(im_viewer, menu_bar):
     brush_menu = menu_bar.addMenu("Brushes")
 
     def add_brush(name, color_val, shortcut=None):
@@ -117,9 +117,14 @@ def add_brush_menu(classes, im_viewer, menu_bar):
                                                color=QtGui.QColor(*color_val)))
         if im_viewer.brush_color is None:
             im_viewer.brush_color = QtGui.QColor(*color_val)
-    for name, rgba, shortcut in classes:
+    # These don't need to be modified. Each class has background and foreground
+    brushes = [
+        ('Background', (0, 255, 0, 180), 'W'),
+        ('Foreground', (255, 0, 0, 180), 'Q'),
+        ('Eraser', (255, 205, 180, 0), 'E')
+    ]
+    for name, rgba, shortcut in brushes:
         add_brush(name, rgba, shortcut)
-    add_brush('Eraser', (255, 205, 180, 0), 'E')
 
 
 def add_class_menu(self, menu_bar):
