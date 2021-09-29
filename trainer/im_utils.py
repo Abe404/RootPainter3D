@@ -25,23 +25,20 @@ from math import ceil
 import random
 import numpy as np
 import skimage.util as skim_util
-from skimage import color
-from skimage import img_as_ubyte
 from skimage.exposure import rescale_intensity
-from skimage.io import imread, imsave
+from skimage.io import imread
 import nibabel as nib
 from file_utils import ls
 import nrrd
 from pathlib import Path
-import traceback
-
 
 
 def is_image(fname):
     """ extensions that have been tested with so far """
     extensions = {".jpg", ".png", ".jpeg", '.tif', '.tiff'}
     fname_ext = os.path.splitext(fname)[1].lower()
-    return fname_ext in extensions or fname.endswith('.nii.gz') or fname.endswith('.npy') or fname.endswith('.nrrd')
+    return (fname_ext in extensions or fname.endswith('.nii.gz') or 
+            fname.endswith('.npy') or fname.endswith('.nrrd'))
 
 def normalize_tile(tile):
     if np.min(tile) < np.max(tile):
@@ -158,7 +155,7 @@ def pad_3d(image, width, depth, mode='reflect', constant_values=0):
                          constant_values=constant_values)
 
 
-def get_val_tile_refs(annot_dirs, prev_tile_refs, in_shape, out_shape):
+def get_val_tile_refs(annot_dirs, prev_tile_refs, out_shape):
     """
     Get tile info which covers all annotated regions of the annotation dataset.
     The list must be structured such that an index can be used to refer to each example
@@ -231,15 +228,14 @@ def get_val_tile_refs(annot_dirs, prev_tile_refs, in_shape, out_shape):
                 if cur_mtime > prev_mtime:
                     need_new_refs = True
         if need_new_refs:
-            new_file_refs = get_val_tile_refs_for_annot_3d(annot_dir, annot_fname,
-                                                           in_shape, out_shape)
+            new_file_refs = get_val_tile_refs_for_annot_3d(annot_dir, annot_fname, out_shape)
             tile_refs += new_file_refs
         else:
             tile_refs += prev_refs
     return tile_refs
 
 
-def get_val_tile_refs_for_annot_3d(annot_dir, annot_fname, in_shape, out_shape):
+def get_val_tile_refs_for_annot_3d(annot_dir, annot_fname, out_shape):
     """
     Each element of tile_refs is a list that includes:
         * image file name (string) - for loading the image from disk during validation
@@ -322,7 +318,6 @@ def save_then_move(out_path, seg):
 
 
 def load_image(image_path):
-    dims = None
     if image_path.endswith('.npy'):
         image = np.load(image_path, mmap_mode='c')
     elif image_path.endswith('.nrrd'):

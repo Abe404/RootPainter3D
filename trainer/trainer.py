@@ -337,9 +337,6 @@ class Trainer():
     def get_new_val_tiles_refs(self):
         return im_utils.get_val_tile_refs(self.train_config['val_annot_dirs'],
                                           copy.deepcopy(self.val_tile_refs),
-                                          in_shape=(self.train_config['in_d'],
-                                                    self.train_config['in_w'],
-                                                    self.train_config['in_w']),
                                           out_shape=(self.train_config['out_d'],
                                                      self.train_config['out_w'],
                                                      self.train_config['out_w']))
