@@ -57,6 +57,14 @@ class CreateProjectWidget(QtWidgets.QWidget):
         self.add_info_label()
         self.add_create_btn()
 
+    
+    def add_info_label(self):
+        info_label = QtWidgets.QLabel()
+        info_label.setText("Name, directory and model must be specified"
+                           " to create project.")
+        self.layout.addWidget(info_label)
+        self.info_label = info_label
+
     def add_im_dir_widget(self):
         # Add specify image directory button
         directory_label = QtWidgets.QLabel()
@@ -148,7 +156,7 @@ class CreateProjectWidget(QtWidgets.QWidget):
             self.create_project_btn.setEnabled(False)
             return
 
-        if len(self.palette_edit_widget.get_brush_data()) < 2:
+        if len(self.palette_edit_widget.get_brush_data()) < 1:
             self.info_label.setText(f"At least one foreground brush must be specified")
             self.create_project_btn.setEnabled(False)
             return
