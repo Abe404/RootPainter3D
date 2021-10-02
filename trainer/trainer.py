@@ -101,7 +101,7 @@ class Trainer():
                     self.log_metrics('train', train_m)
                     print(get_metrics_str(train_m, to_use=['dice', 'precision', 'recall']))
             if self.training:
-                self.validation()
+                #self.validation()
                 if on_epoch_end:
                     on_epoch_end()
             else:
@@ -293,7 +293,6 @@ class Trainer():
                    batch_bg_tiles, batch_classes) in enumerate(loader):
 
             self.check_for_instructions()
-            # [4, 228, 52, 228]
             batch_im_tiles = torch.from_numpy(np.array(batch_im_tiles)).cuda()
             self.optimizer.zero_grad()
             outputs = model(batch_im_tiles)
@@ -301,10 +300,12 @@ class Trainer():
              batch_fps, batch_fns, _) = get_batch_loss(
                  outputs, batch_fg_tiles, batch_bg_tiles,
                  batch_classes, self.train_config['classes'])
-            tps += batch_tps
-            fps += batch_fps
-            tns += batch_tns
-            fns += batch_fns
+
+            tps += [batch_tps]
+            fps += [batch_fps]
+            tns += [batch_tns]
+            fns += [batch_fns]
+
             loss_sum += batch_loss.item() # float
 
             if mode == 'train':
