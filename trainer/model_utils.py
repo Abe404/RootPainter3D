@@ -238,7 +238,10 @@ def segment_3d(cnn, image, batch_size, in_tile_shape, out_tile_shape):
         tiles_for_gpu = torch.from_numpy(tiles_to_process)
 
         tiles_for_gpu = tiles_for_gpu.cuda()
-        outputs = cnn(tiles_for_gpu)
+        # TODO: consider use of detach. 
+        # I might want to move to cpu later to speed up the next few operations.
+        # I added .detach().cpu() to prevent a memory error.
+        outputs = cnn(tiles_for_gpu).detach().cpu()
         # bg channel index for each class in network output.
         class_idxs = [x * 2 for x in range(outputs.shape[1] // 2)]
         
