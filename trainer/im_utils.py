@@ -107,7 +107,6 @@ def load_train_image_and_annot(dataset_dir, train_annot_dirs):
             # Assuming class name is in annotation path
             # i.e annotations/{class_name}/train/annot1.png,annot2.png..
             class_name = Path(train_annot_dir).parts[-2]
-            class_name = Path(train_annot_dir).parts[-2]
             all_classes += [class_name] * len(annot_fnames)
             all_dirs += [train_annot_dir] * len(annot_fnames)
         
