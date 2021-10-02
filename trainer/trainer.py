@@ -550,16 +550,22 @@ class Trainer():
 
     def segment_file(self, in_dir, seg_dir, fname, model_paths,
                      in_w, out_w, in_d, out_d, classes, bounded, sync_save, overwrite=False):
-        fpath = os.path.join(in_dir, fname)
-        # Segmentations are always saved as PNG for 2d or nifty for 3d
-        if fname.endswith('.nii.gz'):
-            out_path = os.path.join(seg_dir, fname)
-        elif fname.endswith('.npy'):
+
+        # segmentations are always saved as .nii.gz
+        out_paths = []
+        if len(classes) > 1:
+            for c in classes:
+                out_paths.append(os.path.join(seg_dir, c, fname))
+        else:
             # segment to nifty as they don't get loaded repeatedly in training.
-            out_path = os.path.join(seg_dir, os.path.splitext(fname)[0] + '.nii.gz')
-        if not overwrite and os.path.isfile(out_path):
-            print('Skip because found existing segmentation file')
+            out_paths = [os.path.join(seg_dir, fname)]
+
+        if not overwrite and all([os.path.isfile(out_path) for out_path in out_paths]):
+            print(f'Skip because found existing segmentation files for {fname}')
             return
+
+        fpath = os.path.join(in_dir, fname)
+
         if not os.path.isfile(fpath):
             raise Exception(f'Cannot segment as missing file {fpath}')
         try:
@@ -584,19 +590,20 @@ class Trainer():
         segmented = ensemble_segment_3d(model_paths, im, fname, self.batch_size,
                                         in_w, out_w, in_d,
                                         out_d, classes, bounded)
-        print('segmented, output shape = ', segmented[0].shape)
         print(f'ensemble segment {fname}, dur', round(time.time() - seg_start, 2))
-        # catch warnings as low contrast is ok here.
-        with warnings.catch_warnings():
-            # create a version with alpha channel
-            warnings.simplefilter("ignore")
-            if sync_save:
-                # other wise do sync because we don't want to delete the segment
-                # instruction too early.
-                save_then_move(out_path, segmented[0])
-            else:
-                # TODO find a cleaner way to do this.
-                # if more than one file then optimize speed over stability.
-                x = threading.Thread(target=save_then_move,
-                                     args=(out_path, segmented))
-                x.start()
+        
+        for seg, outpath in zip(segmented, out_paths):
+            # catch warnings as low contrast is ok here.
+            with warnings.catch_warnings():
+                # create a version with alpha channel
+                warnings.simplefilter("ignore")
+                if sync_save:
+                    # other wise do sync because we don't want to delete the segment
+                    # instruction too early.
+                    save_then_move(outpath, seg)
+                else:
+                    # TODO find a cleaner way to do this.
+                    # if more than one file then optimize speed over stability.
+                    x = threading.Thread(target=save_then_move,
+                                         args=(outpath, segmented))
+                    x.start()
