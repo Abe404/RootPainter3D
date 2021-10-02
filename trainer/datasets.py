@@ -141,6 +141,7 @@ class RPDataset(Dataset):
         # When tile_ref is specified we use these coordinates to get
         # the input tile. Otherwise we will sample randomly
         if tile_ref:
+            raise Exception('not using these')
             im_tile, foregrounds, backgrounds, classes = self.get_tile_from_ref_3d(tile_ref)
             # For now just return the tile. We plan to add augmentation here.
             return im_tile, foregrounds, backgrounds, classes
@@ -178,8 +179,12 @@ class RPDataset(Dataset):
             background = background.astype(np.int64)
             background = torch.from_numpy(background)
             backgrounds.append(background)
+
         im_tile = im_tile.astype(np.float32)
-        im_tile = np.moveaxis(im_tile, -1, 0)
+        
+        # add dimension for input channel
+        im_tile = np.expand_dims(im_tile, axis=0)
+
         return im_tile, foregrounds, backgrounds, classes
        
     def get_padded_annot(self, fname, annot_tile):
