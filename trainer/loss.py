@@ -48,12 +48,15 @@ def combined_loss(predictions, labels):
     return 0.3 * cross_entropy(predictions, labels)
 
 
-def get_batch_loss(outputs, batch_fg_tiles, batch_bg_tiles, batch_classes, project_classes):
+def get_batch_loss(outputs, batch_fg_tiles, batch_bg_tiles,
+                   batch_classes, project_classes,
+                   compute_loss):
     """
 
         outputs - predictions from neural network (not softmaxed)
         batch_fg_tiles - list of tiles, each tile is binary map of foreground annotation
         batch_bg_tiles - list of tiles, each tile is binary map of background annotation
+        compute_loss - can be false if only metrics are required.
 
         returns
             batch_loss - loss used to update the network
@@ -67,11 +70,11 @@ def get_batch_loss(outputs, batch_fg_tiles, batch_bg_tiles, batch_classes, proje
     defined_total = 0
     class_losses = [] # loss for each class
 
-
     instance_tps = [0 for _ in range(outputs.shape[0])]
     instance_tns = list(instance_tps)
     instance_fps = list(instance_tps)
     instance_fns = list(instance_tps)
+
 
     for unique_class in project_classes:
 
@@ -111,6 +114,7 @@ def get_batch_loss(outputs, batch_fg_tiles, batch_bg_tiles, batch_classes, proje
                     class_pred = fg_prob > 0.5   
                     class_pred = class_pred[mask > 0]
                     fg = fg_tile[mask > 0]
+                    
                     instance_tps[im_idx] += torch.sum((fg == 1) * (class_pred == 1)).cpu().numpy()
                     instance_tns[im_idx] += torch.sum((fg == 0) * (class_pred == 0)).cpu().numpy()
                     instance_fps[im_idx] += torch.sum((fg == 0) * (class_pred == 1)).cpu().numpy()
@@ -120,64 +124,23 @@ def get_batch_loss(outputs, batch_fg_tiles, batch_bg_tiles, batch_classes, proje
                     fg_tiles.append(fg_tile)
                     class_outputs.append(class_output)
 
-                    # the full batch version.....
-
-                    #fg_tiles = torch.stack(fg_tiles).cuda()
-                    #masks = torch.stack(masks).cuda()
-                    #class_outputs = torch.stack(class_outputs)
-                    #softmaxed = softmax(class_outputs, 1)
-                    # just the foreground probability.
-                    #foreground_probs = softmaxed[:, 1]
-
-                    #foreground_probs *= masks
-                    #class_predicted = foreground_probs > 0.5
-                    # we only want to calculate metrics on the
-                    # part of the predictions for which annotations are defined
-                    # so remove all predictions and foreground labels where
-                    # we didn't have any annotation.
-                    #defined_list = masks.view(-1)
-                    #preds_list = class_predicted.view(-1)[defined_list > 0]
-                    #foregrounds_list = fg_tiles.view(-1)[defined_list > 0]
-
-                    # # calculate all the false positives, false negatives etc
-                    #tps += torch.sum((foregrounds_list == 1) * (preds_list == 1)).cpu().numpy()
-                    #tns += torch.sum((foregrounds_list == 0) * (preds_list == 0)).cpu().numpy()
-                    #fps += torch.sum((foregrounds_list == 0) * (preds_list == 1)).cpu().numpy()
-                    #fns += torch.sum((foregrounds_list == 1) * (preds_list == 0)).cpu().numpy()
-                    #defined_total += torch.sum(defined_list > 0).cpu().numpy()
-
         if not len(fg_tiles):
             continue
-
-        fg_tiles = torch.stack(fg_tiles).cuda()
-        masks = torch.stack(masks).cuda()
-        class_outputs = torch.stack(class_outputs)
-        softmaxed = softmax(class_outputs, 1)
-        # just the foreground probability.
-        foreground_probs = softmaxed[:, 1]
-        # remove any of the predictions for which we don't have ground truth
-        # Set outputs to 0 where annotation undefined so that
-        # The network can predict whatever it wants without any penalty.
-        class_outputs[:, 0] *= masks
-        class_outputs[:, 1] *= masks
-        class_loss = combined_loss(class_outputs, fg_tiles)
-        class_losses.append(class_loss)
-
-        #foreground_probs *= masks
-        #class_predicted = foreground_probs > 0.5
-        # we only want to calculate metrics on the
-        # part of the predictions for which annotations are defined
-        # so remove all predictions and foreground labels where
-        # we didn't have any annotation.
-        #defined_list = masks.view(-1)
-        #preds_list = class_predicted.view(-1)[defined_list > 0]
-        #foregrounds_list = fg_tiles.view(-1)[defined_list > 0]
-
-        # # calculate all the false positives, false negatives etc
-        #tps += torch.sum((foregrounds_list == 1) * (preds_list == 1)).cpu().numpy()
-        #tns += torch.sum((foregrounds_list == 0) * (preds_list == 0)).cpu().numpy()
-        #fps += torch.sum((foregrounds_list == 0) * (preds_list == 1)).cpu().numpy()
-        #fns += torch.sum((foregrounds_list == 1) * (preds_list == 0)).cpu().numpy()
-        #defined_total += torch.sum(defined_list > 0).cpu().numpy()
-
-    return torch.mean(torch.stack(class_losses)), instance_tps, instance_tns, instance_fps, instance_fns
+        
+        if compute_loss:
+            fg_tiles = torch.stack(fg_tiles).cuda()
+            masks = torch.stack(masks).cuda()
+            class_outputs = torch.stack(class_outputs)
+            softmaxed = softmax(class_outputs, 1)
+            # just the foreground probability.
+            foreground_probs = softmaxed[:, 1]
+            # remove any of the predictions for which we don't have ground truth
+            # Set outputs to 0 where annotation undefined so that
+            # The network can predict whatever it wants without any penalty.
+            class_outputs[:, 0] *= masks
+            class_outputs[:, 1] *= masks
+            class_loss = combined_loss(class_outputs, fg_tiles)
+            class_losses.append(class_loss)
+    if compute_loss:
+        return torch.mean(torch.stack(class_losses)), instance_tps, instance_tns, instance_fps, instance_fns
+    return None, instance_tps, instance_tns, instance_fps, instance_fns
