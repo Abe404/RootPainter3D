@@ -297,14 +297,14 @@ class Trainer():
             self.optimizer.zero_grad()
             outputs = model(batch_im_tiles)
             (batch_loss, batch_tps, batch_tns,
-             batch_fps, batch_fns, _) = get_batch_loss(
+             batch_fps, batch_fns) = get_batch_loss(
                  outputs, batch_fg_tiles, batch_bg_tiles,
                  batch_classes, self.train_config['classes'])
 
-            tps += [batch_tps]
-            fps += [batch_fps]
-            tns += [batch_tns]
-            fns += [batch_fns]
+            tps += batch_tps
+            fps += batch_fps
+            tns += batch_tns
+            fns += batch_fns
 
             loss_sum += batch_loss.item() # float
 
