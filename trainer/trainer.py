@@ -101,7 +101,7 @@ class Trainer():
                     self.log_metrics('train', train_m)
                     print(get_metrics_str(train_m, to_use=['dice', 'precision', 'recall']))
             if self.training:
-                #self.validation()
+                self.validation()
                 if on_epoch_end:
                     on_epoch_end()
             else:
@@ -295,20 +295,24 @@ class Trainer():
             self.check_for_instructions()
             batch_im_tiles = torch.from_numpy(np.array(batch_im_tiles)).cuda()
             self.optimizer.zero_grad()
+
+    
             outputs = model(batch_im_tiles)
+
             (batch_loss, batch_tps, batch_tns,
              batch_fps, batch_fns) = get_batch_loss(
                  outputs, batch_fg_tiles, batch_bg_tiles,
-                 batch_classes, self.train_config['classes'])
+                 batch_classes, self.train_config['classes'],
+                 compute_loss=(mode=='train'))
 
             tps += batch_tps
             fps += batch_fps
             tns += batch_tns
             fns += batch_fns
 
-            loss_sum += batch_loss.item() # float
 
             if mode == 'train':
+                loss_sum += batch_loss.item() # float
                 batch_loss.backward()
                 self.optimizer.step()
 
@@ -525,6 +529,7 @@ class Trainer():
         # if it is missing metrics then add it to refs_to_compute
         # then compute the errors for these tile refs
         if refs_to_compute:
+            
             (tps, fps, tns, fns) = self.one_epoch(prev_model, 'val', refs_to_compute)
             assert len(tps) == len(fps) == len(tns) == len(fns) == len(refs_to_compute)
 
