@@ -14,22 +14,16 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+# torch has no sum member
+# pylint: disable=E1101
+
 import torch
 from torch.nn.functional import softmax
 from torch.nn.functional import cross_entropy
 
 
-def combined_loss(predictions, labels):
-    """ combine CE and dice """
-    loss_sum = 0
-    if torch.sum(labels[:, 1]):
-        loss_sum += dice_loss(predictions, labels[:, 1])
-    loss_sum += 0.3 * cross_entropy(predictions, labels[:, 1])
-    return loss_sum
-
-
 def dice_loss(predictions, labels):
-    """ soft dice to help handle imbalanced classes """
+    """ based on loss function from V-Net paper """
     softmaxed = softmax(predictions, 1)
     predictions = softmaxed[:, 1, :]  # just the root probability.
     labels = labels.float()
@@ -37,12 +31,25 @@ def dice_loss(predictions, labels):
     labels = labels.view(-1)
     intersection = torch.sum(torch.mul(preds, labels))
     union = torch.sum(preds) + torch.sum(labels)
-    dice = ((2 * intersection) / (union))
-    return 1 - dice
+    return 1 - ((2 * intersection) / (union))
+
+
+def combined_loss(predictions, labels):
+    """ mix of dice and cross entropy """
+    # if they are bigger than 1 you get a strange gpu error
+    # without a stack track so you will have no idea why.
+    assert torch.max(labels) <= 1
+    if torch.sum(labels) > 0:
+        return (dice_loss(predictions, labels) +
+                (0.3 * cross_entropy(predictions, labels)))
+    # When no roots use only cross entropy
+    # as dice is undefined.
+    return 0.3 * cross_entropy(predictions, labels)
 
 
 def get_batch_loss(outputs, batch_fg_tiles, batch_bg_tiles, batch_classes, project_classes):
     """
+
         outputs - predictions from neural network (not softmaxed)
         batch_fg_tiles - list of tiles, each tile is binary map of foreground annotation
         batch_bg_tiles - list of tiles, each tile is binary map of background annotation
@@ -65,7 +72,7 @@ def get_batch_loss(outputs, batch_fg_tiles, batch_bg_tiles, batch_classes, proje
     for unique_class in project_classes:
 
         # for each class we need to get a tensor with shape
-        # [batch_size, 2 (bg,fg), d, h, w]
+        # [batch_size, 2 (bg,fg), h, w]
 
         # fg,bg pairs related to this class for each im_tile in the batch
         class_outputs = []
@@ -127,4 +134,4 @@ def get_batch_loss(outputs, batch_fg_tiles, batch_bg_tiles, batch_classes, proje
         fns += torch.sum((foregrounds_list == 1) * (preds_list == 0)).cpu().numpy()
         defined_total += torch.sum(defined_list > 0).cpu().numpy()
 
-    return torch.mean(torch.stack(class_losses)), tps, tns, fps, fns, defined_total
+    return torch.mean(torch.stack(class_losses)), tps, tns, fps, fns, defined_total 
