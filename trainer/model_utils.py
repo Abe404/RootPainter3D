@@ -238,7 +238,10 @@ def segment_3d(cnn, image, batch_size, in_tile_shape, out_tile_shape):
         tiles_for_gpu = torch.from_numpy(tiles_to_process)
 
         tiles_for_gpu = tiles_for_gpu.cuda()
-        outputs = cnn(tiles_for_gpu)
+        # TODO: consider use of detach. 
+        # I might want to move to cpu later to speed up the next few operations.
+        # I added .detach().cpu() to prevent a memory error.
+        outputs = cnn(tiles_for_gpu).detach().cpu()
         # bg channel index for each class in network output.
         class_idxs = [x * 2 for x in range(outputs.shape[1] // 2)]
         
@@ -249,7 +252,7 @@ def segment_3d(cnn, image, batch_size, in_tile_shape, out_tile_shape):
             class_output = outputs[:, class_idx:class_idx+2]
             # class_output : (batch_size, bg/fg, depth, height, width)
             softmaxed = softmax(class_output, 1) 
-            foreground_probs = softmaxed[:, 1]  # just the foreground probability.
+            foreground_probs = softmaxed[:, 0]  # just the foreground probability.
             predicted = foreground_probs > 0.5
             predicted = predicted.int()
             pred_np = predicted.data.cpu().numpy()
@@ -260,6 +263,6 @@ def segment_3d(cnn, image, batch_size, in_tile_shape, out_tile_shape):
     for i, output_tiles in enumerate(class_output_tiles):
         # reconstruct for each class
         reconstructed = im_utils.reconstruct_from_tiles(output_tiles,
-                                                        coords, image.shape[:-1])
+                                                        coords, out_im_shape)
         class_pred_maps.append(reconstructed)
     return class_pred_maps

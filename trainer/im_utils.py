@@ -26,12 +26,11 @@ import random
 import numpy as np
 import skimage.util as skim_util
 from skimage.exposure import rescale_intensity
-from skimage.io import imread
 import nibabel as nib
 from file_utils import ls
 import nrrd
 from pathlib import Path
-
+import traceback
 
 def is_image(fname):
     """ extensions that have been tested with so far """
@@ -63,7 +62,7 @@ def reconstruct_from_tiles(tiles, coords, output_shape):
 
 
 def load_with_retry(load_fn, fpath):
-    max_attempts = 60
+    max_attempts = 2
     attempts = 0
     while attempts < max_attempts:
         attempts += 1
@@ -75,7 +74,7 @@ def load_with_retry(load_fn, fpath):
             image = load_fn(fpath)
             return image
         except Exception as e:
-            print('load_with_retry', fpath, 'exception', e)
+            print('load_with_retry', fpath, 'exception', e, traceback.format_exc())
             # This could be due to an empty annotation saved by the user.
             # Which happens rarely due to deleting all labels in an
             # existing annotation and is not a problem.
@@ -101,15 +100,17 @@ def load_train_image_and_annot(dataset_dir, train_annot_dirs):
             # each annotation corresponds to an individual class.
         all_classes = []
         all_dirs = []
+    
         for train_annot_dir in train_annot_dirs:
             annot_fnames = ls(train_annot_dir)
             fnames += annot_fnames
             # Assuming class name is in annotation path
             # i.e annotations/{class_name}/train/annot1.png,annot2.png..
             class_name = Path(train_annot_dir).parts[-2]
-            class_name = Path(train_annot_dir).parts[-2]
             all_classes += [class_name] * len(annot_fnames)
             all_dirs += [train_annot_dir] * len(annot_fnames)
+        
+        assert len(fnames), 'should be at least one fname'
 
         fname = random.sample(fnames, 1)[0]
 
@@ -124,7 +125,7 @@ def load_train_image_and_annot(dataset_dir, train_annot_dirs):
 
         for annot_dir in annot_dirs:
             annot_path = os.path.join(annot_dir, fname)
-            annot = imread(annot_path).astype(bool)
+            annot = load_image(annot_path)
             # Why would we have annotations without content?
             assert np.sum(annot) > 0
             annots.append(annot)
@@ -135,12 +136,10 @@ def load_train_image_and_annot(dataset_dir, train_annot_dirs):
                                        os.path.splitext(fname)[0])
         image_path = glob.glob(image_path_part + '.*')[0]
         image = load_image(image_path)
-        assert image.shape[2] == 3 # should be RGB
-
         # also return fname for debugging purposes.
         return image, annots, classes, fname
 
-    load_random = partial(load_random, dataset_dir, train_annot_dirs)
+    load_random = partial(load_random, train_annot_dirs, dataset_dir)
     return load_with_retry(load_random, None)
 
 def pad_3d(image, width, depth, mode='reflect', constant_values=0):
@@ -191,15 +190,16 @@ def get_val_tile_refs(annot_dirs, prev_tile_refs, out_shape):
     # each annotation corresponds to an individual class.
     all_classes = []
     all_dirs = []
+
     for annot_dir in annot_dirs:
         annot_fnames = ls(annot_dir)
-        cur_annot_fnames += annot_fnames
-        # Assuming class name is in annotation path
-        # i.e annotations/{class_name}/train/annot1.png,annot2.png..
-        class_name = Path(annot_fnames).parts[-2]
-        class_name = Path(annot_fnames).parts[-2]
-        all_classes += [class_name] * len(annot_fnames)
-        all_dirs += [annot_dir] * len(annot_fnames)
+        if annot_fnames:
+            cur_annot_fnames += annot_fnames
+            # Assuming class name is in annotation path
+            # i.e annotations/{class_name}/train/annot1.png,annot2.png..
+            class_name = Path(annot_dir).parts[-2]
+            all_classes += [class_name] * len(annot_fnames)
+            all_dirs += [annot_dir] * len(annot_fnames)
     
     prev_annot_fnames = [r[0] for r in prev_tile_refs]
     all_annot_fnames = set(cur_annot_fnames + prev_annot_fnames)

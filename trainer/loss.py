@@ -14,22 +14,17 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+# torch has no sum member
+# pylint: disable=E1101
+
 import torch
 from torch.nn.functional import softmax
 from torch.nn.functional import cross_entropy
-
-
-def combined_loss(predictions, labels):
-    """ combine CE and dice """
-    loss_sum = 0
-    if torch.sum(labels[:, 1]):
-        loss_sum += dice_loss(predictions, labels[:, 1])
-    loss_sum += 0.3 * cross_entropy(predictions, labels[:, 1])
-    return loss_sum
+import numpy as np
 
 
 def dice_loss(predictions, labels):
-    """ soft dice to help handle imbalanced classes """
+    """ based on loss function from V-Net paper """
     softmaxed = softmax(predictions, 1)
     predictions = softmaxed[:, 1, :]  # just the root probability.
     labels = labels.float()
@@ -37,15 +32,31 @@ def dice_loss(predictions, labels):
     labels = labels.view(-1)
     intersection = torch.sum(torch.mul(preds, labels))
     union = torch.sum(preds) + torch.sum(labels)
-    dice = ((2 * intersection) / (union))
-    return 1 - dice
+    return 1 - ((2 * intersection) / (union))
 
 
-def get_batch_loss(outputs, batch_fg_tiles, batch_bg_tiles, batch_classes, project_classes):
+def combined_loss(predictions, labels):
+    """ mix of dice and cross entropy """
+    # if they are bigger than 1 you get a strange gpu error
+    # without a stack track so you will have no idea why.
+    assert torch.max(labels) <= 1
+    if torch.sum(labels) > 0:
+        return (dice_loss(predictions, labels) +
+                (0.3 * cross_entropy(predictions, labels)))
+    # When no roots use only cross entropy
+    # as dice is undefined.
+    return 0.3 * cross_entropy(predictions, labels)
+
+
+def get_batch_loss(outputs, batch_fg_tiles, batch_bg_tiles,
+                   batch_classes, project_classes,
+                   compute_loss):
     """
+
         outputs - predictions from neural network (not softmaxed)
         batch_fg_tiles - list of tiles, each tile is binary map of foreground annotation
         batch_bg_tiles - list of tiles, each tile is binary map of background annotation
+        compute_loss - can be false if only metrics are required.
 
         returns
             batch_loss - loss used to update the network
@@ -56,16 +67,19 @@ def get_batch_loss(outputs, batch_fg_tiles, batch_bg_tiles, batch_classes, proje
             defined_total - number of pixels with annotation defined.
     """
 
-    tps = 0
-    fps = 0
-    tns = 0
-    fns = 0
     defined_total = 0
     class_losses = [] # loss for each class
+
+    instance_tps = [0 for _ in range(outputs.shape[0])]
+    instance_tns = list(instance_tps)
+    instance_fps = list(instance_tps)
+    instance_fns = list(instance_tps)
+
+
     for unique_class in project_classes:
 
         # for each class we need to get a tensor with shape
-        # [batch_size, 2 (bg,fg), d, h, w]
+        # [batch_size, 2 (bg,fg), h, w]
 
         # fg,bg pairs related to this class for each im_tile in the batch
         class_outputs = []
@@ -73,7 +87,7 @@ def get_batch_loss(outputs, batch_fg_tiles, batch_bg_tiles, batch_classes, proje
         # The fg tiles (ground truth)
         fg_tiles = []
         masks = [] # and regions of the image that were annotated.
-
+        
         # go through each instance in the batch.
         for im_idx in range(outputs.shape[0]):
 
@@ -87,44 +101,46 @@ def get_batch_loss(outputs, batch_fg_tiles, batch_bg_tiles, batch_classes, proje
                     fg_tile = batch_fg_tiles[im_idx][i]
                     bg_tile = batch_bg_tiles[im_idx][i]
                     mask = fg_tile + bg_tile
+                    class_idx = project_classes.index(classname) * 2 # posiion in output.
+                    class_output = outputs[im_idx][class_idx:class_idx+2]
+                    mask = mask.cuda()
+                    fg_tile = fg_tile.cuda()
+
+                    # I want to get tps, tns, fps and fns 
+                    # from fg_tile, mask, class_outputs
+                    softmaxed = softmax(class_output, 0)
+                    fg_prob = softmaxed[1]
+                    fg_prob = fg_prob * mask
+                    class_pred = fg_prob > 0.5   
+                    class_pred = class_pred[mask > 0]
+                    fg = fg_tile[mask > 0]
+                    
+                    instance_tps[im_idx] += torch.sum((fg == 1) * (class_pred == 1)).cpu().numpy()
+                    instance_tns[im_idx] += torch.sum((fg == 0) * (class_pred == 0)).cpu().numpy()
+                    instance_fps[im_idx] += torch.sum((fg == 0) * (class_pred == 1)).cpu().numpy()
+                    instance_fns[im_idx] += torch.sum((fg == 1) * (class_pred == 0)).cpu().numpy()
+
                     masks.append(mask)
                     fg_tiles.append(fg_tile)
-
-                    class_idx = project_classes.index(classname) * 2 # posiion in output.
-                    class_outputs.append(outputs[im_idx][class_idx:class_idx+2])
+                    class_outputs.append(class_output)
 
         if not len(fg_tiles):
             continue
-
-        fg_tiles = torch.stack(fg_tiles).cuda()
-        masks = torch.stack(masks).cuda()
-        class_outputs = torch.stack(class_outputs)
-        softmaxed = softmax(class_outputs, 1)
-        # just the foreground probability.
-        foreground_probs = softmaxed[:, 1]
-        # remove any of the predictions for which we don't have ground truth
-        # Set outputs to 0 where annotation undefined so that
-        # The network can predict whatever it wants without any penalty.
-        class_outputs[:, 0] *= masks
-        class_outputs[:, 1] *= masks
-        class_loss = combined_loss(class_outputs, fg_tiles)
-
-        class_losses.append(class_loss)
-        foreground_probs *= masks
-        class_predicted = foreground_probs > 0.5
-        # we only want to calculate metrics on the
-        # part of the predictions for which annotations are defined
-        # so remove all predictions and foreground labels where
-        # we didn't have any annotation.
-        defined_list = masks.view(-1)
-        preds_list = class_predicted.view(-1)[defined_list > 0]
-        foregrounds_list = fg_tiles.view(-1)[defined_list > 0]
-
-        # # calculate all the false positives, false negatives etc
-        tps += torch.sum((foregrounds_list == 1) * (preds_list == 1)).cpu().numpy()
-        tns += torch.sum((foregrounds_list == 0) * (preds_list == 0)).cpu().numpy()
-        fps += torch.sum((foregrounds_list == 0) * (preds_list == 1)).cpu().numpy()
-        fns += torch.sum((foregrounds_list == 1) * (preds_list == 0)).cpu().numpy()
-        defined_total += torch.sum(defined_list > 0).cpu().numpy()
-
-    return torch.mean(torch.stack(class_losses)), tps, tns, fps, fns, defined_total
+        
+        if compute_loss:
+            fg_tiles = torch.stack(fg_tiles).cuda()
+            masks = torch.stack(masks).cuda()
+            class_outputs = torch.stack(class_outputs)
+            softmaxed = softmax(class_outputs, 1)
+            # just the foreground probability.
+            foreground_probs = softmaxed[:, 1]
+            # remove any of the predictions for which we don't have ground truth
+            # Set outputs to 0 where annotation undefined so that
+            # The network can predict whatever it wants without any penalty.
+            class_outputs[:, 0] *= masks
+            class_outputs[:, 1] *= masks
+            class_loss = combined_loss(class_outputs, fg_tiles)
+            class_losses.append(class_loss)
+    if compute_loss:
+        return torch.mean(torch.stack(class_losses)), instance_tps, instance_tns, instance_fps, instance_fns
+    return None, instance_tps, instance_tns, instance_fps, instance_fns

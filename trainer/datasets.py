@@ -18,6 +18,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import random
 import math
 import os
+from pathlib import Path
 
 import torch
 import numpy as np
@@ -141,6 +142,7 @@ class RPDataset(Dataset):
         # When tile_ref is specified we use these coordinates to get
         # the input tile. Otherwise we will sample randomly
         if tile_ref:
+            raise Exception('not using these')
             im_tile, foregrounds, backgrounds, classes = self.get_tile_from_ref_3d(tile_ref)
             # For now just return the tile. We plan to add augmentation here.
             return im_tile, foregrounds, backgrounds, classes
@@ -169,19 +171,21 @@ class RPDataset(Dataset):
         foregrounds = []
         backgrounds = []
         for annot_tile in annot_tiles:
-            print('annot tile shape is ', annot_tile.shape)
-            print('does this match the assumptions of the next lines?')
-            exit()
-            foreground = np.array(annot_tile)[:, :, 0]
-            background = np.array(annot_tile)[:, :, 1]
+            #annot tile shape is  (2, 18, 194, 194)
+            foreground = np.array(annot_tile)[0]
+            background = np.array(annot_tile)[1]
             foreground = foreground.astype(np.int64)
             foreground = torch.from_numpy(foreground)
             foregrounds.append(foreground)
             background = background.astype(np.int64)
             background = torch.from_numpy(background)
             backgrounds.append(background)
+
         im_tile = im_tile.astype(np.float32)
-        im_tile = np.moveaxis(im_tile, -1, 0)
+        
+        # add dimension for input channel
+        im_tile = np.expand_dims(im_tile, axis=0)
+
         return im_tile, foregrounds, backgrounds, classes
        
     def get_padded_annot(self, fname, annot_tile):
@@ -219,27 +223,43 @@ class RPDataset(Dataset):
         image_path = os.path.join(self.dataset_dir, fname)
         image = im_utils.load_with_retry(im_utils.load_image, image_path)
 
+        classes = []
+        foregrounds = []
+        backgrounds = []
         annot_tiles = []
+
         for annot_dir in self.annot_dirs:
             annot_path = os.path.join(annot_dir, fname)
             annot = im_utils.load_with_retry(im_utils.load_image, annot_path)
+
+            classes.append(Path(annot_dir).parts[-2])
+
             # The x, y and z are in reference to the annotation tile before padding.
             annot_tile = annot[:,
                                tile_z:tile_z+self.out_d,
                                tile_y:tile_y+self.out_w,
                                tile_x:tile_x+self.out_w]
 
-            annot_tile = self.get_padded_annot(fname, annot_tile)
-
-            assert annot_tile.shape[1:] == (self.out_d, self.out_w, self.out_w), (
-                f"annot tile shape is {annot_tile.shape[1:]}")
             annot_tiles.append(annot_tile)
+
+        # if the annotation is not big enough then pad it out. 
+        if  annot_tiles[0].shape[1:] != (self.out_d, self.out_w, self.out_w):
+            for i, annot_tile in enumerate(annot_tiles):
+                annot_tiles[i] = self.get_padded_annot(fname, annot_tile)
+                
+        assert annot_tiles[0].shape[1:] == (self.out_d, self.out_w, self.out_w), (
+            f" annot is {annots[0].shape}")
+
+        im_tile = image[tile_z:tile_z + self.in_d,
+                        tile_y:tile_y + self.in_w,
+                        tile_x:tile_x + self.in_w]
  
-        foregrounds = []
-        backgrounds = []
+        assert im_tile.shape == (self.in_d, self.in_w, self.in_w), (
+            f" shape is {im_tile.shape}")
+        
         for annot_tile in annot_tiles:
-            foreground = np.array(annot_tile)[:, :, 0]
-            background = np.array(annot_tile)[:, :, 1]
+            foreground = np.array(annot_tile)[0]
+            background = np.array(annot_tile)[1]
             foreground = foreground.astype(np.int64)
             foreground = torch.from_numpy(foreground)
             foregrounds.append(foreground)
@@ -247,22 +267,8 @@ class RPDataset(Dataset):
             background = torch.from_numpy(background)
             backgrounds.append(background)
 
-        im_tile = image[tile_z:tile_z + self.in_d,
-                        tile_y:tile_y + self.in_w,
-                        tile_x:tile_x + self.in_w]
-           
-        assert im_tile.shape == (self.in_d, self.in_w, self.in_w), (
-            f" shape is {im_tile.shape}")
-
         im_tile = img_as_float32(im_tile)
         im_tile = im_utils.normalize_tile(im_tile)
-        # ensure image is still 32 bit after normalisation.
         im_tile = im_tile.astype(np.float32)
-        mask = annot_tile[0] + annot_tile[1]
-        mask[mask > 1] = 1
-        mask = mask.astype(np.float32)
-        mask = torch.from_numpy(mask)
-        im_tile = torch.from_numpy(np.expand_dims(im_tile, axis=0))
-        annot_tile = torch.from_numpy(annot_tile).long()
-        classes = [os.path.basename(d) for d in self.annot_dirs]
+        im_tile = np.expand_dims(im_tile, axis=0)
         return im_tile, foregrounds, backgrounds, classes

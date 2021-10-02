@@ -41,6 +41,7 @@ from model_utils import random_model
 import model_utils
 from model_utils import save_if_better, save_model
 from metrics import metrics_from_val_tile_refs
+import data_utils
 
 from im_utils import is_image, load_image, save_then_move
 import im_utils
@@ -231,24 +232,18 @@ class Trainer():
         Path(os.path.join(self.msg_dir, message)).touch()
 
 
-    def train_and_val_annotation_exists(self):
+    def train_annotation_exists(self):
         train_annot_dirs = self.train_config['train_annot_dirs']
-        val_annot_dirs = self.train_config['val_annot_dirs']
         found_train_annot = False
         for d in train_annot_dirs:
             if [is_image(a) for a in ls(d)]:
                 found_train_annot = True
-
-        found_val_annot = False
-        for d in val_annot_dirs:
-            if [is_image(a) for a in ls(d)]:
-                found_val_annot = True
-        return found_train_annot and found_val_annot
+        return found_train_annot 
 
     def one_epoch(self, model, mode='train', val_tile_refs=None, length=None):
-        if not self.train_and_val_annotation_exists():
+        if not self.train_annotation_exists():
             # no training until data ready
-            return
+            return False
 
         if self.first_loop:
             self.first_loop = False
@@ -266,6 +261,7 @@ class Trainer():
                                 val_tile_refs)
             torch.set_grad_enabled(False)
             loader = DataLoader(dataset, self.batch_size * 2, shuffle=True,
+                                collate_fn=data_utils.collate_fn,
                                 num_workers=16, drop_last=False, pin_memory=True)
         elif mode == 'train':
             dataset = RPDataset(self.train_config['train_annot_dirs'],
@@ -278,7 +274,9 @@ class Trainer():
                                 val_tile_refs,
                                 length=length)
             torch.set_grad_enabled(True)
-            loader = DataLoader(dataset, self.batch_size, shuffle=False, num_workers=16,
+            loader = DataLoader(dataset, self.batch_size, shuffle=False,
+                                collate_fn=data_utils.collate_fn,
+                                num_workers=16,
                                 drop_last=False, pin_memory=True)
             model.train()
         else:
@@ -295,21 +293,26 @@ class Trainer():
                    batch_bg_tiles, batch_classes) in enumerate(loader):
 
             self.check_for_instructions()
-
             batch_im_tiles = torch.from_numpy(np.array(batch_im_tiles)).cuda()
             self.optimizer.zero_grad()
+
+    
             outputs = model(batch_im_tiles)
+
             (batch_loss, batch_tps, batch_tns,
-             batch_fps, batch_fns, _) = get_batch_loss(
+             batch_fps, batch_fns) = get_batch_loss(
                  outputs, batch_fg_tiles, batch_bg_tiles,
-                 batch_classes, self.train_config['classes'])
+                 batch_classes, self.train_config['classes'],
+                 compute_loss=(mode=='train'))
+
             tps += batch_tps
             fps += batch_fps
             tns += batch_tns
             fns += batch_fns
-            loss_sum += batch_loss.item() # float
+
 
             if mode == 'train':
+                loss_sum += batch_loss.item() # float
                 batch_loss.backward()
                 self.optimizer.step()
 
@@ -500,6 +503,7 @@ class Trainer():
                               out_w=segment_config['out_w'],
                               in_d=segment_config['in_d'],
                               out_d=segment_config['out_d'],
+                              classes=classes,
                               bounded=bounded,
                               sync_save=len(fnames) == 1,
                               overwrite=overwrite)
@@ -525,6 +529,7 @@ class Trainer():
         # if it is missing metrics then add it to refs_to_compute
         # then compute the errors for these tile refs
         if refs_to_compute:
+            
             (tps, fps, tns, fns) = self.one_epoch(prev_model, 'val', refs_to_compute)
             assert len(tps) == len(fps) == len(tns) == len(fns) == len(refs_to_compute)
 
@@ -544,17 +549,23 @@ class Trainer():
         
 
     def segment_file(self, in_dir, seg_dir, fname, model_paths,
-                     in_w, out_w, in_d, out_d, bounded, sync_save, overwrite=False):
-        fpath = os.path.join(in_dir, fname)
-        # Segmentations are always saved as PNG for 2d or nifty for 3d
-        if fname.endswith('.nii.gz'):
-            out_path = os.path.join(seg_dir, fname)
-        elif fname.endswith('.npy'):
+                     in_w, out_w, in_d, out_d, classes, bounded, sync_save, overwrite=False):
+
+        # segmentations are always saved as .nii.gz
+        out_paths = []
+        if len(classes) > 1:
+            for c in classes:
+                out_paths.append(os.path.join(seg_dir, c, fname))
+        else:
             # segment to nifty as they don't get loaded repeatedly in training.
-            out_path = os.path.join(seg_dir, os.path.splitext(fname)[0] + '.nii.gz')
-        if not overwrite and os.path.isfile(out_path):
-            print('Skip because found existing segmentation file')
+            out_paths = [os.path.join(seg_dir, fname)]
+
+        if not overwrite and all([os.path.isfile(out_path) for out_path in out_paths]):
+            print(f'Skip because found existing segmentation files for {fname}')
             return
+
+        fpath = os.path.join(in_dir, fname)
+
         if not os.path.isfile(fpath):
             raise Exception(f'Cannot segment as missing file {fpath}')
         try:
@@ -575,22 +586,24 @@ class Trainer():
             return
         seg_start = time.time()
         print('segmented input shape', im.shape)
+        print('segment image, input shape = ', im.shape)
         segmented = ensemble_segment_3d(model_paths, im, fname, self.batch_size,
                                         in_w, out_w, in_d,
-                                        out_d, 1, bounded)
-        print('segmented output shape', segmented.shape)
+                                        out_d, classes, bounded)
         print(f'ensemble segment {fname}, dur', round(time.time() - seg_start, 2))
-        # catch warnings as low contrast is ok here.
-        with warnings.catch_warnings():
-            # create a version with alpha channel
-            warnings.simplefilter("ignore")
-            if sync_save:
-                # other wise do sync because we don't want to delete the segment
-                # instruction too early.
-                save_then_move(out_path, segmented)
-            else:
-                # TODO find a cleaner way to do this.
-                # if more than one file then optimize speed over stability.
-                x = threading.Thread(target=save_then_move,
-                                     args=(out_path, segmented))
-                x.start()
+        
+        for seg, outpath in zip(segmented, out_paths):
+            # catch warnings as low contrast is ok here.
+            with warnings.catch_warnings():
+                # create a version with alpha channel
+                warnings.simplefilter("ignore")
+                if sync_save:
+                    # other wise do sync because we don't want to delete the segment
+                    # instruction too early.
+                    save_then_move(outpath, seg)
+                else:
+                    # TODO find a cleaner way to do this.
+                    # if more than one file then optimize speed over stability.
+                    x = threading.Thread(target=save_then_move,
+                                         args=(outpath, segmented))
+                    x.start()
