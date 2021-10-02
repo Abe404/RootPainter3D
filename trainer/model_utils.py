@@ -252,7 +252,7 @@ def segment_3d(cnn, image, batch_size, in_tile_shape, out_tile_shape):
             class_output = outputs[:, class_idx:class_idx+2]
             # class_output : (batch_size, bg/fg, depth, height, width)
             softmaxed = softmax(class_output, 1) 
-            foreground_probs = softmaxed[:, 1]  # just the foreground probability.
+            foreground_probs = softmaxed[:, 0]  # just the foreground probability.
             predicted = foreground_probs > 0.5
             predicted = predicted.int()
             pred_np = predicted.data.cpu().numpy()
