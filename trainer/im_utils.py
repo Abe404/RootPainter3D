@@ -198,8 +198,7 @@ def get_val_tile_refs(annot_dirs, prev_tile_refs, out_shape):
             cur_annot_fnames += annot_fnames
             # Assuming class name is in annotation path
             # i.e annotations/{class_name}/train/annot1.png,annot2.png..
-            class_name = Path(annot_fnames[0]).parts[-2]
-            class_name = Path(annot_fnames[0]).parts[-2]
+            class_name = Path(annot_dir).parts[-2]
             all_classes += [class_name] * len(annot_fnames)
             all_dirs += [annot_dir] * len(annot_fnames)
     
