@@ -124,6 +124,7 @@ def define_bounding_box(root_painter):
     
 
 def resegment_current_image(root_painter):
+    return
     message_box = QtWidgets.QMessageBox
     ret = message_box.question(root_painter,'',
                                "Applying the bounding box again will delete the existing "
@@ -131,7 +132,14 @@ def resegment_current_image(root_painter):
                                "Are you sure you want to do apply the bounding box?",
                                message_box.Yes | message_box.No)
     if ret == message_box.Yes:
-        os.remove(root_painter.seg_path)
+
+        spaths = root_painter.get_all_seg_paths()
+        # delete all existing segmentations.
+        for spath in spaths:
+            if os.path.isfile(spath):
+                print('deleting existing ', spath)
+                os.remove(spath)
+
         bounded_im_dir = os.path.join(root_painter.proj_location, 'bounded_images')
         root_painter.set_seg_loading()
         root_painter.log(f'resegment,bounded_fname:{root_painter.bounded_fname}')
@@ -142,8 +150,7 @@ def resegment_current_image(root_painter):
             "file_names": [root_painter.bounded_fname],
             "message_dir": root_painter.message_dir,
             "model_dir": root_painter.model_dir,
-            "classes": ["Foreground"],
-            "dimensions": 3,
+            "classes": root_painter.classes,
             "overwrite": True
         })
         root_painter.track_changes()
@@ -157,7 +164,8 @@ def apply_bounding_box(root_painter, full_size):
     box = root_painter.box
 
     # if the segmentation already exists then give the user the option toresegment the current image.
-    if root_painter.seg_path and os.path.isfile(root_painter.seg_path):
+    if root_painter.bounded_fname and os.path.isfile(root_painter.get_seg_path()):
+        print('resegment current image')
         resegment_current_image(root_painter)
         return
 
@@ -195,8 +203,6 @@ def apply_bounding_box(root_painter, full_size):
         if z < 0:
             depth += x # substract 
             z += -z # and shift accross
-
-        
 
         # make sure depth height and width don't go outside the box
         depth -= max(0, (z + depth) - (im_shape[0] - 1))
@@ -244,7 +250,6 @@ def apply_bounding_box(root_painter, full_size):
     img = nib.Nifti1Image(bounded_im, np.eye(4))
     img.to_filename(bounded_im_fpath)
     QtWidgets.QApplication.instance().setOverrideCursor(Qt.BusyCursor)
-    root_painter.seg_path = os.path.join(root_painter.seg_dir, bounded_im_name)
     root_painter.set_seg_loading()
 
     # send instruction to segment the new image.

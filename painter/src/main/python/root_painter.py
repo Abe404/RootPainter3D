@@ -273,8 +273,7 @@ class RootPainter(QtWidgets.QMainWindow):
         else:
             # it should come later
             self.seg_data = None
-            # segment the image now.
-            apply_bounding_box(self, True)
+  
            
         for v in self.viewers:
             v.update_image()
@@ -283,6 +282,11 @@ class RootPainter(QtWidgets.QMainWindow):
             if self.seg_data is None and v.seg_visible:
                 # show seg in order to show the loading message
                 v.show_hide_seg()
+
+        if self.seg_data is None:
+            print('no seg data yet')
+            # segment the image now.
+            # apply_bounding_box(self, True)
 
 
     def update_class(self, class_name):
@@ -298,11 +302,22 @@ class RootPainter(QtWidgets.QMainWindow):
         self.update_annot_and_seg()
 
     def get_seg_path(self):
+        # just seg path for current class.
         if hasattr(self, 'classes') and len(self.classes) > 1:
             return os.path.join(self.seg_dir,
                                 self.cur_class,
                                 self.bounded_fname)
         return os.path.join(self.seg_dir, self.bounded_fname)
+
+    def get_all_seg_paths(self):
+        if hasattr(self, 'classes') and len(self.classes) > 1:
+            spaths = []
+            for c in self.classes:
+                spaths.append(os.path.join(self.seg_dir,
+                                self.cur_class,
+                                self.bounded_fname))
+            return spaths
+        return [os.path.join(self.seg_dir, self.bounded_fname)]
 
     def update_segmentation(self):
         # if seg file is present then load.
@@ -576,8 +591,11 @@ class RootPainter(QtWidgets.QMainWindow):
                     os.remove(os.path.join(self.message_dir, m))
                 except Exception as e:
                     print('Caught exception when trying to detele msg', e)
-            #print('seg_dir', self.seg_dir, 'bounded fname', self.bounded_fname, 'cur class',
-            #       self.cur_class)
+            print('seg_dir', self.seg_dir, 'bounded fname', self.bounded_fname, 'cur class',
+                  self.cur_class)
+            print('seg exists = ', os.path.isfile(self.get_seg_path()))
+            if self.seg_data is not None:
+                print('seg data mean = ', np.mean(self.seg_data))
                                 
             # if a segmentation exists (on disk)
             if self.bounded_fname and os.path.isfile(self.get_seg_path()):
