@@ -47,6 +47,8 @@ from instructions import send_instruction
 from contrast_slider import ContrastSlider
 import im_utils
 import menus
+from bounding_box import apply_bounding_box
+
 
 use_plugin("pil")
 
@@ -242,7 +244,7 @@ class RootPainter(QtWidgets.QMainWindow):
     def update_annot_and_seg(self):
         self.seg_path = None
         self.annot_path = None
-        self.view_state = ViewState.BOUNDING_BOX
+        self.view_state = ViewState.LOADING_SEG # was BOUNDING_BOX but now box is disabled.
         for v in self.viewers:
             if v.scene.bounding_box:
                 v.scene.removeItem(v.scene.bounding_box)
@@ -271,6 +273,8 @@ class RootPainter(QtWidgets.QMainWindow):
         else:
             # it should come later
             self.seg_data = None
+            # segment the image now.
+            apply_bounding_box(self, True)
            
         for v in self.viewers:
             v.update_image()
@@ -628,7 +632,6 @@ class RootPainter(QtWidgets.QMainWindow):
         self.close_project_action.triggered.connect(self.close_project_window)
         menus.add_edit_menu(self, self.axial_viewer, menu_bar)
 
-        menus.add_bounding_box_menu(self, self.axial_viewer, menu_bar)
 
         #options_menu = menu_bar.addMenu("Options")
 
