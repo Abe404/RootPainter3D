@@ -256,6 +256,7 @@ def apply_bounding_box(root_painter, full_size):
         "model_dir": root_painter.model_dir,
         "classes": root_painter.classes # used for saving segmentation output to correct directories
     })
+    root_painter.bounded_fname = bounded_im_name
     root_painter.track_changes()
 
 
