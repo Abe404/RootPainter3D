@@ -124,7 +124,7 @@ def define_bounding_box(root_painter):
     
 
 def resegment_current_image(root_painter):
-    return
+    
     message_box = QtWidgets.QMessageBox
     ret = message_box.question(root_painter,'',
                                "Applying the bounding box again will delete the existing "
@@ -139,9 +139,14 @@ def resegment_current_image(root_painter):
             if os.path.isfile(spath):
                 print('deleting existing ', spath)
                 os.remove(spath)
+        # it should come later
+        root_painter.seg_data = None
 
         bounded_im_dir = os.path.join(root_painter.proj_location, 'bounded_images')
-        root_painter.set_seg_loading()
+
+        root_painter.update_segmentation()
+        root_painter.axial_viewer.update_seg_slice()
+
         root_painter.log(f'resegment,bounded_fname:{root_painter.bounded_fname}')
         # send instruction to segment the new image.
         root_painter.send_instruction('segment', {
@@ -160,15 +165,12 @@ def apply_bounding_box(root_painter, full_size):
     """ Save the bounded image and show loading icon
         as the segmentation will now be loading """
 
-
     box = root_painter.box
 
     # if the segmentation already exists then give the user the option toresegment the current image.
     if root_painter.bounded_fname and os.path.isfile(root_painter.get_seg_path()):
-        print('resegment current image')
         resegment_current_image(root_painter)
         return
-
     im_shape = root_painter.img_data.shape 
 
     if full_size:
