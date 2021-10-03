@@ -27,6 +27,15 @@ def add_network_menu(window, menu_bar):
     # segment folder
     segment_folder_btn = QtWidgets.QAction(QtGui.QIcon('missing.png'), 'Segment folder', window)
 
+
+
+    # Alt+S
+    segment_action = QtWidgets.QAction(QtGui.QIcon(""), "Segment full image", window)
+    segment_action.setShortcut("Alt+S")
+    network_menu.addAction(segment_action)
+    segment_action.triggered.connect(partial(apply_bounding_box, window, True))
+
+
     def show_segment_folder():
         window.segment_folder_widget = SegmentFolderWidget(window.sync_dir,
                                                          window.instruction_dir,
@@ -37,6 +46,9 @@ def add_network_menu(window, menu_bar):
 
 
 def add_bounding_box_menu(window, im_viewer, menu_bar):
+    # disabled for now - full images will be segmented.
+    #         menus.add_bounding_box_menu(self, self.axial_viewer, menu_bar)
+
     box_menu = menu_bar.addMenu("Bounding box")
     # Define
     define_action = QtWidgets.QAction(QtGui.QIcon(""), "Define bounding box", window)
