@@ -69,6 +69,7 @@ class RootPainter(QtWidgets.QMainWindow):
         self.im_height = None
         self.annot_data = None
         self.seg_data = None
+        self.bounded_fname = None
         self.box = {'x':20, 'y':20, 'z': 20, 'width': 50, 'height': 50,
                     'depth': 20, 'visible': False}
         # for patch, useful for bounding box.
@@ -174,8 +175,7 @@ class RootPainter(QtWidgets.QMainWindow):
                                              self.get_val_annot_dir())
             self.init_active_project_ui()
 
-            if self.view_state == ViewState.ANNOTATING:
-                self.track_changes()
+            self.track_changes()
 
     def log_debounced(self):
         """ write to log file only so often to avoid lag """
@@ -189,18 +189,7 @@ class RootPainter(QtWidgets.QMainWindow):
         self.lines_to_log.append(f"{datetime.now()}|{time.time()}|{message}\n")
         self.log_debounce.start() # write after 1 second
 
-    def update_file(self, fpath):
-        """ Invoked when the file to view has been changed by the user.
-            Show image file and it's associated annotation and segmentation """
-        # save annotation for current file before changing to new file.
-
-        self.log(f'update_file_start,fname:{os.path.basename(fpath)},view_state:{self.view_state}')
-        if self.view_state == ViewState.ANNOTATING:
-            self.save_annotation()
-
-        fname = os.path.basename(fpath)
-        self.image_path = os.path.join(self.dataset_dir, fname)
-       
+    def update_bounded_fname(self):
         # Try to find the annotation and segmentation for this particular image.
         bounded_im_dir = os.path.join(self.proj_location, 'bounded_images')
         bounded_fnames = os.listdir(bounded_im_dir)
@@ -211,15 +200,30 @@ class RootPainter(QtWidgets.QMainWindow):
 
         for f in bounded_fnames:
             original_name = '_'.join(f.split('_')[0:-16])
-            if original_name == fname.replace('.nrrd', '').replace('.nii.gz', ''):
+            if original_name == self.fname.replace('.nrrd', '').replace('.nii.gz', ''):
                 self.bounded_fname = f
+                self.track_changes()
                 break
 
+    def update_file(self, fpath):
+        """ Invoked when the file to view has been changed by the user.
+            Show image file and it's associated annotation and segmentation """
+        # save annotation for current file before changing to new file.
+
+        self.log(f'update_file_start,fname:{os.path.basename(fpath)},view_state:{self.view_state}')
+        self.tracking = False # take a break from tracking until we get the next bounded image.
+        if self.view_state == ViewState.ANNOTATING:
+            self.save_annotation()
+            
+        self.fname = os.path.basename(fpath)
+        self.image_path = os.path.join(self.dataset_dir, self.fname)
+
+        self.update_bounded_fname() # need this to know the name of the segmentation.
         self.img_data = im_utils.load_image(self.image_path)
 
         # if a guide image directory is specified
         if hasattr(self, 'guide_image_dir'):
-            guide_image_path = os.path.join(os.path.join(self.guide_image_dir, fname))
+            guide_image_path = os.path.join(os.path.join(self.guide_image_dir, self.fname))
             # and a guide image is available for the current image.
             if os.path.isfile(guide_image_path):
                 self.guide_img_data = im_utils.load_image(guide_image_path)
@@ -284,9 +288,9 @@ class RootPainter(QtWidgets.QMainWindow):
         self.annot_path = get_annot_path(self.bounded_fname,
                                          self.get_train_annot_dir(),
                                          self.get_val_annot_dir())
-        self.scene.history = []
-        self.scene.redo_list = []
-
+        for v in self.viewers:
+            v.scene.history = []
+            v.scene.redo_list = []
         self.update_annot_and_seg()
 
     def get_seg_path(self):
@@ -297,7 +301,6 @@ class RootPainter(QtWidgets.QMainWindow):
         return os.path.join(self.seg_dir, self.bounded_fname)
 
     def update_segmentation(self):
-
         # if seg file is present then load.
         if os.path.isfile(self.get_seg_path()):
             self.seg_mtime = os.path.getmtime(self.get_seg_path())
@@ -553,29 +556,33 @@ class RootPainter(QtWidgets.QMainWindow):
     def track_changes(self):
         if self.tracking:
             return
-        print('Starting watch for changes')
         self.tracking = True
         def check():
             # check for any messages
             messages = os.listdir(str(self.message_dir))
+
             for m in messages:
                 if hasattr(self, 'info_label'):
                     self.info_label.setText(m)
                 try:
                     # Added try catch because this error happened (very rarely)
                     # PermissionError: [WinError 32]
-                    # The process cannot access the file because it is
+                    # The process cannot access the file because `it is
                     # being used by another process
                     os.remove(os.path.join(self.message_dir, m))
                 except Exception as e:
                     print('Caught exception when trying to detele msg', e)
+            #print('seg_dir', self.seg_dir, 'bounded fname', self.bounded_fname, 'cur class',
+            #       self.cur_class)
+                                
             # if a segmentation exists (on disk)
-            if os.path.isfile(self.get_seg_path()):
+            if self.bounded_fname and os.path.isfile(self.get_seg_path()):
                 try:
                     # seg mtime is not actually used any more.
                     new_mtime = os.path.getmtime(self.get_seg_path())
+
                     # seg_mtime is None before the seg is loaded.
-                    if self.seg_mtime is None or new_mtime > self.seg_mtime:
+                    if self.seg_mtime is None or new_mtime != self.seg_mtime:
                         self.log(f'load_seg,fname:{os.path.basename(self.get_seg_path())}')
                         self.seg_data, self.seg_props = im_utils.load_seg(self.get_seg_path(),
                                                                           self.img_data)
@@ -594,6 +601,9 @@ class RootPainter(QtWidgets.QMainWindow):
                         self.seg_mtime = new_mtime
                         self.nav.next_image_button.setText('Save && Next >')
                         self.nav.next_image_button.setEnabled(True)
+                    else:
+                        pass
+           
                 except Exception as e:
                     print(f'Exception loading segmentation,{e},{traceback.format_exc()}')
                     # sometimes problems reading file.
