@@ -31,6 +31,7 @@ import copy
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
+import torch.nn.functional as F
 from loss import get_batch_loss
 
 from datasets import RPDataset
@@ -294,10 +295,21 @@ class Trainer():
 
             self.check_for_instructions()
             batch_im_tiles = torch.from_numpy(np.array(batch_im_tiles)).cuda()
-            self.optimizer.zero_grad()
 
-    
-            outputs = model(batch_im_tiles)
+
+            self.optimizer.zero_grad()
+        
+            # first batch item, first annotation fg tile shape
+            # shape of batch_bg_tiles[0][0] is torch.Size([18, 194, 194])
+            # in single class scenario with batch size 4, the shape is
+            # [4, 1, 18, 194, 194]
+
+            # So we need to get annotation input that is same size as the image input.
+            # For now zero pad to get it working - then add new annotation.
+
+            # l,r, l,r, but from end to start    w  w  h  h  d  d, c, c, b, b
+            model_input = F.pad(batch_im_tiles, (0, 0, 0, 0, 0, 0, 0, 2), 'constant', 0)
+            outputs = model(model_input)
 
             (batch_loss, batch_tps, batch_tns,
              batch_fps, batch_fns) = get_batch_loss(
@@ -309,7 +321,6 @@ class Trainer():
             fps += batch_fps
             tns += batch_tns
             fns += batch_fns
-
 
             if mode == 'train':
                 loss_sum += batch_loss.item() # float
