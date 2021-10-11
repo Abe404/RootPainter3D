@@ -56,8 +56,14 @@ def load_model(model_path, classes):
     # using cache can save up to half a second per segmentation with network drives
     if model_path == cached_model_path:
         return copy.deepcopy(cached_model)
-
-    model = UNet3D(classes, im_channels=1)
+    # two channels as one is input image and another is some of the fg and bg annotation
+    # each non-empty channel in the annotation is included with 50% chance.
+    # Option1 - fg and bg will go in as seprate channels 
+    #           so channels are [image, fg_annot, bg_annot]
+    # Option2 - 
+    #   when included both fg a bg go into the model bg is -1 and fg is +1. undefined is 0
+    # Option 1 will be evaluated first (possibilty easier to implement)
+    model = UNet3D(classes, im_channels=3)
     try:
         model.load_state_dict(torch.load(model_path))
         model = torch.nn.DataParallel(model)
@@ -76,7 +82,7 @@ def load_model(model_path, classes):
 def random_model(classes):
     # num out channels is twice number of channels
     # as we have a positive and negative output for each structure.
-    model = UNet3D(classes, im_channels=1)
+    model = UNet3D(classes, im_channels=3)
     model = torch.nn.DataParallel(model)
     if not use_fake_cnn: 
         model.cuda()
