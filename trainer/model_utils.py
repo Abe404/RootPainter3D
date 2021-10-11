@@ -26,6 +26,7 @@ import im_utils
 from unet3d import UNet3D
 from file_utils import ls
 from torch.nn.functional import softmax
+import torch.nn.functional as F
 
 cached_model = None
 cached_model_path = None
@@ -229,7 +230,7 @@ def segment_3d(cnn, image, batch_size, in_tile_shape, out_tile_shape):
 
                 # need to add channel dimension for GPU processing.
                 tile = np.expand_dims(tile, axis=0)
-
+                
                 assert tile.shape[1] == in_tile_shape[0], str(tile.shape)
                 assert tile.shape[2] == in_tile_shape[1], str(tile.shape)
                 assert tile.shape[3] == in_tile_shape[2], str(tile.shape)
@@ -247,6 +248,10 @@ def segment_3d(cnn, image, batch_size, in_tile_shape, out_tile_shape):
         # TODO: consider use of detach. 
         # I might want to move to cpu later to speed up the next few operations.
         # I added .detach().cpu() to prevent a memory error.
+        # pad with zeros for the annotation input channels
+        # l,r, l,r, but from end to start     w  w  h  h  d  d, c, c, b, b
+        tiles_for_gpu = F.pad(tiles_for_gpu, (0, 0, 0, 0, 0, 0, 0, 2), 'constant', 0)
+        # tiles shape after padding torch.Size([4, 3, 52, 228, 228])
         outputs = cnn(tiles_for_gpu).detach().cpu()
         # bg channel index for each class in network output.
         class_idxs = [x * 2 for x in range(outputs.shape[1] // 2)]
