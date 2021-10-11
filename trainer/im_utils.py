@@ -128,7 +128,9 @@ def load_train_image_and_annot(dataset_dir, train_annot_dirs):
             annot = load_image(annot_path)
             # Why would we have annotations without content?
             assert np.sum(annot) > 0
+            annot = np.pad(annot, ((0, 0), (17,17), (17,17), (17, 17)), mode='constant')
             annots.append(annot)
+        
 
         # it's possible the image has a different extenstion
         # so use glob to get it
@@ -136,6 +138,7 @@ def load_train_image_and_annot(dataset_dir, train_annot_dirs):
                                        os.path.splitext(fname)[0])
         image_path = glob.glob(image_path_part + '.*')[0]
         image = load_image(image_path)
+
         # also return fname for debugging purposes.
         return image, annots, classes, fname
 

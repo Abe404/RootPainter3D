@@ -27,6 +27,7 @@ import json
 import sys
 from datetime import datetime
 import copy
+import random
 
 import numpy as np
 import torch
@@ -263,7 +264,8 @@ class Trainer():
             torch.set_grad_enabled(False)
             loader = DataLoader(dataset, self.batch_size * 2, shuffle=True,
                                 collate_fn=data_utils.collate_fn,
-                                num_workers=16, drop_last=False, pin_memory=True)
+                                #num_workers=16, drop_last=False, pin_memory=True)
+                                num_workers=0, drop_last=False, pin_memory=True)
         elif mode == 'train':
             dataset = RPDataset(self.train_config['train_annot_dirs'],
                                 self.train_config['dataset_dir'],
@@ -295,20 +297,43 @@ class Trainer():
 
             self.check_for_instructions()
             batch_im_tiles = torch.from_numpy(np.array(batch_im_tiles)).cuda()
-
-
             self.optimizer.zero_grad()
         
-            # first batch item, first annotation fg tile shape
-            # shape of batch_bg_tiles[0][0] is torch.Size([18, 194, 194])
-            # in single class scenario with batch size 4, the shape is
-            # [4, 1, 18, 194, 194]
+            # [4, 1, 52, 228, 228]
 
-            # So we need to get annotation input that is same size as the image input.
-            # For now zero pad to get it working - then add new annotation.
-
+            # padd channels to allow annotation input (or not)
             # l,r, l,r, but from end to start    w  w  h  h  d  d, c, c, b, b
             model_input = F.pad(batch_im_tiles, (0, 0, 0, 0, 0, 0, 0, 2), 'constant', 0)
+        
+            # model_input[:, 0] is the input image
+            # model_input[:, 1] will be the fg
+            # model_input[:, 2] will be the bg
+
+            # with 50% chance 
+            #if random.random() > 0.5:
+            # add the annotations to the model input
+            for i, (fg_tiles, bg_tiles) in enumerate(zip(batch_fg_tiles, batch_bg_tiles)):
+                # go through fg tiles and bg_tiles for each batch item
+                # in this case we know there is always 1 bg and 1 fg tile.
+                # at random (50%) add the annotation slice
+                for slice_idx in range(fg_tiles[0].shape[0]):
+                    if random.random() > 0.5: 
+                        model_input[i, 1, slice_idx] = fg_tiles[0][slice_idx]
+                        model_input[i, 2, slice_idx] = bg_tiles[0][slice_idx]
+
+            """
+            for i in range(52):
+                im_slice = model_input[0][0][i].cpu().numpy()
+                bg_slice = model_input[0][1][i].cpu().numpy()
+                fg_slice = model_input[0][2][i].cpu().numpy()
+                fg_annot_slice = batch_fg_tiles[0][0][i].numpy()
+                combined = np.hstack((im_slice, fg_slice, bg_slice, fg_annot_slice))
+                from skimage.io import imsave
+                print('tmp_im/combined_' + str(i) + '.png')
+                imsave('tmp_im/combined_' + str(i) + '.png', combined)
+            #exit()
+            """
+
             outputs = model(model_input)
 
             (batch_loss, batch_tps, batch_tns,
