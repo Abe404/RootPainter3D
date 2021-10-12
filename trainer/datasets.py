@@ -93,10 +93,6 @@ class RPDataset(Dataset):
          y_crop_start,
          z_crop_start) = get_crop_start(fname)
 
-        pad_d = (self.in_d - self.out_d) // 2
-        pad_h = (self.in_w - self.out_w) // 2
-        pad_w = (self.in_w - self.out_w) // 2
-    
         attempts = 0 
         warn_after_attempts = 100
         
@@ -193,9 +189,7 @@ class RPDataset(Dataset):
 
         for annot_dir in self.annot_dirs:
             annot_path = os.path.join(annot_dir, fname)
-
             annot = im_utils.load_with_retry(im_utils.load_image, annot_path)
-
             classes.append(Path(annot_dir).parts[-2])
 
             annot = np.pad(annot, ((0, 0), (17, 17), (17, 17), (17, 17)), mode='constant')
