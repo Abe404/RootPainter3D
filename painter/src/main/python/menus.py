@@ -72,16 +72,24 @@ def add_bounding_box_menu(window, im_viewer, menu_bar):
 
 def add_edit_menu(window, im_viewer, menu_bar, skip_fill=False):
     edit_menu = menu_bar.addMenu("Edit")
+
     # Undo
     undo_action = QtWidgets.QAction(QtGui.QIcon(""), "Undo", window)
     undo_action.setShortcut("Z")
     edit_menu.addAction(undo_action)
     undo_action.triggered.connect(im_viewer.scene.undo)
+
     # Redo
     redo_action = QtWidgets.QAction(QtGui.QIcon(""), "Redo", window)
     redo_action.setShortcut("Ctrl+Shift+Z")
     edit_menu.addAction(redo_action)
     redo_action.triggered.connect(im_viewer.scene.redo)
+
+    # Save annotation
+    save_annotation_action = QtWidgets.QAction(QtGui.QIcon(""), "Save annotation", window)
+    save_annotation_action.setShortcut("Ctrl+Shift+Z")
+    edit_menu.addAction(save_annotation_action)
+    save_annotation_action.triggered.connect(im_viewer.parent.save_annotation)
 
     if not skip_fill:
         # skip the fill with the sagittal view, it's too annoying when this gets pressed by accident
