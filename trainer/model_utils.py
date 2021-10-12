@@ -192,6 +192,52 @@ def ensemble_segment_3d(model_paths, image, fname, batch_size, in_w, out_w, in_d
     return pred_maps
 
 
+def segment_patch(model_path, in_dir, fname, classes, annot_dirs,
+                  patch_z, patch_y, patch_x, in_d, in_w):
+    # load the image with fname
+    # and extract the patch from the supplied coorindates
+    # segment it and then update the segmentation for this image.
+
+    im_path = os.path.join(bounded_im_dir, bounded_fname)
+    (image, annots, classes, fname) = im_utils.load_image_and_annot_for_seg(bounded_im_dir,
+                                                                            annot_dirs,
+                                                                            bounded_fname)
+    im_patch = image[patch_z:patzh_z+in_d, patch_y+in_w, patch_x+in_w]
+    im_patch = im_utils.normalize_tile(im_as_float32(im_patch))
+    print('im_patch shape = ', im_patch.shape)
+    #                       b, c, d,                 h,                 w
+    model_input = np.zeros((1, 3, im_patch.shape[0], im_patch.shape[1], im_patch.shape[2]))
+    model_input[0, 0] = im_patch 
+    
+    bg_patch = annots[0][0]
+    fg_patch = annots[0][1]
+
+    model_input[0, 1] = bg_patch
+    model_input[0, 2] = fg_patch
+
+    cnn = load_model(model_path, classes)
+    model_input = torch.from_numpy(model_input).cuda()
+    outputs = cnn(tiles_for_gpu)
+
+    # bg channel index for each class in network output.
+    class_idxs = [x * 2 for x in range(outputs.shape[1] // 2)]
+    
+    if class_output_patches is None:
+        class_output_patches = [[] for _ in class_idxs]
+
+    for i, class_idx in enumerate(class_idxs):
+        class_output = outputs[:, class_idx:class_idx+2]
+        # class_output : (batch_size, bg/fg, depth, height, width)
+        softmaxed = softmax(class_output, 1) 
+        foreground_probs = softmaxed[:, 1]  # just the foreground probability.
+        predicted = foreground_probs > 0.5
+        predicted = predicted.int()
+        pred_np = predicted.data.detach().cpu().numpy()
+        for out_tile in pred_np:
+            class_output_patches[i].append(out_tile)
+
+    return class_output_patches
+
 def segment_3d(cnn, image, batch_size, in_tile_shape, out_tile_shape):
     """
     in_tile_shape and out_tile_shape are (depth, height, width)
