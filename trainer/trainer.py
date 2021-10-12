@@ -584,6 +584,64 @@ class Trainer():
         return prev_m
         
 
+    def segment_patch(self, segment_config):
+
+        # in_dir, seg_dir, fname, model_paths,
+        # in_w, out_w, in_d, out_d, class_name
+
+        """
+        Segment {file_names} from {dataset_dir} using {model_paths}
+        and save to {seg_dir}.
+
+        If model paths are not specified then use
+        the latest model in {model_dir}.
+
+        If no models are in {model_dir} then create a
+        random weights model and use that.
+
+        TODO: model saving is a counter-intuitve side effect,
+        re-think project creation process to avoid this
+        """
+        in_dir = segment_config['dataset_dir']
+        out_dir = segment_config['out_dir']
+        segment_config = add_config_shape(segment_config)
+        classes = segment_config['classes']
+        fname = segment_config['file_name']
+        model_dir = segment_config['model_dir']
+
+        patch_x = segment_config['patch_x']
+        patch_y = segment_config['patch_y']
+        patch_z = segment_config['patch_z']
+
+        in_d = segment_config['in_d']
+        in_w = segment_config['in_w']
+
+        model_path = model_utils.get_latest_model_paths(model_dir, 1)[0]
+        start = time.time()
+
+
+        # only one class is segmented
+        c = classes[0]
+        out_path = os.path.join(our_dir, c, fname)
+        if os.path.isdir(os.path.join(out_dir, c)):
+            out_path = os.path.join(out_dir, c, fname)
+        else:
+            out_path = os.path.join(out_dir, fname)
+
+        fpath = os.path.join(in_dir, fname)
+        if not os.path.isfile(fpath):
+            print('Cannot load ', fpath, 'file does not exist')
+            return
+
+        patch_seg = model_utils.segment_patch(model_path, in_dir,
+                                              fname, classes, annot_dirs, 
+                                              patch_x, patch_y, patch_y,
+                                              in_d, in_w)
+        out_path = os.path.join(out_dir, fname)
+        print('saving patch to ', out_path)
+        save_then_move(out_path, patch_seg)
+        
+
     def segment_file(self, in_dir, seg_dir, fname, model_paths,
                      in_w, out_w, in_d, out_d, classes, bounded, sync_save, overwrite=False):
 
