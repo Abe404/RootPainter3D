@@ -172,8 +172,8 @@ class RPDataset(Dataset):
         backgrounds = []
         for annot_tile in annot_tiles:
             #annot tile shape is  (2, 18, 194, 194)
-            foreground = np.array(annot_tile)[0]
-            background = np.array(annot_tile)[1]
+            foreground = np.array(annot_tile)[1]
+            background = np.array(annot_tile)[0]
             foreground = foreground.astype(np.int64)
             foreground = torch.from_numpy(foreground)
             foregrounds.append(foreground)
@@ -258,8 +258,8 @@ class RPDataset(Dataset):
             f" shape is {im_tile.shape}")
         
         for annot_tile in annot_tiles:
-            foreground = np.array(annot_tile)[0]
-            background = np.array(annot_tile)[1]
+            foreground = np.array(annot_tile)[1]
+            background = np.array(annot_tile)[0]
             foreground = foreground.astype(np.int64)
             foreground = torch.from_numpy(foreground)
             foregrounds.append(foreground)
