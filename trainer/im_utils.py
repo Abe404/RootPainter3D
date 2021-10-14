@@ -102,6 +102,8 @@ def load_image_and_annot_for_seg(dataset_dir, train_annot_dirs, fname):
         # each annotation corresponds to an individual class.
         all_classes = []
         all_dirs = []
+        
+       
         for train_annot_dir in train_annot_dirs:
             annot_fnames = ls(train_annot_dir)
             fnames += annot_fnames
@@ -111,7 +113,6 @@ def load_image_and_annot_for_seg(dataset_dir, train_annot_dirs, fname):
             all_classes += [class_name] * len(annot_fnames)
             all_dirs += [train_annot_dir] * len(annot_fnames)
 
-        assert len(fnames), 'should be at least one fname'
         # triggers retry if assertion fails
         assert is_image(fname), f'{fname} is not a valid image'
 
