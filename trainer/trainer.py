@@ -583,7 +583,6 @@ class Trainer():
         prev_m = metrics_from_val_tile_refs(self.val_tile_refs)
         return prev_m
         
-
     def segment_patch(self, segment_config):
 
         # in_dir, seg_dir, fname, model_paths,
@@ -619,7 +618,6 @@ class Trainer():
         model_path = model_utils.get_latest_model_paths(model_dir, 1)[0]
         start = time.time()
 
-
         # only one class is segmented
         c = classes[0]
         out_path = os.path.join(our_dir, c, fname)
@@ -639,7 +637,7 @@ class Trainer():
                                               in_d, in_w)
         out_path = os.path.join(out_dir, fname)
         print('saving patch to ', out_path)
-        save_then_move(out_path, patch_seg)
+        save_then_move(out_path, patch_seg[0])
         
 
     def segment_file(self, in_dir, seg_dir, fname, model_paths,
