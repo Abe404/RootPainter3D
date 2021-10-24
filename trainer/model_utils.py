@@ -230,6 +230,7 @@ def segment_3d(cnn, image, batch_size, in_tile_shape, out_tile_shape):
 
                 tile = img_as_float32(tile)
                 tile = im_utils.normalize_tile(tile)
+                tile = img_as_float32(tile)
                 coord_idx += 1
                 tiles_to_process.append(tile) # need channel dimension
                 coords_to_process.append(coord)
