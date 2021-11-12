@@ -237,7 +237,7 @@ def segment_3d(cnn, image, batch_size, in_tile_shape, out_tile_shape):
         tiles_to_process = np.array(tiles_to_process)
         tiles_for_gpu = torch.from_numpy(tiles_to_process)
 
-        tiles_for_gpu = tiles_for_gpu.cuda()
+        tiles_for_gpu = tiles_for_gpu.cuda().float()
         # TODO: consider use of detach. 
         # I might want to move to cpu later to speed up the next few operations.
         # I added .detach().cpu() to prevent a memory error.
