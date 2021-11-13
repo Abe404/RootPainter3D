@@ -114,11 +114,11 @@ class Trainer():
 
     def add_config_shape(self, config):
         new_config = copy.deepcopy(config)
-        # for now we will have defaults 
-        # we may want to allow the user to specify this or adapt based
-        # on image dimensions, hardware capabilities and batch size
-        new_config['in_w'] = 228
-        new_config['out_w'] = 194
+        num_classes = len(config['classes'])
+        in_w, out_w = model_utils.get_in_w_out_w_for_memory(num_classes)
+        print('found inw outw of', in_w, out_w)
+        new_config['in_w'] = in_w
+        new_config['out_w'] = out_w
         new_config['in_d'] = 52
         new_config['out_d'] = 18
         return new_config

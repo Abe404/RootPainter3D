@@ -43,6 +43,34 @@ def fake_cnn(tiles_for_gpu):
         output.append((v > v_mean).astype(np.int8))
     return np.array(output)
  
+def get_in_w_out_w_pairs():
+    # matching pairs of input/output sizes for specific unet used
+    # 52 to 228 in incrememnts of 16 (sorted large to small)
+    in_w_list = sorted([52 + (x*16) for x in range(12)], reverse=True)
+    
+    # output always 34 less than input
+    out_w_list = [x - 34 for x in in_w_list]
+    return list(zip(in_w_list, out_w_list))
+
+def get_in_w_out_w_for_memory(num_classes):
+    # search for appropriate input size for GPU
+    # in_w, out_w = get_in_w_out_w_for_memory(num_classes)
+    net = UNet3D(im_channels=1, out_channels=num_classes*2).cuda()
+    net = torch.nn.DataParallel(net)
+    for in_w, out_w in get_in_w_out_w_pairs():
+        torch.cuda.empty_cache()
+        try:
+            #                      b, c,  d,  h,    w    
+            input_data = np.zeros((4, 1, 52, in_w, in_w))
+            output = net(torch.from_numpy(input_data).cuda().float())
+            del input_data
+            del output
+            torch.cuda.empty_cache()
+            return in_w, out_w
+        except Exception as e:
+            if 'out of memory' in str(e):
+                print(in_w, out_w, 'too big')
+    raise Exception('Could not find patch small enough for available GPU memory')
 
 
 def get_latest_model_paths(model_dir, k):
