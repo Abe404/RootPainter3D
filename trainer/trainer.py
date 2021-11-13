@@ -116,7 +116,7 @@ class Trainer():
         new_config = copy.deepcopy(config)
         num_classes = len(config['classes'])
         in_w, out_w = model_utils.get_in_w_out_w_for_memory(num_classes)
-        print('found inw outw of', in_w, out_w)
+        print('found input width of', in_w, 'and output width of', out_w)
         new_config['in_w'] = in_w
         new_config['out_w'] = out_w
         new_config['in_d'] = 52
