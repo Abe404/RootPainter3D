@@ -121,7 +121,7 @@ class UNet3D(nn.Module):
         self.up3 = UpBlock(64)
         self.up4 = UpBlock(64)
         self.conv_out = nn.Sequential(
-            nn.Conv3d(64, 2 * len(num_classes), kernel_size=1, padding=0),
+            nn.Conv3d(64, 2 * num_classes, kernel_size=1, padding=0),
             nn.ReLU()
         )
 
