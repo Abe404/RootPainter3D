@@ -96,7 +96,7 @@ def get_in_w_out_w_for_memory(num_classes):
             del net
             del optimizer
             torch.cuda.empty_cache()
-            print('using', pairs[i+1]) # return the next smallest to be safe
+            print('using', pairs[i+1], 'to be safe') # return the next smallest to be safe
             return pairs[i+1] # return the next smallest to be safe
         except Exception as e:
             if 'out of memory' in str(e):
