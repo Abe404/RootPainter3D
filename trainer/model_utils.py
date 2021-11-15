@@ -52,7 +52,7 @@ def get_in_w_out_w_pairs():
 def get_in_w_out_w_for_memory(num_classes):
     # search for appropriate input size for GPU
     # in_w, out_w = get_in_w_out_w_for_memory(num_classes)
-    net = UNet3D(im_channels=1, out_channels=num_classes*2).cuda()
+    net = UNet3D(im_channels=1, num_classes=num_classes).cuda()
     net = torch.nn.DataParallel(net)
     for in_w, out_w in get_in_w_out_w_pairs():
         torch.cuda.empty_cache()
@@ -85,7 +85,7 @@ def load_model(model_path, classes):
     if model_path == cached_model_path:
         return copy.deepcopy(cached_model)
 
-    model = UNet3D(classes, im_channels=1)
+    model = UNet3D(num_classes=len(classes), im_channels=1)
     try:
         model.load_state_dict(torch.load(model_path))
         model = torch.nn.DataParallel(model)
@@ -104,7 +104,7 @@ def load_model(model_path, classes):
 def random_model(classes):
     # num out channels is twice number of channels
     # as we have a positive and negative output for each structure.
-    model = UNet3D(classes, im_channels=1)
+    model = UNet3D(num_classes=len(classes), im_channels=1)
     model = torch.nn.DataParallel(model)
     if not use_fake_cnn: 
         model.cuda()

@@ -102,7 +102,7 @@ class UpBlock(nn.Module):
 
 
 class UNet3D(nn.Module):
-    def __init__(self, class_names, im_channels=3):
+    def __init__(self, num_classes, im_channels=3):
         super().__init__()
         self.conv_in = nn.Sequential(
             nn.Conv3d(im_channels, 64, kernel_size=3, padding=0),
@@ -121,7 +121,7 @@ class UNet3D(nn.Module):
         self.up3 = UpBlock(64)
         self.up4 = UpBlock(64)
         self.conv_out = nn.Sequential(
-            nn.Conv3d(64, 2 * len(class_names), kernel_size=1, padding=0),
+            nn.Conv3d(64, 2 * len(num_classes), kernel_size=1, padding=0),
             nn.ReLU()
         )
 
