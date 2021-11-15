@@ -64,15 +64,3 @@ def startup_setup(settings_path):
         if not os.path.isdir(subfolder_path):
             print('Creating', subfolder_path)
             os.mkdir(subfolder_path)
-
-
-def add_config_shape(config):
-    new_config = copy.deepcopy(config)
-    # for now we will have defaults 
-    # we may want to allow the user to specify this or adapt based
-    # on image dimensions, hardware capabilities and batch size
-    new_config['in_w'] = 228
-    new_config['out_w'] = 194
-    new_config['in_d'] = 52
-    new_config['out_d'] = 18
-    return new_config

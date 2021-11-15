@@ -46,7 +46,6 @@ import data_utils
 from im_utils import is_image, load_image, save_then_move
 import im_utils
 from file_utils import ls
-from startup import add_config_shape
 
 
 class Trainer():
@@ -71,6 +70,9 @@ class Trainer():
         self.epochs_without_progress = 0
         self.training_restart = False
         self.restart_best_val_dice = 0
+        
+        self.in_w = None
+        self.out_w = None
 
         # approx 30 minutes
         self.max_epochs_without_progress = 60
@@ -112,13 +114,17 @@ class Trainer():
     def add_config_shape(self, config):
         new_config = copy.deepcopy(config)
         num_classes = len(config['classes'])
-        in_w, out_w = model_utils.get_in_w_out_w_for_memory(num_classes)
-        print('found input width of', in_w, 'and output width of', out_w)
-        new_config['in_w'] = in_w
-        new_config['out_w'] = out_w
+        if self.in_w is None:
+            in_w, out_w = model_utils.get_in_w_out_w_for_memory(num_classes)
+            self.in_w = in_w
+            self.out_w = out_w
+            print('found input width of', in_w, 'and output width of', out_w)
+        new_config['in_w'] = self.in_w
+        new_config['out_w'] = self.out_w
         new_config['in_d'] = 52
         new_config['out_d'] = 18
         return new_config
+
 
     def fix_config_paths(self, old_config):
         """ get paths relative to local machine """
@@ -210,7 +216,7 @@ class Trainer():
             self.msg_dir = self.train_config['message_dir']
             model_dir = self.train_config['model_dir']
             classes = self.train_config['classes']
-            self.train_config = add_config_shape(self.train_config)
+            self.train_config = self.add_config_shape(self.train_config)
 
             model_paths = model_utils.get_latest_model_paths(model_dir, 1)
             if model_paths:
@@ -478,7 +484,7 @@ class Trainer():
         in_dir = segment_config['dataset_dir']
         seg_dir = segment_config['seg_dir']
 
-        segment_config = add_config_shape(segment_config)
+        segment_config = self.add_config_shape(segment_config)
         classes = segment_config['classes']
         if "file_names" in segment_config:
             fnames = segment_config['file_names']
