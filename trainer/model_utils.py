@@ -65,7 +65,7 @@ def get_in_w_out_w_for_memory(num_classes):
             optimizer = torch.optim.SGD(net.parameters(), lr=0.01,
                                         momentum=0.99, nesterov=True)
             net.train()
-            for i in range(3):
+            for _ in range(3):
                 #                      b, c,  d,  h,    w    
                 input_data = np.zeros((4, 1, 52, in_w, in_w))
                 optimizer.zero_grad()
@@ -75,7 +75,7 @@ def get_in_w_out_w_for_memory(num_classes):
                 batch_fg_tiles[:, 0, 0] = 0
                 batch_bg_tiles[:, 0, 0] = 1
                 batch_classes = []
-                for i in range(4):
+                for _ in range(4):
                     batch_classes.append([f'c_{c}' for c in range(num_classes)])
 
                 (batch_loss, batch_tps, batch_tns,
@@ -93,8 +93,6 @@ def get_in_w_out_w_for_memory(num_classes):
                 del input_data
                 torch.cuda.empty_cache()
             print(in_w, out_w, 'ok')
-            del net
-            del optimizer
             torch.cuda.empty_cache()
             print('using', pairs[i+1], 'to be safe') # return the next smallest to be safe
             return pairs[i+1] # return the next smallest to be safe
