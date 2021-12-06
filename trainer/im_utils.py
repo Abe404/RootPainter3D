@@ -149,9 +149,9 @@ def pad_3d(image, width, depth, mode='reflect', constant_values=0):
         # don't pad channels
         pad_shape = [(0, 0)] + pad_shape
     if mode == 'reflect':
-        return skim_util.pad(image, pad_shape, mode)
-    return skim_util.pad(image, pad_shape, mode=mode,
-                         constant_values=constant_values)
+        return np.pad(image, pad_shape, mode)
+    return np.pad(image, pad_shape, mode=mode,
+                  constant_values=constant_values)
 
 
 def get_val_tile_refs(annot_dirs, prev_tile_refs, out_shape):
@@ -306,7 +306,8 @@ def save_then_move(out_path, seg):
         as this causes errors. Thus we save and then rename.
     """
     fname = os.path.basename(out_path)
-    temp_path = os.path.join('/tmp', fname)
+    token = str(time.time()) # add token to avoid resaving over files wiith the same name
+    temp_path = os.path.join('/tmp', token + fname)
     if out_path.endswith('.nii.gz'):
         img = nib.Nifti1Image(seg, np.eye(4))
         img.to_filename(temp_path)
@@ -314,7 +315,8 @@ def save_then_move(out_path, seg):
         np.save(temp_path, seg)
     else:
         raise Exception(f'Unhandled {out_path}')
-    shutil.move(temp_path, out_path)
+    shutil.copy(temp_path, out_path)
+    os.remove(temp_path)
 
 
 def load_image(image_path):

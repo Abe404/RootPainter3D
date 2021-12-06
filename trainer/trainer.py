@@ -60,7 +60,6 @@ class Trainer():
         self.train_config = None
         self.model = None
         self.first_loop = True
-        # TODO: derrive both batch_size and input_patch size based on available GPU memory
         self.batch_size = 4 
         self.optimizer = None
         self.val_tile_refs = []
@@ -564,6 +563,21 @@ class Trainer():
         prev_m = metrics_from_val_tile_refs(self.val_tile_refs)
         return prev_m
         
+    def get_in_w_and_out_w_for_image(self, im, in_w, out_w):
+        """ the input image may be smaller than the default 
+            patch size, so find a patch size where the output patch
+            size will fit inside the image """
+
+        im_depth, im_height, im_width = im.shape
+
+        if out_w < im_width and out_w < im_height:
+            return in_w, out_w
+        
+        for valid_in_w, valid_out_w in model_utils.get_in_w_out_w_pairs():
+            if valid_out_w < im_width and valid_out_w < im_height and valid_out_w < out_w:
+                return valid_in_w, valid_out_w
+
+        raise Exception('cannot find patch size small enough for image with shape' + str(im.shape))
 
     def segment_file(self, in_dir, seg_dir, fname, model_paths,
                      in_w, out_w, in_d, out_d, classes, bounded, sync_save, overwrite=False):
@@ -572,7 +586,8 @@ class Trainer():
         out_paths = []
         if len(classes) > 1:
             for c in classes:
-                out_paths.append(os.path.join(seg_dir, c, fname))
+                out_fname = fname.replace('.nrrd', '.nii.gz') # output to nii.gz regardless of input format.
+                out_paths.append(os.path.join(seg_dir, c, out_fname))
         else:
             # segment to nifty as they don't get loaded repeatedly in training.
             out_paths = [os.path.join(seg_dir, fname)]
@@ -602,14 +617,21 @@ class Trainer():
             print('Exception loading', fpath, e)
             return
         seg_start = time.time()
-        print('segmented input shape', im.shape)
         print('segment image, input shape = ', im.shape)
+        seg_in_w, seg_out_w = self.get_in_w_and_out_w_for_image(im, in_w, out_w) 
         segmented = ensemble_segment_3d(model_paths, im, fname, self.batch_size,
-                                        in_w, out_w, in_d,
+                                        seg_in_w, seg_out_w, in_d,
                                         out_d, classes, bounded)
+
         print(f'ensemble segment {fname}, dur', round(time.time() - seg_start, 2))
         
         for seg, outpath in zip(segmented, out_paths):
+            # if the output folder doesn't exist then create it (class specific directory)
+            out_dir = os.path.split(outpath)[0]
+            if not os.path.exists(out_dir):
+                print('making directory', out_dir)
+                os.makedirs(out_dir)
+            
             # catch warnings as low contrast is ok here.
             with warnings.catch_warnings():
                 # create a version with alpha channel
@@ -622,5 +644,5 @@ class Trainer():
                     # TODO find a cleaner way to do this.
                     # if more than one file then optimize speed over stability.
                     x = threading.Thread(target=save_then_move,
-                                         args=(outpath, segmented))
+                                         args=(outpath, seg))
                     x.start()
