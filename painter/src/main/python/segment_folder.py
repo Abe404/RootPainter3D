@@ -38,7 +38,14 @@ class SegmentWatchThread(QtCore.QThread):
 
     def run(self):
         while True:
-            done_fnames = os.listdir(self.segment_dir)
+            # if the segment dir contains folders, then assume each folder contains the class specific predictions.
+
+            seg_dir_contents = os.listdir(self.segment_dir)
+
+            if len(seg_dir_contents) and os.path.isdir(os.path.join(self.segment_dir, seg_dir_contents[0])):
+                done_fnames = os.listdir(os.path.join(self.segment_dir, seg_dir_contents[0]))
+            else:
+                done_fnames = seg_dir_contents
             done_fnames = [f for f in done_fnames if is_image(f)]
             count = len(done_fnames)
             if count >= self.total_images:
