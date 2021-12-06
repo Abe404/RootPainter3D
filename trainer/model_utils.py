@@ -43,12 +43,45 @@ def fake_cnn(tiles_for_gpu):
  
 def get_in_w_out_w_pairs():
     # matching pairs of input/output sizes for specific unet used
-    # 52 to 228 in incrememnts of 16 (sorted large to small)
-    in_w_list = sorted([52 + (x*16) for x in range(14)], reverse=True)
+    # 36 to 228 in incrememnts of 16 (sorted large to small)
+    in_w_list = sorted([36 + (x*16) for x in range(15)], reverse=True)
     
     # output always 34 less than input
     out_w_list = [x - 34 for x in in_w_list]
     return list(zip(in_w_list, out_w_list))
+
+
+def allocate_net(in_w, out_w, num_classes):
+    net = UNet3D(im_channels=1, num_classes=num_classes).cuda()
+    net = torch.nn.DataParallel(net)
+    optimizer = torch.optim.SGD(net.parameters(), lr=0.01,
+                                momentum=0.99, nesterov=True)
+    net.train()
+    for _ in range(3):
+        #                      b, c,  d,  h,    w    
+        input_data = np.zeros((4, 1, 52, in_w, in_w))
+        optimizer.zero_grad()
+        outputs = net(torch.from_numpy(input_data).cuda().float())
+        batch_fg_tiles = torch.ones(4, num_classes, 18, out_w, out_w).long().cuda()
+        batch_bg_tiles = torch.zeros(4, num_classes, 18, out_w, out_w).long().cuda()
+        batch_fg_tiles[:, 0, 0] = 0
+        batch_bg_tiles[:, 0, 0] = 1
+        batch_classes = []
+        for _ in range(4):
+            batch_classes.append([f'c_{c}' for c in range(num_classes)])
+        (batch_loss, _, _,
+         _, _) = get_batch_loss(
+             outputs, batch_fg_tiles, batch_bg_tiles,
+             batch_classes,
+             [f'c_{c}' for c in range(num_classes)],
+             compute_loss=True)
+        batch_loss.backward()
+        optimizer.step()
+        del batch_loss
+        del batch_fg_tiles
+        del batch_bg_tiles
+        del outputs
+        del input_data
 
 
 def get_in_w_out_w_for_memory(num_classes):
@@ -56,44 +89,13 @@ def get_in_w_out_w_for_memory(num_classes):
     # search for appropriate input size for GPU
     # in_w, out_w = get_in_w_out_w_for_memory(num_classes)
     # try to train a network and see which patch size fits on the gpu.
-    net = UNet3D(im_channels=1, num_classes=num_classes).cuda()
-    net = torch.nn.DataParallel(net)
     pairs = get_in_w_out_w_pairs()
     for i, (in_w, out_w) in enumerate(pairs):
         torch.cuda.empty_cache()
         try:
-            optimizer = torch.optim.SGD(net.parameters(), lr=0.01,
-                                        momentum=0.99, nesterov=True)
-            net.train()
-            for _ in range(3):
-                #                      b, c,  d,  h,    w    
-                input_data = np.zeros((4, 1, 52, in_w, in_w))
-                optimizer.zero_grad()
-                outputs = net(torch.from_numpy(input_data).cuda().float())
-                batch_fg_tiles = torch.ones(4, num_classes, 18, out_w, out_w).long().cuda()
-                batch_bg_tiles = torch.zeros(4, num_classes, 18, out_w, out_w).long().cuda()
-                batch_fg_tiles[:, 0, 0] = 0
-                batch_bg_tiles[:, 0, 0] = 1
-                batch_classes = []
-                for _ in range(4):
-                    batch_classes.append([f'c_{c}' for c in range(num_classes)])
-
-                (batch_loss, batch_tps, batch_tns,
-                 batch_fps, batch_fns) = get_batch_loss(
-                     outputs, batch_fg_tiles, batch_bg_tiles,
-                     batch_classes,
-                     [f'c_{c}' for c in range(num_classes)],
-                     compute_loss=True)
-                batch_loss.backward()
-                optimizer.step()
-                del batch_loss
-                del batch_fg_tiles
-                del batch_bg_tiles
-                del outputs
-                del input_data
-                torch.cuda.empty_cache()
-            print(in_w, out_w, 'ok')
+            allocate_net(in_w, out_w, num_classes)
             torch.cuda.empty_cache()
+            print(in_w, out_w, 'ok')
             print('using', pairs[i+1], 'to be safe') # return the next smallest to be safe
             return pairs[i+1] # return the next smallest to be safe
         except Exception as e:
