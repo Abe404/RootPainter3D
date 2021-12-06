@@ -855,8 +855,6 @@ class ShortcutWindow(QtWidgets.QWidget):
         table.setItem(15, 0, QtWidgets.QTableWidgetItem("Alt+Click inside closed region"))
         table.setItem(15, 1, QtWidgets.QTableWidgetItem("Fill closed region as foreground"))
 
-
-        table.horizontalHeader().sectionSizeFromContents(True)
         table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         table.setSizeAdjustPolicy(QtWidgets.QAbstractScrollArea.AdjustToContents)
 
