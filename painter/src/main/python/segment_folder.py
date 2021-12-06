@@ -83,9 +83,6 @@ class SegmentFolderWidget(QtWidgets.QWidget):
         all_fnames = [f for f in all_fnames if is_image(f)]
 
         seg_classes = copy.deepcopy(self.classes)
-        # Tell server to segment the bg with 0 alpha 
-        assert seg_classes[0][0] == 'Background'
-        seg_classes[0][1][3] = 0  
 
         # need to make sure all train photos are copied now.
         content = {
