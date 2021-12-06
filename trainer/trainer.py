@@ -60,7 +60,6 @@ class Trainer():
         self.train_config = None
         self.model = None
         self.first_loop = True
-        # TODO: derrive both batch_size and input_patch size based on available GPU memory
         self.batch_size = 4 
         self.optimizer = None
         self.val_tile_refs = []
