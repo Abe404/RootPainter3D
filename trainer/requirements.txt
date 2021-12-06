@@ -1,7 +1,6 @@
 scikit-image==0.18.3
 numpy==1.21.3
 scipy==1.7.1
-Pillow==8.4.0
 pytest==5.4.2
 nibabel==3.1.0
 pynrrd==0.4.2
