@@ -45,7 +45,7 @@ from model_utils import save_if_better, save_model
 from metrics import metrics_from_val_tile_refs
 import data_utils
 
-from im_utils import is_image, load_image, save_then_move
+from im_utils import is_image, load_image, save_then_move, save
 import im_utils
 from file_utils import ls
 
@@ -642,10 +642,10 @@ class Trainer():
                 if sync_save:
                     # other wise do sync because we don't want to delete the segment
                     # instruction too early.
-                    save_then_move(outpath, seg)
+                    save(outpath, seg)
                 else:
                     # TODO find a cleaner way to do this.
                     # if more than one file then optimize speed over stability.
-                    x = threading.Thread(target=save_then_move,
+                    x = threading.Thread(target=save,
                                          args=(outpath, seg))
                     x.start()

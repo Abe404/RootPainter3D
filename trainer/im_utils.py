@@ -296,6 +296,7 @@ def get_coords_3d(annot_shape, out_tile_shape):
     return tile_coords
 
 
+
 def save_then_move(out_path, seg):
     """ need to save in a temp folder first and
         then move to the segmentation folder after saving
@@ -317,6 +318,14 @@ def save_then_move(out_path, seg):
         raise Exception(f'Unhandled {out_path}')
     shutil.copy(temp_path, out_path)
     os.remove(temp_path)
+
+
+def save(out_path, seg):
+    if out_path.endswith('.nii.gz'):
+        img = nib.Nifti1Image(seg, np.eye(4))
+        img.to_filename(out_path)
+    else:
+        raise Exception(f'Unhandled {out_path}')
 
 
 def load_image(image_path):
