@@ -27,6 +27,8 @@ import json
 import sys
 from datetime import datetime
 import copy
+import multiprocessing
+
 
 import numpy as np
 import torch
@@ -278,7 +280,8 @@ class Trainer():
             torch.set_grad_enabled(False)
             loader = DataLoader(dataset, self.batch_size * 2, shuffle=True,
                                 collate_fn=data_utils.collate_fn,
-                                num_workers=16, drop_last=False, pin_memory=True)
+                                num_workers=min(multiprocessing.cpu_count(), 12),
+                                drop_last=False, pin_memory=True)
         elif mode == 'train':
             dataset = RPDataset(self.train_config['train_annot_dirs'],
                                 self.train_config['dataset_dir'],
@@ -292,7 +295,7 @@ class Trainer():
             torch.set_grad_enabled(True)
             loader = DataLoader(dataset, self.batch_size, shuffle=False,
                                 collate_fn=data_utils.collate_fn,
-                                num_workers=16,
+                                num_workers=min(multiprocessing.cpu_count(), 12),
                                 drop_last=False, pin_memory=True)
             model.train()
         else:
