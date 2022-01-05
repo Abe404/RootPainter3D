@@ -590,11 +590,6 @@ class RootPainter(QtWidgets.QMainWindow):
                     os.remove(os.path.join(self.message_dir, m))
                 except Exception as e:
                     print('Caught exception when trying to detele msg', e)
-            #print('seg_dir', self.seg_dir, 'bounded fname', self.bounded_fname, 'cur class',
-            #      self.cur_class)
-            #print('seg exists = ', os.path.isfile(self.get_seg_path()))
-            #if self.seg_data is not None:
-            #print('seg data mean = ', np.mean(self.seg_data))
                                 
             # if a segmentation exists (on disk)
             if self.bounded_fname and os.path.isfile(self.get_seg_path()):
