@@ -301,15 +301,14 @@ class Trainer():
             batch_im_tiles = torch.from_numpy(np.array(batch_im_tiles)).cuda()
             self.optimizer.zero_grad()
         
-            # [4, 1, 52, 228, 228]
 
             # padd channels to allow annotation input (or not)
             # l,r, l,r, but from end to start    w  w  h  h  d  d, c, c, b, b
             model_input = F.pad(batch_im_tiles, (0, 0, 0, 0, 0, 0, 0, 2), 'constant', 0)
         
             # model_input[:, 0] is the input image
-            # model_input[:, 1] will be the fg
-            # model_input[:, 2] will be the bg
+            # model_input[:, 1] is fg
+            # model_input[:, 2] is bg
 
             # with 50% chance 
             #if random.random() > 0.5:
