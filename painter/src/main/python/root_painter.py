@@ -28,7 +28,13 @@ import traceback
 from datetime import datetime
 import time
 
+
 import numpy as np
+from scipy import ndimage
+from scipy.ndimage import binary_fill_holes
+import nibabel as nib
+
+
 from skimage.io import use_plugin
 from PyQt5 import QtWidgets
 from PyQt5 import QtGui
@@ -47,7 +53,7 @@ from instructions import send_instruction
 from contrast_slider import ContrastSlider
 import im_utils
 import menus
-from bounding_box import apply_bounding_box
+from bounding_box import apply_bounding_box, segment_full_image
 
 
 use_plugin("pil")
@@ -65,6 +71,7 @@ class RootPainter(QtWidgets.QMainWindow):
                                         sync_dir=sync_dir)
         self.contrast_presets = contrast_presets
         self.view_state = ViewState.BOUNDING_BOX
+        self.patch_update_enabled = True
         self.tracking = False
         self.seg_mtime = None
         self.im_width = None
@@ -72,7 +79,8 @@ class RootPainter(QtWidgets.QMainWindow):
         self.annot_data = None
         self.seg_data = None
         self.bounded_fname = None
-        self.box = {'x':20, 'y':20, 'z': 20, 'width': 50, 'height': 50,
+        self.box = {'x':20, 'y':20, 'z': 20,
+                    'width': 50, 'height': 50,
                     'depth': 20, 'visible': False}
         # for patch, useful for bounding box.
         self.input_shape = (52, 228, 228)
@@ -113,13 +121,11 @@ class RootPainter(QtWidgets.QMainWindow):
             return self.proj_location / 'annotations' / self.cur_class / 'train'
         return self.proj_location / 'annotations' / 'train'
 
-
     def get_val_annot_dir(self):
         # taking into account the current class.
         if len(self.classes) > 1:
             return self.proj_location / 'annotations' / self.cur_class / 'val'
         return self.proj_location / 'annotations' / 'val'
-
 
     def open_project(self, proj_file_path):
         # extract json
@@ -206,6 +212,7 @@ class RootPainter(QtWidgets.QMainWindow):
                 self.track_changes()
                 break
 
+
     def update_file(self, fpath):
         """ Invoked when the file to view has been changed by the user.
             Show image file and it's associated annotation and segmentation """
@@ -218,13 +225,12 @@ class RootPainter(QtWidgets.QMainWindow):
             
         self.fname = os.path.basename(fpath)
         self.image_path = os.path.join(self.dataset_dir, self.fname)
-
         self.update_bounded_fname() # need this to know the name of the segmentation.
-
+        print('load image')
         self.img_data = im_utils.load_image(self.image_path)
 
-      
-
+        print('image data shape = ', self.img_data.shape)
+        print('image loaded')
         # if a guide image directory is specified
         if hasattr(self, 'guide_image_dir'):
             guide_image_path = os.path.join(os.path.join(self.guide_image_dir, self.fname))
@@ -243,11 +249,29 @@ class RootPainter(QtWidgets.QMainWindow):
 
         # only segment if a segmentation is not missing.
         if not self.bounded_fname or not os.path.isfile(self.get_seg_path()):
-            apply_bounding_box(self, True)
+            apply_bounding_box(self, True) # segment current image.
+            # if the current image is not the last image.
+        
+        # segment the next image also.
+        cur_im_idx = self.image_fnames.index(self.fname)
+        if cur_im_idx < len(self.image_fnames):    
+            next_im_fname = self.image_fnames[cur_im_idx+1]
+            segment_full_image(self, next_im_fname) # assumes bounding box already created.
+
 
         self.log(f'update_file_end,fname:{os.path.basename(fpath)},view_state:{self.view_state}')
 
-            
+    def navigate_to_top_of_structure(self, roi_connected_structure):
+        # Used to speed things up when we first open an image, as this is where a user 
+        # should start making the corrections.
+        for i in range(roi_connected_structure.shape[0]):
+            if np.any(roi_connected_structure[i]):
+                slice_idx = (roi_connected_structure.shape[0] - i) - 1
+                self.axial_viewer.slice_nav.slider.setValue(slice_idx)
+                self.axial_viewer.slice_nav.value_changed()
+                break
+
+
     def update_annot_and_seg(self):
         self.annot_path = None
         self.view_state = ViewState.LOADING_SEG # was BOUNDING_BOX but now box is disabled.
@@ -262,6 +286,7 @@ class RootPainter(QtWidgets.QMainWindow):
                                              self.get_val_annot_dir())
         
         if self.annot_path and os.path.isfile(self.annot_path):
+            print('load annot')
             self.annot_data = im_utils.load_annot(self.annot_path, self.img_data.shape)
         else:
             # otherwise create empty annotation array
@@ -272,6 +297,7 @@ class RootPainter(QtWidgets.QMainWindow):
             self.annot_data = np.zeros([2] + list(self.img_data.shape))
 
         if self.bounded_fname and os.path.isfile(self.get_seg_path()):
+            print('load seg')
             self.log(f'load_seg,fname:{os.path.basename(self.get_seg_path())}')
             self.seg_data, self.seg_props = im_utils.load_seg(self.get_seg_path(), self.img_data)
             self.view_state = ViewState.ANNOTATING
@@ -287,6 +313,30 @@ class RootPainter(QtWidgets.QMainWindow):
             if self.seg_data is None and v.seg_visible:
                 # show seg in order to show the loading message
                 v.show_hide_seg()
+
+        if self.seg_data is not None:
+            # assign bg annotations to regions that are not the largest
+            import cc3d
+            if not np.any(self.annot_data):
+                print('run cc3d')
+                labels_out = cc3d.connected_components(self.seg_data) # 26-connected
+                voxel_counts = cc3d.statistics(labels_out)['voxel_counts']
+                print('voxel counts len = ', len(voxel_counts))
+                to_keep_idx = voxel_counts[1:].argmax()
+                for label_idx in range(len(voxel_counts)):
+                    if label_idx == to_keep_idx:
+                        biggest_region_mask = labels_out == (to_keep_idx + 1)
+                        roi_corrected_no_holes = binary_fill_holes(biggest_region_mask).astype(np.int)
+                        roi_extra_fg = roi_corrected_no_holes - biggest_region_mask
+                        self.annot_data[1][roi_extra_fg > 0] = 1 # set fg regions to remove holes.
+                    else:
+                        fg_region_label = label_idx + 1
+                        mask = labels_out == fg_region_label
+                        self.annot_data[0][mask] = 1 # set bg regions to remove extra components
+                self.update_viewer_annot_slice() # update view so next view change doesnt update the annot with previously displayed annot.
+                self.navigate_to_top_of_structure(roi_corrected_no_holes)
+            else:
+                print('found annot so not automatically remoing small holes and regions')
 
     def update_class(self, class_name):
         # Save current annotation (if it exists) before moving on
@@ -708,10 +758,7 @@ class RootPainter(QtWidgets.QMainWindow):
         if self.annot_data is not None:
             for v in self.viewers:
                 v.store_annot_slice()
-            
-
             fname = os.path.basename(self.get_seg_path())
-
             self.annot_path = maybe_save_annotation_3d(self.img_data.shape,
                                                        self.annot_data,
                                                        self.annot_path,
@@ -719,7 +766,13 @@ class RootPainter(QtWidgets.QMainWindow):
                                                        self.get_train_annot_dir(),
                                                        self.get_val_annot_dir(),
                                                        self.seg_props, self.log)
-
             if self.annot_path:
-                # start training when an annotation exists
-                self.start_training()
+                if self.patch_update_enabled:
+                    # also save the segmentation, as this updated due to patch updates (potencially).
+                    img = nib.Nifti1Image(self.seg_data, np.eye(4))
+                    img.to_filename(self.get_seg_path())
+                # 
+                #                                          
+            # if self.annot_path:
+            # start training when an annotation exists
+            #    self.start_training()
