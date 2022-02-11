@@ -124,6 +124,7 @@ def define_bounding_box(root_painter):
     
 
 def resegment_current_image(root_painter):
+    
     message_box = QtWidgets.QMessageBox
     ret = message_box.question(root_painter,'',
                                "Applying the bounding box again will delete the existing "
@@ -131,9 +132,21 @@ def resegment_current_image(root_painter):
                                "Are you sure you want to do apply the bounding box?",
                                message_box.Yes | message_box.No)
     if ret == message_box.Yes:
-        os.remove(root_painter.seg_path)
+
+        spaths = root_painter.get_all_seg_paths()
+        # delete all existing segmentations.
+        for spath in spaths:
+            if os.path.isfile(spath):
+                print('deleting existing ', spath)
+                os.remove(spath)
+        # it should come later
+        root_painter.seg_data = None
+
         bounded_im_dir = os.path.join(root_painter.proj_location, 'bounded_images')
-        root_painter.set_seg_loading()
+
+        root_painter.update_segmentation()
+        root_painter.axial_viewer.update_seg_slice()
+
         root_painter.log(f'resegment,bounded_fname:{root_painter.bounded_fname}')
         # send instruction to segment the new image.
         root_painter.send_instruction('segment', {
@@ -142,61 +155,70 @@ def resegment_current_image(root_painter):
             "file_names": [root_painter.bounded_fname],
             "message_dir": root_painter.message_dir,
             "model_dir": root_painter.model_dir,
-            "classes": ["Foreground"],
-            "dimensions": 3,
+            "classes": root_painter.classes,
             "overwrite": True
         })
         root_painter.track_changes()
 
 
-def apply_bounding_box(root_painter):
+def apply_bounding_box(root_painter, full_size):
     """ Save the bounded image and show loading icon
         as the segmentation will now be loading """
 
     box = root_painter.box
 
     # if the segmentation already exists then give the user the option toresegment the current image.
-    if root_painter.seg_path and os.path.isfile(root_painter.seg_path):
+    if root_painter.bounded_fname and os.path.isfile(root_painter.get_seg_path()):
         resegment_current_image(root_painter)
         return
-
-    if not box['visible']:
-        return
-
-    root_painter.log(f'apply_box,box:{json.dumps(box)}')
-    x = box['x']
-    y = box['y']
-    z = box['z']
-    depth = box['depth']
-    height = box['height']
-    width = box['width']
     im_shape = root_painter.img_data.shape 
 
-    # if it's a bit outside the image then just adjust to only include the bit
-    # covered by the image
+    if full_size:
+        x = 0
+        y = 0
+        z = 0
+        width = im_shape[2] - 1
+        height = im_shape[1] - 1
+        depth = im_shape[0] - 1
 
-    if x < 0:
-        width += x # substract 
-        x += -x # and shift accross
-    if y < 0:
-        height += y # substract 
-        y += -y # and shift accross
-    if z < 0:
-        depth += x # substract 
-        z += -z # and shift accross
+    else:
 
-    # make sure depth height and width don't go outside the box
-    depth -= max(0, (z + depth) - (im_shape[0] - 1))
-    height -= max(0, (y + height) - (im_shape[1] - 1))
-    width -= max(0, (x + width) - (im_shape[2] - 1))
+        if not box['visible']:
+            return
+        root_painter.log(f'apply_box,box:{json.dumps(box)}')
+        x = box['x']
+        y = box['y']
+        z = box['z']
+        depth = box['depth']
+        height = box['height']
+        width = box['width']
 
-    assert z+depth < im_shape[0]
-    assert y+height < im_shape[1]
-    assert x+width < im_shape[2]
+        # if it's a bit outside the image then just adjust to only include the bit
+        # covered by the image
 
-    assert z >= 0
-    assert y >= 0
-    assert x >= 0
+        if x < 0:
+            width += x # substract 
+            x += -x # and shift accross
+        if y < 0:
+            height += y # substract 
+            y += -y # and shift accross
+        if z < 0:
+            depth += x # substract 
+            z += -z # and shift accross
+
+        # make sure depth height and width don't go outside the box
+        depth -= max(0, (z + depth) - (im_shape[0] - 1))
+        height -= max(0, (y + height) - (im_shape[1] - 1))
+        width -= max(0, (x + width) - (im_shape[2] - 1))
+
+        assert z+depth < im_shape[0]
+        assert y+height < im_shape[1]
+        assert x+width < im_shape[2]
+
+        assert z >= 0
+        assert y >= 0
+        assert x >= 0
+ 
 
     (z_start, z_end,
      z_pad_start, z_pad_end) = dimension_offsets(z, depth,
@@ -218,7 +240,7 @@ def apply_bounding_box(root_painter):
     im_fname = os.path.basename(im_fpath)
     proj_location = root_painter.proj_location
     bounded_im_dir = os.path.join(proj_location, 'bounded_images')
-    bounded_im_name = im_fname.replace('.nii.gz', '')
+    bounded_im_name = im_fname.replace('.nii.gz', '').replace('.nrrd', '')
 
     # add coordinates and pad size to file name so we know where to show the segmentation.
     bounded_im_name += (f"_x_{x}_y_{y}_z_{z}_pad_"
@@ -230,7 +252,6 @@ def apply_bounding_box(root_painter):
     img = nib.Nifti1Image(bounded_im, np.eye(4))
     img.to_filename(bounded_im_fpath)
     QtWidgets.QApplication.instance().setOverrideCursor(Qt.BusyCursor)
-    root_painter.seg_path = os.path.join(root_painter.seg_dir, bounded_im_name)
     root_painter.set_seg_loading()
 
     # send instruction to segment the new image.
@@ -240,9 +261,9 @@ def apply_bounding_box(root_painter):
         "file_names": [bounded_im_name],
         "message_dir": root_painter.message_dir,
         "model_dir": root_painter.model_dir,
-        "classes": ["Foreground"],
-        "dimensions": 3
+        "classes": root_painter.classes # used for saving segmentation output to correct directories
     })
+    root_painter.bounded_fname = bounded_im_name
     root_painter.track_changes()
 
 

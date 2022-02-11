@@ -18,7 +18,11 @@ import os
 import time
 
 def ls(dir_path):
-    # retry as there may be temporary issues with a mounted network drive. 
+    """
+    list directory with
+    retry as there may be temporary issues with a mounted network drive. 
+    hidden files are not returned
+    """
     retries = 100
     for _ in range(retries):
         try:
@@ -34,3 +38,13 @@ def ls(dir_path):
             time.sleep(1)
     raise Exception(f'Cannot list file names from {dir_path} after {retries} retries')
         
+
+def get_crop_start(fname):
+    fname_parts = fname.replace('.nii.gz', '').split('_')
+
+    # This padding information allows us to convert between bounded image
+    # and annotation coordinates
+    x_crop_start = int(fname_parts[-8])
+    y_crop_start = int(fname_parts[-5])
+    z_crop_start = int(fname_parts[-2])
+    return x_crop_start, y_crop_start, z_crop_start

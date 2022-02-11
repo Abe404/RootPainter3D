@@ -27,6 +27,15 @@ def add_network_menu(window, menu_bar):
     # segment folder
     segment_folder_btn = QtWidgets.QAction(QtGui.QIcon('missing.png'), 'Segment folder', window)
 
+
+
+    # Alt+S
+    segment_action = QtWidgets.QAction(QtGui.QIcon(""), "Segment full image", window)
+    segment_action.setShortcut("Alt+S")
+    network_menu.addAction(segment_action)
+    segment_action.triggered.connect(partial(apply_bounding_box, window, True))
+
+
     def show_segment_folder():
         window.segment_folder_widget = SegmentFolderWidget(window.sync_dir,
                                                          window.instruction_dir,
@@ -37,17 +46,27 @@ def add_network_menu(window, menu_bar):
 
 
 def add_bounding_box_menu(window, im_viewer, menu_bar):
+    # disabled for now - full images will be segmented.
+    #         menus.add_bounding_box_menu(self, self.axial_viewer, menu_bar)
+
     box_menu = menu_bar.addMenu("Bounding box")
     # Define
-    define_action = QtWidgets.QAction(QtGui.QIcon(""), "Define", window)
+    define_action = QtWidgets.QAction(QtGui.QIcon(""), "Define bounding box", window)
     define_action.setShortcut("Alt+B")
     box_menu.addAction(define_action)
     define_action.triggered.connect(partial(define_bounding_box, window))
     # Apply
-    apply_action = QtWidgets.QAction(QtGui.QIcon(""), "Apply", window)
+    apply_action = QtWidgets.QAction(QtGui.QIcon(""), "Apply bounding box", window)
     apply_action.setShortcut("Alt+A")
     box_menu.addAction(apply_action)
-    apply_action.triggered.connect(partial(apply_bounding_box, window))
+    apply_action.triggered.connect(partial(apply_bounding_box, window, False))
+
+    # Alt+S
+    segment_action = QtWidgets.QAction(QtGui.QIcon(""), "Segment full image", window)
+    segment_action.setShortcut("Alt+S")
+    box_menu.addAction(segment_action)
+    segment_action.triggered.connect(partial(apply_bounding_box, window, True))
+
     return box_menu
 
 
@@ -98,7 +117,7 @@ def add_windows_menu(main_window):
     #menu.addAction(show_coronal_view_action)
 
 
-def add_brush_menu(classes, im_viewer, menu_bar):
+def add_brush_menu(im_viewer, menu_bar):
     brush_menu = menu_bar.addMenu("Brushes")
 
     def add_brush(name, color_val, shortcut=None):
@@ -110,9 +129,26 @@ def add_brush_menu(classes, im_viewer, menu_bar):
                                                color=QtGui.QColor(*color_val)))
         if im_viewer.brush_color is None:
             im_viewer.brush_color = QtGui.QColor(*color_val)
-    for name, rgba, shortcut in classes:
+    # These don't need to be modified. Each class has background and foreground
+    brushes = [
+        ('Background', (0, 255, 0, 180), 'W'),
+        ('Foreground', (255, 0, 0, 180), 'Q'),
+        ('Eraser', (255, 205, 180, 0), 'E')
+    ]
+    for name, rgba, shortcut in brushes:
         add_brush(name, rgba, shortcut)
-    add_brush('Eraser', (255, 205, 180, 0), 'E')
+
+
+def add_class_menu(self, menu_bar):
+    class_menu = menu_bar.addMenu('Classes')
+    for i, class_name in enumerate(self.classes):
+        class_action = QtWidgets.QAction(QtGui.QIcon('missing.png'), 
+                                            class_name, self)
+        # update class via nav to keep nav up to date whilst avoiding a double update.
+        class_action.triggered.connect(partial(self.nav.cb.setCurrentIndex,
+                                            self.classes.index(class_name)))
+        class_action.setShortcut(str(i+1))
+        class_menu.addAction(class_action)
 
 
 def add_help_menu(self,  menu_bar):

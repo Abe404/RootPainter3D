@@ -528,7 +528,7 @@ class ImViewerWindow(QtWidgets.QMainWindow, ImViewer):
         super().init_ui()
         menus.add_view_menu(self, self, self.menuBar())
         menus.add_edit_menu(self, self, self.menuBar(), skip_fill=self.mode == 'sagittal')
-        menus.add_brush_menu(self.parent.classes, self, self.menuBar())
+        menus.add_brush_menu(self, self.menuBar())
 
         # This widget is designed to be a standalone window
         # so a central widget should be assigned.
