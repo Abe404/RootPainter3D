@@ -301,7 +301,6 @@ class Trainer():
             batch_im_tiles = torch.from_numpy(np.array(batch_im_tiles)).cuda()
             self.optimizer.zero_grad()
         
-
             # padd channels to allow annotation input (or not)
             # l,r, l,r, but from end to start    w  w  h  h  d  d, c, c, b, b
             model_input = F.pad(batch_im_tiles, (0, 0, 0, 0, 0, 0, 0, 2), 'constant', 0)
@@ -310,30 +309,21 @@ class Trainer():
             # model_input[:, 1] is fg
             # model_input[:, 2] is bg
 
-            # with 50% chance 
-            #if random.random() > 0.5:
-            # add the annotations to the model input
             for i, (fg_tiles, bg_tiles) in enumerate(zip(batch_fg_tiles, batch_bg_tiles)):
-                # go through fg tiles and bg_tiles for each batch item
-                # in this case we know there is always 1 bg and 1 fg tile.
-                # at random (50%) add the annotation slice
-                for slice_idx in range(fg_tiles[0].shape[0]):
-                    if random.random() > 0.5: 
-                        model_input[i, 1, slice_idx] = fg_tiles[0][slice_idx]
-                        model_input[i, 2, slice_idx] = bg_tiles[0][slice_idx]
-
-            """
-            for i in range(52):
-                im_slice = model_input[0][0][i].cpu().numpy()
-                bg_slice = model_input[0][1][i].cpu().numpy()
-                fg_slice = model_input[0][2][i].cpu().numpy()
-                fg_annot_slice = batch_fg_tiles[0][0][i].numpy()
-                combined = np.hstack((im_slice, fg_slice, bg_slice, fg_annot_slice))
-                from skimage.io import imsave
-                print('tmp_im/combined_' + str(i) + '.png')
-                imsave('tmp_im/combined_' + str(i) + '.png', combined)
-            #exit()
-            """
+                # if it's trianing then with 50% chance 
+                # add the annotations to the model input
+                # Validation should not have access to the annotations.
+                if self.patch_update_enabled and mode == 'train' and random.random() > 0.5:
+                    # go through fg tiles and bg_tiles for each batch item
+                    # in this case we know there is always 1 bg and 1 fg tile.
+                    # at random add the annotation slice
+                    for slice_idx in range(fg_tiles[0].shape[0]):
+                        if torch.any(fg_tiles[0][slice_idx]) or torch.any(bg_tiles[0][slice_idx]):
+                            # each slice with annotation is included with 50 percent probability.
+                            # This allows the network to learn how to use the annotation to improve predictions
+                            if random.random() > 0.5: 
+                                model_input[i, 1, slice_idx] = fg_tiles[0][slice_idx]
+                                model_input[i, 2, slice_idx] = bg_tiles[0][slice_idx]
 
             outputs = model(model_input)
 
