@@ -267,6 +267,31 @@ def apply_bounding_box(root_painter, full_size):
     root_painter.track_changes()
 
 
+def segment_full_image(root_painter, full_image_name):
+    bounded_im_name = full_image_name.replace('.nii.gz', '').replace('.nrrd', '')
+    # based on the assumption that we are not using the bounding box but just segmenting the full next image.
+    x = y = z = 0
+    x_pad_start = x_pad_end = y_pad_start = y_pad_end = z_pad_start = z_pad_end = 17
+    # add coordinates and pad size to file name so we know where to show the segmentation.
+    bounded_im_name += (f"_x_{x}_y_{y}_z_{z}_pad_"
+                        f"x_{x_pad_start}_{x_pad_end}_"
+                        f"y_{y_pad_start}_{y_pad_end}_"
+                        f"z_{z_pad_start}_{z_pad_end}.nii.gz")
+
+    proj_location = root_painter.proj_location
+    bounded_im_dir = os.path.join(proj_location, 'bounded_images')
+
+    # send instruction to segment the new image.
+    root_painter.send_instruction('segment', {
+        "dataset_dir": bounded_im_dir,
+        "seg_dir": root_painter.seg_dir,
+        "file_names": [bounded_im_name],
+        "message_dir": root_painter.message_dir,
+        "model_dir": root_painter.model_dir,
+        "classes": root_painter.classes # used for saving segmentation output to correct directories
+    })
+
+
 def get_bounded_im_from_img(img_data, z_start, z_end, y_start, y_end, x_start, x_end):    
     """ Ensure there is enough data to include our padded selection
         Pad with zeros if required """
