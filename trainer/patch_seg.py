@@ -34,6 +34,11 @@ cached_model_path = None
  
 
 def segment_patch(segment_config):
+    global cached_image
+    global cached_image_fname
+    global cached_model
+    global cached_model_path
+ 
 
     # in_dir, seg_dir, fname, model_paths,
     # in_w, out_w, in_d, out_d, class_name
@@ -144,6 +149,6 @@ def segment_patch(segment_config):
     # For now only the first class will be segmented 
     seg = class_output_patches[0][0]
     # send segmented region to client
-    scp_transfer(seg, seg_fname, client_ip, client_path, client_username)
+    scp_transfer(seg, seg_fname, client_ip, client_scp_path, client_username)
     # delete the annotation patch. dont want to use up all the disk.
     os.remove(annot_fpath)

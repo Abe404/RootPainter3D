@@ -117,7 +117,11 @@ class Trainer():
         """ get paths relative to local machine """
         new_config = {}
         for k, v in old_config.items():
-            if k == 'file_names' or k == 'file_name' or k == 'patch_annot_fname':
+            if k in ['file_names',
+                     'file_name',
+                     'client_ip',
+                     'client_username',
+                     'patch_annot_fname']:
                 # names dont need a path appending
                 new_config[k] = v
             elif k == 'classes':

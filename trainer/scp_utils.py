@@ -23,7 +23,7 @@ import numpy as np
 
 scp_client = None
 
-def scp_transfer(seg, seg_fname, remote_ip, remote_path, remote_uname):
+def scp_transfer(seg, seg_fname, remote_ip, remote_uname):
     global scp_client 
     if not scp_client:
         ssh = SSHClient()
