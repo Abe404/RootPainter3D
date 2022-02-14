@@ -140,7 +140,8 @@ class RootPainter(QtWidgets.QMainWindow):
             self.image_fnames = settings['file_names']
             self.seg_dir = self.proj_location / 'segmentations'
             self.log_dir = self.proj_location / 'logs'
-            
+            self.client_ip = settings["client_ip"]
+            self.client_username = settings["client_username"]
             train_annot_dirs = []
             val_annot_dirs = []
             # if going with a single class or old style settings
