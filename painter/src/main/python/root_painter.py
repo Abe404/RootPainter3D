@@ -62,7 +62,7 @@ class RootPainter(QtWidgets.QMainWindow):
 
     closed = QtCore.pyqtSignal()
 
-    def __init__(self, sync_dir, contrast_presets):
+    def __init__(self, sync_dir, contrast_presets, client_ip=None, client_username=None, scp_in_dir=None):
         super().__init__()
         self.sync_dir = sync_dir
         self.instruction_dir = sync_dir / 'instructions'
@@ -71,7 +71,12 @@ class RootPainter(QtWidgets.QMainWindow):
                                         sync_dir=sync_dir)
         self.contrast_presets = contrast_presets
         self.view_state = ViewState.BOUNDING_BOX
-        self.patch_update_enabled = True
+        self.auto_complete_enabled = client_ip and client_username # aka patch_update
+        # for scp communication from server to client.
+        self.client_ip = client_ip
+        self.client_username = client_username
+        self.scp_in_dir = scp_in_dir
+
         self.tracking = False
         self.seg_mtime = None
         self.im_width = None
@@ -140,8 +145,6 @@ class RootPainter(QtWidgets.QMainWindow):
             self.image_fnames = settings['file_names']
             self.seg_dir = self.proj_location / 'segmentations'
             self.log_dir = self.proj_location / 'logs'
-            self.client_ip = settings["client_ip"]
-            self.client_username = settings["client_username"]
             train_annot_dirs = []
             val_annot_dirs = []
             # if going with a single class or old style settings
@@ -768,7 +771,7 @@ class RootPainter(QtWidgets.QMainWindow):
                                                        self.get_val_annot_dir(),
                                                        self.seg_props, self.log)
             if self.annot_path:
-                if self.patch_update_enabled:
+                if self.auto_complete_enabled:
                     # also save the segmentation, as this updated due to patch updates (potencially).
                     img = nib.Nifti1Image(self.seg_data, np.eye(4))
                     img.to_filename(self.get_seg_path())
