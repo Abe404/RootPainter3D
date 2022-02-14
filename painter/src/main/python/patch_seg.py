@@ -84,7 +84,9 @@ def segment_patch(x, y, z, root_painter):
         "x_start": x_start, "x_end": x_end,
         "patch_annot_dir": os.path.join(root_painter.proj_location, 'patch', 'annotation'),
         "classes": root_painter.classes,
-        "scp_in_dir": os.path.join(root_painter.proj_location, 'scp_in')
+        "client_scp_path": os.path.join(root_painter.proj_location, 'scp_in'),
+        "client_ip": root_painter.client_id,
+        "client_username": root_painter.client_username
     }
 
     # And then create an annotation for the patch input region
@@ -129,7 +131,7 @@ def segment_patch(x, y, z, root_painter):
         root_painter.sync_dir
     )
     def check():
-        scp_in = content['scp_in_dir']
+        scp_in = content['client_scp_path']
         seg_fpath = os.path.join(scp_in,  content['patch_annot_fname'].replace('.npy', '.npz'))
         if os.path.isfile(seg_fpath):
             time_str = content['patch_annot_fname'].replace('.npz', '').replace('.npy', '')
