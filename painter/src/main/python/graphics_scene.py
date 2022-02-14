@@ -282,7 +282,7 @@ class GraphicsScene(QtWidgets.QGraphicsScene):
             x, y = pos.x(), pos.y()
             idx = self.parent.slice_nav.max_slice_idx - self.parent.cur_slice_idx            
             
-            if self.parent.parent.patch_update_enabled:
+            if self.parent.parent.auto_complete_enabled:
                 prev_annot = np.array(qimage2ndarray.rgb_view(self.history[-2].toImage()))
                 recent_annot = np.array(qimage2ndarray.rgb_view(self.history[-1].toImage()))
                 diff = np.absolute(np.array(prev_annot) - np.array(recent_annot))
