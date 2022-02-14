@@ -2,8 +2,8 @@
 import os
 import time
 import numpy as np
-import nibabel as nib
 from PyQt5 import QtCore
+from pathlib import Path
 
 from instructions import send_instruction
 
@@ -84,8 +84,7 @@ def segment_patch(x, y, z, root_painter):
         "x_start": x_start, "x_end": x_end,
         "patch_annot_dir": os.path.join(root_painter.proj_location, 'patch', 'annotation'),
         "classes": root_painter.classes,
-        "client_scp_path": os.path.join(root_painter.proj_location, 'scp_in'),
-        "client_ip": root_painter.client_id,
+        "client_ip": root_painter.client_ip,
         "client_username": root_painter.client_username
     }
 
@@ -131,7 +130,7 @@ def segment_patch(x, y, z, root_painter):
         root_painter.sync_dir
     )
     def check():
-        scp_in = content['client_scp_path']
+        scp_in = os.path.join(Path.home(), 'rp_scp_in')
         seg_fpath = os.path.join(scp_in,  content['patch_annot_fname'].replace('.npy', '.npz'))
         if os.path.isfile(seg_fpath):
             time_str = content['patch_annot_fname'].replace('.npz', '').replace('.npy', '')
