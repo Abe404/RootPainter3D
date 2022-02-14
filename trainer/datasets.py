@@ -93,13 +93,8 @@ class RPDataset(Dataset):
          y_crop_start,
          z_crop_start) = get_crop_start(fname)
 
-        pad_d = (self.in_d - self.out_d) // 2
-        pad_h = (self.in_w - self.out_w) // 2
-        pad_w = (self.in_w - self.out_w) // 2
-    
         attempts = 0 
         warn_after_attempts = 100
-
         
         while True:
             attempts += 1
@@ -107,32 +102,23 @@ class RPDataset(Dataset):
             y_in = math.floor(rnd() * bottom_lim)
             z_in = math.floor(rnd() * depth_lim)
 
-            # remove the padding from the coords to get the respective annotation region
-            # We include the minimum padded mount in the annotation region
-            x_in_annot = x_in - (x_crop_start - pad_w)
-            y_in_annot = y_in - (y_crop_start - pad_h)
-            z_in_annot = z_in - (z_crop_start - pad_d)
-
-            annot_tile_centers = []
-
+            annot_tiles = []
             for annot in annots:
                 # Get the corresponding region of the annotation after network crop
-                annot_tile_centers.append(annot[:,
-                                                max(0, z_in_annot):z_in_annot+self.out_d,
-                                                max(0, y_in_annot):y_in_annot+self.out_w,
-                                                max(0, x_in_annot):x_in_annot+self.out_w])
+                annot_tiles.append(annot[:,
+                                         z_in:z_in+self.in_d,
+                                         y_in:y_in+self.in_w,
+                                         x_in:x_in+self.in_w])
 
             # we only want annotations with defiend regions in the output area.
             # Otherwise we will have nothing to update the loss.
-            if np.any([np.any(a) for a in annot_tile_centers]):
+            if np.any([np.any(a) for a in annot_tiles]):
                 # ok we have some annotation for this
                 # part of the image so let's return the patch.
                 im_tile = image[z_in:z_in+self.in_d,
                                 y_in:y_in+self.in_w,
                                 x_in:x_in+self.in_w]
-                # return annot tile with the full crop,
-                # to allow crop post augment
-                return annot_tile_centers, im_tile
+                return annot_tiles, im_tile
             if attempts > warn_after_attempts:
                 print(f'Warning {attempts} attempts to get random patch from {fname}')
                 warn_after_attempts *= 10
@@ -152,13 +138,9 @@ class RPDataset(Dataset):
 
         annot_tiles, im_tile = self.get_random_tile_3d(annots, image, fname)
 
-        # if the annotation is not big enough then pad it out. 
-        if  annot_tiles[0].shape[1:] != (self.out_d, self.out_w, self.out_w):
-            for i, annot_tile in enumerate(annot_tiles):
-                annot_tiles[i] = self.get_padded_annot(fname, annot_tile)
-            
-        assert annot_tiles[0].shape[1:] == (self.out_d, self.out_w, self.out_w), (
-            f" annot is {annots[0].shape}")
+        assert annot_tiles[0].shape[1:] == (self.in_d, self.in_w, self.in_w), (
+            f" annot_tiles[0].shape[1:] is {annot_tiles[0].shape[1:]} and should be "
+            f"{(self.in_d, self.in_w, self.in_w)}")
 
         assert im_tile.shape == (self.in_d, self.in_w, self.in_w), (
             f" shape is {im_tile.shape}")
@@ -172,8 +154,8 @@ class RPDataset(Dataset):
         backgrounds = []
         for annot_tile in annot_tiles:
             #annot tile shape is  (2, 18, 194, 194)
-            foreground = np.array(annot_tile)[0]
-            background = np.array(annot_tile)[1]
+            foreground = np.array(annot_tile)[1]
+            background = np.array(annot_tile)[0]
             foreground = foreground.astype(np.int64)
             foreground = torch.from_numpy(foreground)
             foregrounds.append(foreground)
@@ -188,29 +170,6 @@ class RPDataset(Dataset):
 
         return im_tile, foregrounds, backgrounds, classes
        
-    def get_padded_annot(self, fname, annot_tile):
-        fname_parts = fname.replace('.nii.gz', '').split('_')
-        # This padding information allows us to convert between bounded image
-        # and annotation coordinates
-        x_crop_start = int(fname_parts[-8])
-        y_crop_start = int(fname_parts[-5])
-        z_crop_start = int(fname_parts[-2])
-
-        pad_d = (self.in_d - self.out_d) // 2
-        pad_h = (self.in_w - self.out_w) // 2
-        pad_w = (self.in_w - self.out_w) // 2
-
-        annot_tile_zeros = np.zeros((annot_tile.shape[0], self.out_d, self.out_w, self.out_w))
-        x_start = (x_crop_start - pad_w)
-        y_start = (y_crop_start - pad_h)
-        z_start = (z_crop_start - pad_d)
-        annot_tile_zeros[:,
-                         z_start:z_start+annot_tile.shape[1],
-                         y_start:y_start+annot_tile.shape[2], 
-                         x_start:x_start+annot_tile.shape[3]] = annot_tile
-        annot_tile = annot_tile_zeros
-        return annot_tile
-
     def get_val_item(self, tile_ref):
         return self.get_tile_from_ref_3d(tile_ref)
 
@@ -231,23 +190,18 @@ class RPDataset(Dataset):
         for annot_dir in self.annot_dirs:
             annot_path = os.path.join(annot_dir, fname)
             annot = im_utils.load_with_retry(im_utils.load_image, annot_path)
-
             classes.append(Path(annot_dir).parts[-2])
 
+            annot = np.pad(annot, ((0, 0), (17, 17), (17, 17), (17, 17)), mode='constant')
             # The x, y and z are in reference to the annotation tile before padding.
             annot_tile = annot[:,
-                               tile_z:tile_z+self.out_d,
-                               tile_y:tile_y+self.out_w,
-                               tile_x:tile_x+self.out_w]
-
+                               tile_z:tile_z+self.in_d,
+                               tile_y:tile_y+self.in_w,
+                               tile_x:tile_x+self.in_w]
             annot_tiles.append(annot_tile)
 
-        # if the annotation is not big enough then pad it out. 
-        if  annot_tiles[0].shape[1:] != (self.out_d, self.out_w, self.out_w):
-            for i, annot_tile in enumerate(annot_tiles):
-                annot_tiles[i] = self.get_padded_annot(fname, annot_tile)
-                
-        assert annot_tiles[0].shape[1:] == (self.out_d, self.out_w, self.out_w), (
+       
+        assert annot_tiles[0].shape[1:] == (self.in_d, self.in_w, self.in_w), (
             f" annot is {annots[0].shape}")
 
         im_tile = image[tile_z:tile_z + self.in_d,
@@ -258,8 +212,8 @@ class RPDataset(Dataset):
             f" shape is {im_tile.shape}")
         
         for annot_tile in annot_tiles:
-            foreground = np.array(annot_tile)[0]
-            background = np.array(annot_tile)[1]
+            foreground = np.array(annot_tile)[1]
+            background = np.array(annot_tile)[0]
             foreground = foreground.astype(np.int64)
             foreground = torch.from_numpy(foreground)
             foregrounds.append(foreground)

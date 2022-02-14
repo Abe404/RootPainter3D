@@ -27,10 +27,12 @@ import json
 import sys
 from datetime import datetime
 import copy
+import random
 
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
+import torch.nn.functional as F
 from loss import get_batch_loss
 
 from datasets import RPDataset
@@ -42,6 +44,7 @@ import model_utils
 from model_utils import save_if_better, save_model
 from metrics import metrics_from_val_tile_refs
 import data_utils
+import patch_seg
 
 from im_utils import is_image, load_image, save_then_move
 import im_utils
@@ -77,7 +80,8 @@ class Trainer():
         # These can be trigged by data sent from client
         self.valid_instructions = [self.start_training,
                                    self.segment,
-                                   self.stop_training]
+                                   self.stop_training,
+                                   self.segment_patch]
 
     def main_loop(self, on_epoch_end=None):
         print('Started main loop. Checking for instructions in',
@@ -113,7 +117,7 @@ class Trainer():
         """ get paths relative to local machine """
         new_config = {}
         for k, v in old_config.items():
-            if k == 'file_names':
+            if k == 'file_names' or k == 'file_name' or k == 'patch_annot_fname':
                 # names dont need a path appending
                 new_config[k] = v
             elif k == 'classes':
@@ -262,7 +266,8 @@ class Trainer():
             torch.set_grad_enabled(False)
             loader = DataLoader(dataset, self.batch_size * 2, shuffle=True,
                                 collate_fn=data_utils.collate_fn,
-                                num_workers=16, drop_last=False, pin_memory=True)
+                                #num_workers=16, drop_last=False, pin_memory=True)
+                                num_workers=0, drop_last=False, pin_memory=True)
         elif mode == 'train':
             dataset = RPDataset(self.train_config['train_annot_dirs'],
                                 self.train_config['dataset_dir'],
@@ -295,9 +300,32 @@ class Trainer():
             self.check_for_instructions()
             batch_im_tiles = torch.from_numpy(np.array(batch_im_tiles)).cuda()
             self.optimizer.zero_grad()
+        
+            # padd channels to allow annotation input (or not)
+            # l,r, l,r, but from end to start    w  w  h  h  d  d, c, c, b, b
+            model_input = F.pad(batch_im_tiles, (0, 0, 0, 0, 0, 0, 0, 2), 'constant', 0)
+        
+            # model_input[:, 0] is the input image
+            # model_input[:, 1] is fg
+            # model_input[:, 2] is bg
 
-    
-            outputs = model(batch_im_tiles)
+            for i, (fg_tiles, bg_tiles) in enumerate(zip(batch_fg_tiles, batch_bg_tiles)):
+                # if it's trianing then with 50% chance 
+                # add the annotations to the model input
+                # Validation should not have access to the annotations.
+                if self.patch_update_enabled and mode == 'train' and random.random() > 0.5:
+                    # go through fg tiles and bg_tiles for each batch item
+                    # in this case we know there is always 1 bg and 1 fg tile.
+                    # at random add the annotation slice
+                    for slice_idx in range(fg_tiles[0].shape[0]):
+                        if torch.any(fg_tiles[0][slice_idx]) or torch.any(bg_tiles[0][slice_idx]):
+                            # each slice with annotation is included with 50 percent probability.
+                            # This allows the network to learn how to use the annotation to improve predictions
+                            if random.random() > 0.5: 
+                                model_input[i, 1, slice_idx] = fg_tiles[0][slice_idx]
+                                model_input[i, 2, slice_idx] = bg_tiles[0][slice_idx]
+
+            outputs = model(model_input)
 
             (batch_loss, batch_tps, batch_tns,
              batch_fps, batch_fns) = get_batch_loss(
@@ -309,7 +337,6 @@ class Trainer():
             fps += batch_fps
             tns += batch_tns
             fns += batch_fns
-
 
             if mode == 'train':
                 loss_sum += batch_loss.item() # float
@@ -546,7 +573,9 @@ class Trainer():
 
         prev_m = metrics_from_val_tile_refs(self.val_tile_refs)
         return prev_m
-        
+
+    def segment_patch(self, segment_config):
+        patch_seg.segment_patch(segment_config)
 
     def segment_file(self, in_dir, seg_dir, fname, model_paths,
                      in_w, out_w, in_d, out_d, classes, bounded, sync_save, overwrite=False):

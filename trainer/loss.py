@@ -98,8 +98,8 @@ def get_batch_loss(outputs, batch_fg_tiles, batch_bg_tiles,
                 if classname == unique_class:
 
                     # foregorund and background channels
-                    fg_tile = batch_fg_tiles[im_idx][i]
-                    bg_tile = batch_bg_tiles[im_idx][i]
+                    fg_tile = batch_fg_tiles[im_idx][i][17:-17,17:-17,17:-17]
+                    bg_tile = batch_bg_tiles[im_idx][i][17:-17,17:-17,17:-17]
                     mask = fg_tile + bg_tile
                     class_idx = project_classes.index(classname) * 2 # posiion in output.
                     class_output = outputs[im_idx][class_idx:class_idx+2]
