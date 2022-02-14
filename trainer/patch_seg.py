@@ -75,7 +75,6 @@ def segment_patch(segment_config):
     z_end = segment_config['z_end']
 
     client_ip = segment_config['client_ip']
-    client_scp_path = segment_config['client_scp_path']
     client_username = segment_config['client_username']
 
     model_path = get_latest_model_paths(model_dir, 1)[0]
@@ -149,6 +148,6 @@ def segment_patch(segment_config):
     # For now only the first class will be segmented 
     seg = class_output_patches[0][0]
     # send segmented region to client
-    scp_transfer(seg, seg_fname, client_ip, client_scp_path, client_username)
+    scp_transfer(seg, seg_fname, client_ip, client_username)
     # delete the annotation patch. dont want to use up all the disk.
     os.remove(annot_fpath)
