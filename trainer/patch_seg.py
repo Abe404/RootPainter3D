@@ -39,7 +39,7 @@ def segment_patch(segment_config):
     global cached_model
     global cached_model_path
  
-
+    start = time.time()
     # in_dir, seg_dir, fname, model_paths,
     # in_w, out_w, in_d, out_d, class_name
     """
@@ -149,5 +149,6 @@ def segment_patch(segment_config):
     seg = class_output_patches[0][0]
     # send segmented region to client
     scp_transfer(seg, seg_fname, client_ip, client_username)
+    print('time to segment patch and transfer', time.time() - start)
     # delete the annotation patch. dont want to use up all the disk.
     os.remove(annot_fpath)
