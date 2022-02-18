@@ -20,12 +20,26 @@ import numpy as np
 from PyQt5 import QtCore
 
 from tcp_utils import request_patch_seg
-from instructions import  fix_instruction_paths
+from instructions import fix_instruction_paths
 
 
 class SegmentPatchThread(QtCore.QThread):
 
-    def run(self, x, y, z, root_painter):
+
+    def __init__(self,  x, y, z, root_painter):
+         super().__init__()
+         self.x = x
+         self.y = y
+         self.z = z
+         self.root_painter = root_painter
+
+    def run(self):
+
+        x = self.x
+        y = self.y
+        z = self.z
+        root_painter = self.root_painter
+
         run_start = time.time()
         z = z + 1 # we dont segment the current slice. It gets confusing.
         # keep track of the region the user wanted to update. We dont allow changes outside of this region.

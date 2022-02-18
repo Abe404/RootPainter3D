@@ -289,9 +289,8 @@ class GraphicsScene(QtWidgets.QGraphicsScene):
                     yy, xx, __ = np.where(diff > 0)
                     centroid_y = int(round(np.mean(yy)))
                     centroid_x = int(round(np.mean(xx)))
-                    if not hasattr(self, 'seg_patch_thread'):
-                        seg_patch_thread = SegmentPatchThread()                    
-                    seg_patch_thread.run(round(centroid_x), round(centroid_y), idx, self.parent.parent)
+                    self.seg_patch_thread = SegmentPatchThread(round(centroid_x), round(centroid_y), idx, self.parent.parent)                    
+                    self.seg_patch_thread.start()
         self.mouse_down = False
         if self.bounding_box is not None:
             # first resize over.
