@@ -25,6 +25,9 @@ from startup import startup_setup
 if __name__ == '__main__':
     settings_path = os.path.join(Path.home(), 'root_painter_settings.json')
     startup_setup(settings_path)
-    sync_dir = Path(json.load(open(settings_path, 'r'))['sync_dir'])
-    trainer = Trainer(sync_dir)
+    settings = json.load(open(settings_path, 'r'))
+    sync_dir = Path(settings['sync_dir'])
+    ip = settings['server_ip']
+    port = settings['server_port']
+    trainer = Trainer(sync_dir, ip, port)
     trainer.main_loop()
