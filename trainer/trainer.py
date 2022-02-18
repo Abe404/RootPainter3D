@@ -34,6 +34,7 @@ import torch
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
 from loss import get_batch_loss
+from instructions import fix_config_paths
 
 from datasets import RPDataset
 from metrics import get_metrics, get_metrics_str, get_metric_csv_row
@@ -54,8 +55,11 @@ from startup import add_config_shape
 
 class Trainer():
 
-    def __init__(self, sync_dir):
+    def __init__(self, sync_dir, ip, port):
         self.sync_dir = sync_dir
+        self.ip = ip
+        self.port = port
+
         self.instruction_dir = os.path.join(self.sync_dir, 'instructions')
         self.training = False
         self.running = False
@@ -86,6 +90,8 @@ class Trainer():
     def main_loop(self, on_epoch_end=None):
         print('Started main loop. Checking for instructions in',
               self.instruction_dir)
+        print('start patch seg server')
+        patch_seg.start_server(self.sync_dir, self.ip, self.port) # direct socket connection
         self.running = True
         while self.running:
             self.check_for_instructions()
@@ -113,33 +119,6 @@ class Trainer():
                 time.sleep(1.0)
 
 
-    def fix_config_paths(self, old_config):
-        """ get paths relative to local machine """
-        new_config = {}
-        for k, v in old_config.items():
-            if k == 'file_names' or k == 'file_name' or k == 'patch_annot_fname':
-                # names dont need a path appending
-                new_config[k] = v
-            elif k == 'classes':
-                # classes should not be altered
-                new_config[k] = v
-            elif isinstance(v, list):
-                # if its a list fix each string in the list.
-                new_list = []
-                for e in v:
-                    new_val = e.replace('\\', '/')
-                    new_val = os.path.join(self.sync_dir,
-                                           os.path.normpath(new_val))
-                    new_list.append(new_val)
-                new_config[k] = new_list
-            elif isinstance(v, str):
-                v = v.replace('\\', '/')
-                new_config[k] = os.path.join(self.sync_dir,
-                                             os.path.normpath(v))
-            else:
-                new_config[k] = v
-        return new_config
-
     def check_for_instructions(self):
         for fname in ls(self.instruction_dir):
             print('found instruction', fname)
@@ -154,7 +133,7 @@ class Trainer():
             try:
                 with open(fpath, 'r') as json_file:
                     contents = json_file.read()
-                    config = self.fix_config_paths(json.loads(contents))
+                    config = fix_config_paths(self.sync_dir, json.loads(contents))
                     getattr(self, name)(config)
             except Exception as e:
                 tb = traceback.format_exc()

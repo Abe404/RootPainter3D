@@ -18,18 +18,21 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from paramiko import SSHClient
 import paramiko 
 from scp import SCPClient
+import os
+import numpy as np
 
 scp_client = None
 
-def scp_transfer(seg, seg_fname, remote_ip, remote_path, remote_uname):
+def scp_transfer(seg, seg_fname, remote_ip, remote_uname):
     global scp_client 
-    start_scp = time.time() 
     if not scp_client:
         ssh = SSHClient()
         ssh.load_system_host_keys()
+        # be careful with this - private network only
+        # ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         ssh.connect(remote_ip, username=remote_uname)
         # SCP Client takes a paramiko transport as an argument
         scp_client = SCPClient(ssh.get_transport())
     tmp_out = os.path.join('tmp', seg_fname)
     np.savez_compressed(tmp_out, seg=seg)
-    scp_client.put(tmp_out, remote_path)
+    scp_client.put(tmp_out, 'rp_scp_in')
