@@ -62,7 +62,7 @@ class RootPainter(QtWidgets.QMainWindow):
 
     closed = QtCore.pyqtSignal()
 
-    def __init__(self, sync_dir, contrast_presets, client_ip=None, client_username=None, scp_in_dir=None):
+    def __init__(self, sync_dir, contrast_presets, server_ip=None, server_port=None):
         super().__init__()
         self.sync_dir = sync_dir
         self.instruction_dir = sync_dir / 'instructions'
@@ -71,11 +71,10 @@ class RootPainter(QtWidgets.QMainWindow):
                                         sync_dir=sync_dir)
         self.contrast_presets = contrast_presets
         self.view_state = ViewState.BOUNDING_BOX
-        self.auto_complete_enabled = client_ip and client_username # aka patch_update
+        self.auto_complete_enabled = server_ip and server_port # aka patch_update
         # for scp communication from server to client.
-        self.client_ip = client_ip
-        self.client_username = client_username
-        self.scp_in_dir = scp_in_dir
+        self.server_ip = server_ip
+        self.server_port = server_port
 
         self.tracking = False
         self.seg_mtime = None
