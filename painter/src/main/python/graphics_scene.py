@@ -29,8 +29,7 @@ from skimage.segmentation import flood
 import im_utils
 from bounding_box import BoundingBox
 from view_state import ViewState
-from patch_seg import segment_patch
-
+from patch_seg import SegmentPatchThread
 
 class GraphicsScene(QtWidgets.QGraphicsScene):
     """
@@ -282,7 +281,7 @@ class GraphicsScene(QtWidgets.QGraphicsScene):
             x, y = pos.x(), pos.y()
             idx = self.parent.slice_nav.max_slice_idx - self.parent.cur_slice_idx            
             
-            if self.parent.parent.patch_update_enabled:
+            if self.parent.parent.auto_complete_enabled:
                 prev_annot = np.array(qimage2ndarray.rgb_view(self.history[-2].toImage()))
                 recent_annot = np.array(qimage2ndarray.rgb_view(self.history[-1].toImage()))
                 diff = np.absolute(np.array(prev_annot) - np.array(recent_annot))
@@ -290,9 +289,9 @@ class GraphicsScene(QtWidgets.QGraphicsScene):
                     yy, xx, __ = np.where(diff > 0)
                     centroid_y = int(round(np.mean(yy)))
                     centroid_x = int(round(np.mean(xx)))
-                    segment_patch(
-                        round(centroid_x), round(centroid_y), idx, self.parent.parent
-                    )
+                    if not hasattr(self, 'seg_patch_thread'):
+                        seg_patch_thread = SegmentPatchThread()                    
+                    seg_patch_thread.run(round(centroid_x), round(centroid_y), idx, self.parent.parent)
         self.mouse_down = False
         if self.bounding_box is not None:
             # first resize over.

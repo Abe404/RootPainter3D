@@ -52,13 +52,17 @@ def init_root_painter():
         settings = json.load(open(settings_path, 'r'))
         sync_dir = Path(settings['sync_dir'])
         contrast_presets = settings['contrast_presets']
-
+        server_ip = None
+        server_port = None
+        if "auto_complete" in settings and settings['auto_complete'] == True:    
+            server_ip = settings["server_ip"]
+            server_port = settings["server_port"]
         def reopen():
-            main_window = RootPainter(sync_dir, contrast_presets)
+            main_window = RootPainter(sync_dir, contrast_presets, server_ip, server_port)
             main_window.closed.connect(reopen)
             main_window.show()
 
-        main_window = RootPainter(sync_dir, contrast_presets)
+        main_window = RootPainter(sync_dir, contrast_presets, server_ip, server_port)
         # close project causes reopen with missing project UI
         main_window.closed.connect(reopen)
         main_window.show()
