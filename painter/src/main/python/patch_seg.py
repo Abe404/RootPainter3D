@@ -20,6 +20,8 @@ import time
 import numpy as np
 from functools import partial
 from PyQt5 import QtCore
+from enum import Enum
+
 
 from tcp_utils import request_patch_seg
 from instructions import fix_instruction_paths
@@ -44,6 +46,10 @@ class SegmentPatchThread(QtCore.QThread):
         self.complete.emit(patch_seg)
 
 
+class SegState(Enum):
+    IDLE = 1
+    SEGMENTING = 2 
+
 class PatchSegmentor():
     """ 
     Holds the reference to root_painter
@@ -55,9 +61,10 @@ class PatchSegmentor():
 
     def __init__(self, root_painter):
         self.root_painter = root_painter
+        self.state = SegState.IDLE
 
     def patch_received(self, patch_seg, bounded_fname):
-
+        self.state = SegState.IDLE
         # only update if the image is still the same
         if self.root_painter.bounded_fname == bounded_fname:
             # TODO: I know 17 from memory. Compute '17' by 
@@ -91,89 +98,91 @@ class PatchSegmentor():
         When the segmentation is received from the server, the patch_received event handler
         will be invoked.
         """
-        self.start_time = time.time()
-        x = centroid_x
-        y = centroid_y
-        z = z
-        root_painter = self.root_painter
-        run_start = time.time()
-        #z = z + 1 # we dont segment the current slice. It gets confusing.
-        # keep track of the region the user wanted to update. We dont allow changes outside of this region.
-        self.z_valid_min = z
-        self.z_valid_max = self.z_valid_min + root_painter.output_shape[0]
+        if self.state == SegState.IDLE:
+            self.state = SegState.SEGMENTING
+            self.start_time = time.time()
+            x = centroid_x
+            y = centroid_y
+            z = z
+            root_painter = self.root_painter
+            run_start = time.time()
+            #z = z + 1 # we dont segment the current slice. It gets confusing.
+            # keep track of the region the user wanted to update. We dont allow changes outside of this region.
+            self.z_valid_min = z
+            self.z_valid_max = self.z_valid_min + root_painter.output_shape[0]
 
-        # Move the centroid of the predicted region down by half the output depth
-        # That way the whole output has a chance to be in the valid region.
-        z = z + (root_painter.output_shape[0] // 2)
+            # Move the centroid of the predicted region down by half the output depth
+            # That way the whole output has a chance to be in the valid region.
+            z = z + (root_painter.output_shape[0] // 2)
 
-        # clip so it's at least output//2. This should allow the edge of the image to 
-        # be resegmented.
-        z = max((root_painter.output_shape[0] // 2), z)
-        y = max((root_painter.output_shape[1] // 2), y)
-        x = max((root_painter.output_shape[2] // 2), x)
+            # clip so it's at least output//2. This should allow the edge of the image to 
+            # be resegmented.
+            z = max((root_painter.output_shape[0] // 2), z)
+            y = max((root_painter.output_shape[1] // 2), y)
+            x = max((root_painter.output_shape[2] // 2), x)
 
-        # image dimensions
-        _, d, h, w = root_painter.annot_data.shape
+            # image dimensions
+            _, d, h, w = root_painter.annot_data.shape
 
-        # also make sure we don't try to segment too far out on the other side
-        z = min(d - (root_painter.output_shape[0] // 2), z)
-        y = min(h - (root_painter.output_shape[1] // 2), y)
-        x = min(w - (root_painter.output_shape[2] // 2), x)
+            # also make sure we don't try to segment too far out on the other side
+            z = min(d - (root_painter.output_shape[0] // 2), z)
+            y = min(h - (root_painter.output_shape[1] // 2), y)
+            x = min(w - (root_painter.output_shape[2] // 2), x)
 
-        # and not more than the image shape
-        # as only centroid is supplied, we must calculate left and right.
-        self.z_start =  z - (root_painter.input_shape[0] // 2)
-        z_end = self.z_start + root_painter.input_shape[0]
-        self.y_start = y - (root_painter.input_shape[1] // 2)
-        y_end = self.y_start + root_painter.input_shape[1]
-        self.x_start = x - (root_painter.input_shape[2] // 2)
-        x_end = self.x_start + root_painter.input_shape[2]
+            # and not more than the image shape
+            # as only centroid is supplied, we must calculate left and right.
+            self.z_start =  z - (root_painter.input_shape[0] // 2)
+            z_end = self.z_start + root_painter.input_shape[0]
+            self.y_start = y - (root_painter.input_shape[1] // 2)
+            y_end = self.y_start + root_painter.input_shape[1]
+            self.x_start = x - (root_painter.input_shape[2] // 2)
+            x_end = self.x_start + root_painter.input_shape[2]
 
-        start_time = time.time()
-        
-        content = {
-            # required to know which image to load
-            "file_name": root_painter.bounded_fname, 
-            "dataset_dir": os.path.join(root_painter.proj_location, 'bounded_images'),
-            # required to know where to load the model from
-            "model_dir": root_painter.model_dir,
-            # which region of the image to segment
-            "z_start": self.z_start, "z_end": z_end,
-            "y_start": self.y_start, "y_end": y_end,
-            "x_start": self.x_start, "x_end": x_end,
-            # which classes to use with this model
-            "classes": root_painter.classes
-        }
-        content = fix_instruction_paths(content, root_painter.sync_dir)
-        # And then create an annotation for the patch input region
-        # NOTE: annot_data shape is [2, d, h, w]
-        #       First dimension is for bg (0) and fg (1)
+            start_time = time.time()
+            
+            content = {
+                # required to know which image to load
+                "file_name": root_painter.bounded_fname, 
+                "dataset_dir": os.path.join(root_painter.proj_location, 'bounded_images'),
+                # required to know where to load the model from
+                "model_dir": root_painter.model_dir,
+                # which region of the image to segment
+                "z_start": self.z_start, "z_end": z_end,
+                "y_start": self.y_start, "y_end": y_end,
+                "x_start": self.x_start, "x_end": x_end,
+                # which classes to use with this model
+                "classes": root_painter.classes
+            }
+            content = fix_instruction_paths(content, root_painter.sync_dir)
+            # And then create an annotation for the patch input region
+            # NOTE: annot_data shape is [2, d, h, w]
+            #       First dimension is for bg (0) and fg (1)
 
-        # if annotation goes outside the image, then we must pad it.
-        pad_z_start = min(0, self.z_start) * -1
-        pad_y_start = min(0, self.y_start) * -1
-        pad_x_start = min(0, self.x_start) * -1 
-        
-        annot_patch = root_painter.annot_data[:,
-                                              max(0, self.z_start):z_end,
-                                              max(0, self.y_start):y_end,
-                                              max(0, self.x_start):x_end]
-        annot_patch = annot_patch.astype(bool)
-        pad_z_end = root_painter.input_shape[0] - (annot_patch.shape[1] + pad_z_start)
-        pad_y_end = root_painter.input_shape[1] - (pad_y_start + annot_patch.shape[2])
-        pad_x_end = root_painter.input_shape[2] - (pad_x_start + annot_patch.shape[3])
+            # if annotation goes outside the image, then we must pad it.
+            pad_z_start = min(0, self.z_start) * -1
+            pad_y_start = min(0, self.y_start) * -1
+            pad_x_start = min(0, self.x_start) * -1 
+            
+            annot_patch = root_painter.annot_data[:,
+                                                max(0, self.z_start):z_end,
+                                                max(0, self.y_start):y_end,
+                                                max(0, self.x_start):x_end]
+            annot_patch = annot_patch.astype(bool)
+            pad_z_end = root_painter.input_shape[0] - (annot_patch.shape[1] + pad_z_start)
+            pad_y_end = root_painter.input_shape[1] - (pad_y_start + annot_patch.shape[2])
+            pad_x_end = root_painter.input_shape[2] - (pad_x_start + annot_patch.shape[3])
 
-        if sum([pad_z_start, pad_z_end, pad_y_start, pad_y_end, pad_x_start, pad_x_end]):
-            annot_patch = np.pad(annot_patch, 
-                                [(0, 0), # dont add channels
-                                (pad_z_start, pad_z_end),
-                                (pad_y_start, pad_y_end),
-                                (pad_x_start, pad_x_end)],
-                                mode='constant')
+            if sum([pad_z_start, pad_z_end, pad_y_start, pad_y_end, pad_x_start, pad_x_end]):
+                annot_patch = np.pad(annot_patch, 
+                                    [(0, 0), # dont add channels
+                                    (pad_z_start, pad_z_end),
+                                    (pad_y_start, pad_y_end),
+                                    (pad_x_start, pad_x_end)],
+                                    mode='constant')
 
-        self.seg_patch_thread = SegmentPatchThread(annot_patch, content,
-                                                   root_painter.server_ip,
-                                                   root_painter.server_port)
-        self.seg_patch_thread.complete.connect(partial(self.patch_received, bounded_fname=self.root_painter.bounded_fname))
-        self.seg_patch_thread.start()
-        print('after thread start')
+            self.seg_patch_thread = SegmentPatchThread(annot_patch, content,
+                                                    root_painter.server_ip,
+                                                    root_painter.server_port)
+            self.seg_patch_thread.complete.connect(partial(self.patch_received, bounded_fname=self.root_painter.bounded_fname))
+            self.seg_patch_thread.start()
+            print('after thread start')
