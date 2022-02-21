@@ -54,6 +54,13 @@ def start_server(sync_dir, ip, port):
     context.load_cert_chain(certfile=server_cert, keyfile=server_key)
     context.load_verify_locations(cafile=client_certs)
 
+    # CUDA can be slow the first time it is used. We run this here so user interation is not
+    # delayed by waiting for CUDA.
+    print('starting CUDA..')
+    _ = torch.from_numpy(np.zeros((100))).cuda()
+
+
+
     # Create a TCP/IP socket
     # Listen for incoming connections
     sock = socket.socket()
