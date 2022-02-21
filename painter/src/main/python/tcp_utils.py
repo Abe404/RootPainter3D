@@ -26,9 +26,11 @@ from pathlib import Path
 
 conn = None # global connection object to be re-used.
 
-def request_patch_seg(annot_patch, segment_config, ip, port):
+def establish_connection(ip, port):
     global conn
     if conn is None:
+        print('Establish connection')
+        conn = False # prevent running again while establishing
         server_cert = os.path.join(Path.home(), 'root_painter_server.public_key')
         client_cert = os.path.join(Path.home(), 'root_painter_client.public_key')
         client_key = os.path.join(Path.home(), 'root_painter_client.private_key')
@@ -40,7 +42,9 @@ def request_patch_seg(annot_patch, segment_config, ip, port):
         log_cert = False
         if log_cert:
             print(f"SSL established. Peer cert: {conn.getpeercert()}'")
-    t = time.time()
+
+def request_patch_seg(annot_patch, segment_config):
+    global conn
     annot_shape = np.array(annot_patch.shape)
     shape_bytes = annot_shape.tobytes()
     annot_patch_1d = annot_patch.reshape(-1)

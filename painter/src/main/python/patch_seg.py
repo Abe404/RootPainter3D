@@ -23,7 +23,7 @@ from PyQt5 import QtCore
 from enum import Enum
 
 
-from tcp_utils import request_patch_seg
+from tcp_utils import request_patch_seg, establish_connection
 from instructions import fix_instruction_paths
 
 
@@ -39,11 +39,13 @@ class SegmentPatchThread(QtCore.QThread):
          self.server_port = server_port
 
     def run(self):
-        patch_seg = request_patch_seg(self.annot_patch,
-                                      self.content,
-                                      self.server_ip,
-                                      self.server_port)
-        self.complete.emit(patch_seg)
+        # if running without data, just establish connection
+        if self.annot_patch is None:
+            establish_connection(self.server_ip, self.server_port)
+        else:
+            patch_seg = request_patch_seg(self.annot_patch,
+                                          self.content)
+            self.complete.emit(patch_seg)
 
 
 class SegState(Enum):
@@ -62,6 +64,11 @@ class PatchSegmentor():
     def __init__(self, root_painter):
         self.root_painter = root_painter
         self.state = SegState.IDLE
+        self.seg_patch_thread = SegmentPatchThread(None, None,
+                                                   root_painter.server_ip,
+                                                   root_painter.server_port)
+        self.seg_patch_thread.start()
+
 
     def patch_received(self, patch_seg, bounded_fname):
         self.state = SegState.IDLE
