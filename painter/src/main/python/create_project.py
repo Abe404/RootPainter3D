@@ -228,7 +228,6 @@ class CreateProjectWidget(QtWidgets.QWidget):
             os.makedirs(self.sync_dir / project_location / 'annotations' / 'val')
             os.makedirs(self.sync_dir / project_location / 'segmentations')
 
-        os.makedirs(self.sync_dir / project_location / 'bounded_images')
         os.makedirs(self.sync_dir / project_location / 'models')
         os.makedirs(self.sync_dir / project_location / 'messages')
         os.makedirs(self.sync_dir / project_location / 'logs')
