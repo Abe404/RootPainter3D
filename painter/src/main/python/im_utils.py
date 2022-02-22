@@ -106,14 +106,7 @@ def load_seg(seg_path, img_data):
     seg_height = seg_data.shape[1]
     seg_width = seg_data.shape[2]
     
-    # We use -1 to indicate that a region is outside of the bounding box
-    seg = np.ones(img_data.shape, dtype=np.int8) * -1
-
-    seg[z:z+seg_data.shape[0],
-        y:y+seg_data.shape[1],
-        x:x+seg_data.shape[2]] = seg_data
-
-    return seg, (z, y, x, seg_depth, seg_height, seg_width)
+    return seg_data, (z, y, x, seg_depth, seg_height, seg_width)
 
 
 def norm_slice(img, min_v, max_v, brightness_percent):
@@ -164,8 +157,6 @@ def seg_slice_to_pixmap(slice_np):
         to a PyQt5 pixmap object """
     np_rgb = np.zeros((slice_np.shape[0], slice_np.shape[1], 4))
     np_rgb[slice_np > 0] = [0, 255, 255, 180]
-    # we use -1 to indicate that the voxel is outside the bounding box
-    np_rgb[slice_np == -1] = [255, 0, 0, 60]
     q_image = qimage2ndarray.array2qimage(np_rgb)
     return QtGui.QPixmap.fromImage(q_image)
 

@@ -27,7 +27,6 @@ import time
 import qimage2ndarray
 from skimage.segmentation import flood
 import im_utils
-from bounding_box import BoundingBox
 from view_state import ViewState
 from patch_seg import SegmentPatchThread, PatchSegmentor
 
@@ -39,10 +38,7 @@ class GraphicsScene(QtWidgets.QGraphicsScene):
         super().__init__()
         self.parent = parent
         self.patch_segmentor = PatchSegmentor(self.parent.parent)
-        self.box_resizing = True
-        self.bounding_box = None
         self.cursor_shown = False
-        self.move_box = False # when user clicks on the box they are moving it.
         self.brush_size = 25
         # history is a list of pixmaps
         self.history = []
@@ -54,9 +50,6 @@ class GraphicsScene(QtWidgets.QGraphicsScene):
         self.cursor_pixmap_holder = None
         self.outline_pixmap_holder = None
         self.cursor_pixmap = None
-        # bounding box start position
-        self.box_origin_x = None
-        self.box_origin_y = None
         self.mouse_down = False
  
     def undo(self):
@@ -80,30 +73,6 @@ class GraphicsScene(QtWidgets.QGraphicsScene):
             # Update all views with new state.
             self.parent.parent.update_viewer_annot_slice()
     
-    def update_bounding_boxes(self):
-        """ bounding box could have been updated from annother
-            view. Set the bounding box to appear correctly in this
-            view. """
-        x, y, w, h = (int(i) for i in self.bounding_box.scene_rect())
-        if self.parent.mode == 'axial':
-            self.parent.parent.box['x'] = x
-            self.parent.parent.box['y'] = y
-            self.parent.parent.box['width'] = w
-            self.parent.parent.box['height'] = h
-        elif self.parent.mode == 'sagittal':
-            self.parent.parent.box['y'] = x
-            self.parent.parent.box['z'] = y
-            self.parent.parent.box['height'] = w
-            self.parent.parent.box['depth'] = h
-        elif self.parent.mode == 'coronal':
-            self.parent.parent.box['x'] = x
-            self.parent.parent.box['y'] = y
-            self.parent.parent.box['width'] = w
-            self.parent.parent.box['depth'] = h
-
-        self.update_bounding_box_visibility()
-
-
     def update_axial_slice_pos_indicator(self):
         """ update the position of the axial slice indicator in the sagittal view """
         for v in self.parent.parent.viewers:
@@ -123,25 +92,7 @@ class GraphicsScene(QtWidgets.QGraphicsScene):
                                         QtCore.Qt.DashLine))
                     v.scene.addItem(v.scene.line)
                     v.scene.line.setVisible(True)
-                
 
-    def update_bounding_box_visibility(self):
-        """ set the visibility of the current bounding box
-            based on the slice index """
-        box = self.parent.parent.box
-        if box['visible']:
-            for v in self.parent.parent.viewers:
-                # top is 0 so subtract from max
-                if v.scene.bounding_box is None:
-                    v.scene.bounding_box = BoundingBox(0, 0, v.scene)
-                    v.scene.bounding_box.first_resize = False
-                    v.scene.addItem(v.scene.bounding_box) 
-                inside_slice = v.scene.bounding_box.inside_slice()
-                v.scene.bounding_box.setEnabled(inside_slice)
-                v.scene.bounding_box.setVisible(inside_slice)
-                # this box has already been updated.
-                if v.mode != self.parent.mode:
-                    v.scene.bounding_box.update_from_box_info(self.parent.parent.box)
 
     def flood_fill(self, x, y):
         x = round(x)
@@ -180,21 +131,9 @@ class GraphicsScene(QtWidgets.QGraphicsScene):
             # if control key is pressed then don't do anything 
             return
         self.mouse_down = True
-        if self.parent.parent.view_state == ViewState.BOUNDING_BOX:
-            self.parent.parent.log(f'mouse_press,bounding_box,mode:{self.parent.mode}')
-            # cursor indicates resize or drag
-            cur_cursor = QtWidgets.QApplication.instance().overrideCursor()
-            if self.bounding_box is None or cur_cursor is None:
-                # if there is already a bounding box then destroy it
-                if self.bounding_box is not None:
-                    self.removeItem(self.bounding_box)
-                self.bounding_box = BoundingBox(event.scenePos().x(),
-                                                event.scenePos().y(), self)
-                self.addItem(self.bounding_box)
-        elif (not modifiers & QtCore.Qt.ControlModifier
+        if (not modifiers & QtCore.Qt.ControlModifier
               and (self.parent.annot_visible or self.parent.outline_visible)
               and self.parent.parent.view_state == ViewState.ANNOTATING):
-
             pos = event.scenePos()
             x, y = pos.x(), pos.y()
             self.parent.parent.log(f'mouse_press,drawing,x:{x},y:{y}'
@@ -290,43 +229,10 @@ class GraphicsScene(QtWidgets.QGraphicsScene):
                     yy, xx, __ = np.where(diff > 0)
                     centroid_y = int(round(np.mean(yy)))
                     centroid_x = int(round(np.mean(xx)))
-
                     self.patch_segmentor.segment_patch(round(centroid_x), round(centroid_y), idx)
          
         self.mouse_down = False
-        if self.bounding_box is not None:
-            # first resize over.
-            self.bounding_box.first_resize = False
 
-
-    def start_box(self, event):
-        """ Start showing the box. assign and store the information """
-        # if the box is already visible then we don't need to set
-        # the slice to include it, as we can assume the slice already includes it
-        # and we want to avoid updating the box in a way the user might not want.
-        idx = self.parent.slice_nav.max_slice_idx - self.parent.cur_slice_idx 
-        mode = self.parent.mode
-        box = self.parent.parent.box
-
-        # if the bounding box is already shown 
-        # then don't update the slice
-        if box['visible'] and not self.bounding_box.inside_slice():
-            # Assign the box data to include the current slice so the
-            # bounding box the user is drawing doesn't disappear.
-            # slice index with reference to the image data
-            if mode == 'axial':
-                self.parent.parent.box['z'] = idx
-            elif mode == 'sagittal':
-                self.parent.parent.box['x'] = idx
-            elif mode == 'coronal':
-                self.parent.parent.box['y'] = idx
-
-        # now it's time to show the box.
-        self.parent.parent.box['visible'] = True 
-        pos = event.scenePos()
-        x, y = pos.x(), pos.y()
-        self.bounding_box.resize_drag(x, y)
-        self.update_bounding_boxes()
 
     def clear_cursor(self):
         if self.cursor_shown:
@@ -392,14 +298,6 @@ class GraphicsScene(QtWidgets.QGraphicsScene):
         if modifiers == QtCore.Qt.ControlModifier:
             # if control key is pressed then don't do anything with the graphics scene
             return
-
-        if (self.parent.parent.view_state == ViewState.BOUNDING_BOX
-            and self.bounding_box is not None):
-
-            if self.mouse_down and self.bounding_box.first_resize:
-                self.start_box(event)
-            else:
-                self.bounding_box.mouseMove(event)
 
         elif shift_down:
             dist = self.last_y - y

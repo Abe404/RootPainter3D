@@ -849,12 +849,8 @@ class ShortcutWindow(QtWidgets.QWidget):
         table.setItem(13, 0, QtWidgets.QTableWidgetItem("E"))
         table.setItem(13, 1, QtWidgets.QTableWidgetItem("Switch to eraser"))
 
-        table.setItem(14, 0, QtWidgets.QTableWidgetItem("Ctrl+A"))
-        table.setItem(14, 1, QtWidgets.QTableWidgetItem("Apply bounding box"))
-
-        table.setItem(15, 0, QtWidgets.QTableWidgetItem("Alt+Click inside closed region"))
-        table.setItem(15, 1, QtWidgets.QTableWidgetItem("Fill closed region as foreground"))
-
+        table.setItem(14, 0, QtWidgets.QTableWidgetItem("Alt+Click inside closed region"))
+        table.setItem(14, 1, QtWidgets.QTableWidgetItem("Fill closed region as foreground"))
 
         table.horizontalHeader().sectionSizeFromContents(True)
         table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)

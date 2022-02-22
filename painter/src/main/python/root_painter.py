@@ -17,8 +17,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 # pylint: disable=I1101,C0111,W0201,R0903,E0611, R0902, R0914
 # too many statements
 # pylint: disable=R0915
-
-
 import sys
 import os
 from pathlib import PurePath
@@ -28,12 +26,10 @@ import traceback
 from datetime import datetime
 import time
 
-
 import numpy as np
 from scipy import ndimage
 from scipy.ndimage import binary_fill_holes
 import nibabel as nib
-
 
 from skimage.io import use_plugin
 from PyQt5 import QtWidgets
@@ -53,7 +49,7 @@ from instructions import send_instruction
 from contrast_slider import ContrastSlider
 import im_utils
 import menus
-from bounding_box import apply_bounding_box, segment_full_image
+from segment import segment_full_image
 
 
 use_plugin("pil")
@@ -70,7 +66,7 @@ class RootPainter(QtWidgets.QMainWindow):
                                         instruction_dir=self.instruction_dir,
                                         sync_dir=sync_dir)
         self.contrast_presets = contrast_presets
-        self.view_state = ViewState.BOUNDING_BOX
+        self.view_state = ViewState.LOADING_SEG
         self.auto_complete_enabled = server_ip and server_port # aka patch_update
         # for scp communication from server to client.
         self.server_ip = server_ip
@@ -82,11 +78,8 @@ class RootPainter(QtWidgets.QMainWindow):
         self.im_height = None
         self.annot_data = None
         self.seg_data = None
-        self.bounded_fname = None
-        self.box = {'x':20, 'y':20, 'z': 20,
-                    'width': 50, 'height': 50,
-                    'depth': 20, 'visible': False}
-        # for patch, useful for bounding box.
+
+        # for patch segment, useful for knowing how much annotation to send to the server.
         self.input_shape = (52, 228, 228)
         self.output_shape = (18, 194, 194)
 
@@ -199,67 +192,45 @@ class RootPainter(QtWidgets.QMainWindow):
         self.lines_to_log.append(f"{datetime.now()}|{time.time()}|{message}\n")
         self.log_debounce.start() # write after 1 second
 
-    def update_bounded_fname(self):
-        # Try to find the annotation and segmentation for this particular image.
-        bounded_im_dir = os.path.join(self.proj_location, 'bounded_images')
-        bounded_fnames = os.listdir(bounded_im_dir)
-        bounded_fnames = [f for f in bounded_fnames if '.nii.gz' in f]
-        self.bounded_fname = None
-        # reset box information
-        self.box = {'x':20, 'y':20, 'z': 20, 'width': 50, 'height': 50, 'depth': 20, 'visible': False}
-
-        for f in bounded_fnames:
-            original_name = '_'.join(f.split('_')[0:-16])
-            if original_name == self.fname.replace('.nrrd', '').replace('.nii.gz', ''):
-                self.bounded_fname = f
-                self.track_changes()
-                break
-
-
     def update_file(self, fpath):
         """ Invoked when the file to view has been changed by the user.
             Show image file and it's associated annotation and segmentation """
         # save annotation for current file before changing to new file.
 
         self.log(f'update_file_start,fname:{os.path.basename(fpath)},view_state:{self.view_state}')
-        self.tracking = False # take a break from tracking until we get the next bounded image.
+        self.tracking = False # take a break from tracking until we get the next image.
         if self.view_state == ViewState.ANNOTATING:
             self.save_annotation()
-            
         self.fname = os.path.basename(fpath)
         self.image_path = os.path.join(self.dataset_dir, self.fname)
-        self.update_bounded_fname() # need this to know the name of the segmentation.
-        print('load image')
-        self.img_data = im_utils.load_image(self.image_path)
-
-        print('image data shape = ', self.img_data.shape)
-        print('image loaded')
-        # if a guide image directory is specified
+        self.img_data = im_utils.load_image(self.image_path) 
+        # if a guide image directory is specified - TODO: Consider removing guide image functionality if it isn't used frequently
         if hasattr(self, 'guide_image_dir'):
             guide_image_path = os.path.join(os.path.join(self.guide_image_dir, self.fname))
             # and a guide image is available for the current image.
             if os.path.isfile(guide_image_path):
                 self.guide_img_data = im_utils.load_image(guide_image_path)
             else:
-                print('no guide image file found', guide_image_path)
+                pass
+                # no guide image found for guide_image_path - it's optional anyway
         else:
-            print('no guide image dir found')
+            pass
+            # no guide image directory found - it's optional anyway
 
         self.update_annot_and_seg()
 
         self.contrast_slider.update_range(self.img_data)
         self.update_window_title()
 
-        # only segment if a segmentation is not missing.
-        if not self.bounded_fname or not os.path.isfile(self.get_seg_path()):
-            apply_bounding_box(self, True) # segment current image.
-            # if the current image is not the last image.
+        # only segment if a segmentation is missing.
+        if not os.path.isfile(self.get_seg_path()):
+            segment_full_image(self, self.fname) # segment current image.
         
         # segment the next image also.
         cur_im_idx = self.image_fnames.index(self.fname)
         if cur_im_idx < len(self.image_fnames):    
             next_im_fname = self.image_fnames[cur_im_idx+1]
-            segment_full_image(self, next_im_fname) # assumes bounding box already created.
+            segment_full_image(self, next_im_fname) 
 
 
         self.log(f'update_file_end,fname:{os.path.basename(fpath)},view_state:{self.view_state}')
@@ -277,14 +248,9 @@ class RootPainter(QtWidgets.QMainWindow):
 
     def update_annot_and_seg(self):
         self.annot_path = None
-        self.view_state = ViewState.LOADING_SEG # was BOUNDING_BOX but now box is disabled.
-        for v in self.viewers:
-            if v.scene.bounding_box:
-                v.scene.removeItem(v.scene.bounding_box)
-                v.scene.bounding_box = None
-
-        if self.bounded_fname:
-            self.annot_path = get_annot_path(self.bounded_fname,
+        self.view_state = ViewState.LOADING_SEG 
+        if self.fname:
+            self.annot_path = get_annot_path(self.fname,
                                              self.get_train_annot_dir(),
                                              self.get_val_annot_dir())
         
@@ -299,7 +265,7 @@ class RootPainter(QtWidgets.QMainWindow):
             # channel for bg (0) and fg (1)
             self.annot_data = np.zeros([2] + list(self.img_data.shape))
 
-        if self.bounded_fname and os.path.isfile(self.get_seg_path()):
+        if self.fname and os.path.isfile(self.get_seg_path()):
             print('load seg')
             self.log(f'load_seg,fname:{os.path.basename(self.get_seg_path())}')
             self.seg_data, self.seg_props = im_utils.load_seg(self.get_seg_path(), self.img_data)
@@ -345,7 +311,7 @@ class RootPainter(QtWidgets.QMainWindow):
         # Save current annotation (if it exists) before moving on
         self.save_annotation()
         self.cur_class = class_name
-        self.annot_path = get_annot_path(self.bounded_fname,
+        self.annot_path = get_annot_path(self.fname,
                                          self.get_train_annot_dir(),
                                          self.get_val_annot_dir())
         for v in self.viewers:
@@ -358,8 +324,8 @@ class RootPainter(QtWidgets.QMainWindow):
         if hasattr(self, 'classes') and len(self.classes) > 1:
             return os.path.join(self.seg_dir,
                                 self.cur_class,
-                                self.bounded_fname)
-        return os.path.join(self.seg_dir, self.bounded_fname)
+                                self.fname)
+        return os.path.join(self.seg_dir, self.fname)
 
     def get_all_seg_paths(self):
         if hasattr(self, 'classes') and len(self.classes) > 1:
@@ -367,9 +333,9 @@ class RootPainter(QtWidgets.QMainWindow):
             for c in self.classes:
                 spaths.append(os.path.join(self.seg_dir,
                                 self.cur_class,
-                                self.bounded_fname))
+                                self.fname))
             return spaths
-        return [os.path.join(self.seg_dir, self.bounded_fname)]
+        return [os.path.join(self.seg_dir, self.fname)]
 
     def update_segmentation(self):
         # if seg file is present then load.
@@ -383,22 +349,17 @@ class RootPainter(QtWidgets.QMainWindow):
             self.nav.next_image_button.setText('Loading Segmentation...')
 
     def set_seg_loading(self):
-        """ Transition from drawing bounding box to loading segmentation """
+        """ Transition to loading segmentation """
         self.seg_mtime = None
         self.nav.next_image_button.setEnabled(False)
         self.nav.next_image_button.setText('Loading Segmentation...')
         self.view_state = ViewState.LOADING_SEG
-        self.box['visible'] = False 
         for v in self.viewers:
-            # remove bounding box for all viewers.
-            v.scene.removeItem(v.scene.bounding_box)
-            v.scene.bounding_box = None
             v.scene.last_x = None
             v.scene.last_y = None
             if not v.seg_visible:
                 # show seg in order to show the loading message
                 v.show_hide_seg()
-
 
     def show_open_project_widget(self):
         options = QtWidgets.QFileDialog.Options()
@@ -643,14 +604,9 @@ class RootPainter(QtWidgets.QMainWindow):
                     os.remove(os.path.join(self.message_dir, m))
                 except Exception as e:
                     print('Caught exception when trying to detele msg', e)
-            #print('seg_dir', self.seg_dir, 'bounded fname', self.bounded_fname, 'cur class',
-            #      self.cur_class)
-            #print('seg exists = ', os.path.isfile(self.get_seg_path()))
-            #if self.seg_data is not None:
-            #print('seg data mean = ', np.mean(self.seg_data))
                                 
             # if a segmentation exists (on disk)
-            if self.bounded_fname and os.path.isfile(self.get_seg_path()):
+            if self.fname and os.path.isfile(self.get_seg_path()):
                 try:
                     # seg mtime is not actually used any more.
                     new_mtime = os.path.getmtime(self.get_seg_path())
@@ -747,7 +703,7 @@ class RootPainter(QtWidgets.QMainWindow):
         # 3D just uses the name of the first class
         content = {
             "model_dir": self.model_dir,
-            "dataset_dir": os.path.join(self.proj_location, 'bounded_images'),
+            "dataset_dir": self.dataset_dir,
             "train_annot_dir": self.train_annot_dirs,
             "val_annot_dir": self.val_annot_dirs,
             "seg_dir": self.seg_dir,

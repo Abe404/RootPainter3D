@@ -70,10 +70,10 @@ class PatchSegmentor():
         self.seg_patch_thread.start()
 
 
-    def patch_received(self, patch_seg, bounded_fname):
+    def patch_received(self, patch_seg, fname):
         self.state = SegState.IDLE
         # only update if the image is still the same
-        if self.root_painter.bounded_fname == bounded_fname:
+        if self.root_painter.fname == fname:
             # TODO: I know 17 from memory. Compute '17' by 
             #       comparing input and output size
             seg_start_x = self.x_start + 17
@@ -146,11 +146,11 @@ class PatchSegmentor():
             x_end = self.x_start + root_painter.input_shape[2]
 
             start_time = time.time()
-            
+
             content = {
                 # required to know which image to load
-                "file_name": root_painter.bounded_fname, 
-                "dataset_dir": os.path.join(root_painter.proj_location, 'bounded_images'),
+                "file_name": root_painter.fname, 
+                "dataset_dir": root_painter.dataset_dir,
                 # required to know where to load the model from
                 "model_dir": root_painter.model_dir,
                 # which region of the image to segment
@@ -190,6 +190,6 @@ class PatchSegmentor():
             self.seg_patch_thread = SegmentPatchThread(annot_patch, content,
                                                     root_painter.server_ip,
                                                     root_painter.server_port)
-            self.seg_patch_thread.complete.connect(partial(self.patch_received, bounded_fname=self.root_painter.bounded_fname))
+            self.seg_patch_thread.complete.connect(partial(self.patch_received, fname=self.root_painter.fname))
             self.seg_patch_thread.start()
             print('after thread start')
