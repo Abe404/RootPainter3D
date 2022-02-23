@@ -20,7 +20,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import os
 import time
 import warnings
-import threading
 import traceback
 from pathlib import Path
 import json
@@ -28,6 +27,7 @@ import sys
 from datetime import datetime
 import copy
 import random
+
 
 import numpy as np
 import torch
@@ -59,6 +59,7 @@ class Trainer():
         self.sync_dir = sync_dir
         self.ip = ip
         self.port = port
+        self.patch_update_enabled = ip and port
 
         self.instruction_dir = os.path.join(self.sync_dir, 'instructions')
         self.training = False
@@ -91,7 +92,10 @@ class Trainer():
         print('Started main loop. Checking for instructions in',
               self.instruction_dir)
         print('start patch seg server')
+
         patch_seg.start_server(self.sync_dir, self.ip, self.port) # direct socket connection
+        print('after start server')
+
         self.running = True
         while self.running:
             self.check_for_instructions()
@@ -245,8 +249,7 @@ class Trainer():
             torch.set_grad_enabled(False)
             loader = DataLoader(dataset, self.batch_size * 2, shuffle=True,
                                 collate_fn=data_utils.collate_fn,
-                                #num_workers=16, drop_last=False, pin_memory=True)
-                                num_workers=0, drop_last=False, pin_memory=True)
+                                num_workers=16, drop_last=False, pin_memory=True)
         elif mode == 'train':
             dataset = RPDataset(self.train_config['train_annot_dirs'],
                                 self.train_config['dataset_dir'],
@@ -283,7 +286,7 @@ class Trainer():
             # padd channels to allow annotation input (or not)
             # l,r, l,r, but from end to start    w  w  h  h  d  d, c, c, b, b
             model_input = F.pad(batch_im_tiles, (0, 0, 0, 0, 0, 0, 0, 2), 'constant', 0)
-        
+    
             # model_input[:, 0] is the input image
             # model_input[:, 1] is fg
             # model_input[:, 2] is bg
@@ -500,9 +503,6 @@ class Trainer():
         start = time.time()
 
         for fname in fnames:
-            # if more than one file is specified then we presume that
-            # the images are channels last and need to be moved to channels first.
-            bounded = len(fnames) == 1
             self.segment_file(in_dir, seg_dir, fname,
                               model_paths,
                               in_w=segment_config['in_w'],
@@ -510,7 +510,6 @@ class Trainer():
                               in_d=segment_config['in_d'],
                               out_d=segment_config['out_d'],
                               classes=classes,
-                              bounded=bounded,
                               sync_save=len(fnames) == 1,
                               overwrite=overwrite)
 
@@ -557,7 +556,7 @@ class Trainer():
         patch_seg.segment_patch(segment_config)
 
     def segment_file(self, in_dir, seg_dir, fname, model_paths,
-                     in_w, out_w, in_d, out_d, classes, bounded, sync_save, overwrite=False):
+                     in_w, out_w, in_d, out_d, classes, sync_save, overwrite=False):
 
         # segmentations are always saved as .nii.gz
         out_paths = []
@@ -578,26 +577,20 @@ class Trainer():
             raise Exception(f'Cannot segment as missing file {fpath}')
         try:
             im = load_image(fpath)
-            if not bounded:
-                # for bounded images the client takes care of this.
-                # if it's not bounded we presume it's channels last
-                # so needs to be swapped to channels first and rotated etc
-                # to be consistent with everything else.
-                im = np.rot90(im, k=3)
-                im = np.moveaxis(im, -1, 0) # depth moved to beginning
-                # reverse lr and ud
-                im = im[::-1, :, ::-1]
+            # TODO: Consider removing thie soon
+            im = np.rot90(im, k=3)
+            im = np.moveaxis(im, -1, 0) # depth moved to beginning
+            # reverse lr and ud
+            im = im[::-1, :, ::-1]
         except Exception as e:
             # Could be temporary issues reading the image.
             # its ok just skip it.
             print('Exception loading', fpath, e)
             return
         seg_start = time.time()
-        print('segmented input shape', im.shape)
         print('segment image, input shape = ', im.shape)
         segmented = ensemble_segment_3d(model_paths, im, fname, self.batch_size,
-                                        in_w, out_w, in_d,
-                                        out_d, classes, bounded)
+                                        in_w, out_w, in_d, out_d, classes)
         print(f'ensemble segment {fname}, dur', round(time.time() - seg_start, 2))
         
         for seg, outpath in zip(segmented, out_paths):
@@ -608,6 +601,7 @@ class Trainer():
                 if sync_save:
                     # other wise do sync because we don't want to delete the segment
                     # instruction too early.
+                    outpath = outpath.replace('.nrrd', '.nii.gz')
                     save_then_move(outpath, seg)
                 else:
                     # TODO find a cleaner way to do this.
