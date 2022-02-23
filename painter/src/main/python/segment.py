@@ -14,12 +14,12 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-def segment_full_image(root_painter):
+def segment_full_image(root_painter, fname):
     # send instruction to segment the image.
     root_painter.send_instruction('segment', {
         "dataset_dir": root_painter.dataset_dir,
         "seg_dir": root_painter.seg_dir,
-        "file_names": [root_painter.fname],
+        "file_names": [fname],
         "message_dir": root_painter.message_dir,
         "model_dir": root_painter.model_dir,
         "classes": root_painter.classes # used for saving segmentation output to correct directories

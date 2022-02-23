@@ -60,6 +60,7 @@ def get_annot_path(fname, train_dir, val_dir):
     train or val annot dirs.
     Otherwise return None
     """
+    fname = fname.replace('.nrrd', '.nii.gz')
     train_path = os.path.join(train_dir, fname)
     val_path = os.path.join(val_dir, fname)
     if os.path.isfile(train_path):
@@ -95,13 +96,8 @@ def get_new_annot_target_dir(train_annot_dir, val_annot_dir):
 
 
 def maybe_save_annotation_3d(image_data_shape, annot_data, annot_path,
-                             fname, train_annot_dir, val_annot_dir,
-                             seg_props, log):
+                             fname, train_annot_dir, val_annot_dir, log):
     annot_data = annot_data.astype(np.byte)
-    (z, y, x, seg_depth, seg_height, seg_width) = seg_props
-    annot_data = annot_data[:, z:z+seg_depth,
-                               y:y+seg_height,
-                               x:x+seg_width]
     # if there is an existing annotation.
     if annot_path:
         existing_annot = im_utils.load_annot(annot_path,

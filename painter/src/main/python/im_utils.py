@@ -63,50 +63,17 @@ def load_image(image_path):
 
 
 def load_annot(annot_path, img_data_shape):
-    """ pad the annotation with zeros and return """
-    # The  path will have an ending like this
-    #   -14  -13    -11      -8 -7   -5 -4 -3 -2 -1 
-    # x_231_y_222_z_111_pad_x_29_30_y_59_60_z_17_17
     annot_image = nib.load(annot_path)
-    annot_data = np.array(annot_image.dataobj)
-    name = os.path.basename(annot_path)
-    name = name.replace('.nii.gz', '')
-    name = name.replace('.nrrd', '')
-    parts = name.split('_')  
-    x = int(parts[-15])
-    y = int(parts[-13])
-    z = int(parts[-11])
-    annot = np.zeros([2] + list(img_data_shape), dtype=np.int8)
-    annot[:, z:z+annot_data.shape[1],
-             y:y+annot_data.shape[2],
-             x:x+annot_data.shape[3]] = annot_data
-    return annot
+    annot_data = np.array(annot_image.dataobj, dtype=bool)
+    return annot_data
 
 
-def load_seg(seg_path, img_data):
-    """ pad the segmentation with zeros and return """
-    # The seg path will have an ending like this
-    #   -14  -13    -11      -8 -7   -5 -4 -3 -2 -1 
-    # x_231_y_222_z_111_pad_x_29_30_y_59_60_z_17_17
+def load_seg(seg_path):
     seg_image = nib.load(seg_path)
-    seg_data = np.array(seg_image.dataobj)
-    name = os.path.basename(seg_path)
-    name = name.replace('.nii.gz', '')
-    name = name.replace('.nrrd', '')
-
-    parts = name.split('_')  
-    x = int(parts[-15])
-    y = int(parts[-13])
-    z = int(parts[-11])
-    
+    seg_data = np.array(seg_image.dataobj, dtype=bool)
     # This issue may be related to file system issues.
     assert  len(seg_data.shape) == 3, f"seg shape is {seg_data.shape} for {seg_path}"
-    
-    seg_depth = seg_data.shape[0]
-    seg_height = seg_data.shape[1]
-    seg_width = seg_data.shape[2]
-    
-    return seg_data, (z, y, x, seg_depth, seg_height, seg_width)
+    return seg_data
 
 
 def norm_slice(img, min_v, max_v, brightness_percent):

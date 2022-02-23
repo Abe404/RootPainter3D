@@ -255,7 +255,6 @@ class RootPainter(QtWidgets.QMainWindow):
                                              self.get_val_annot_dir())
         
         if self.annot_path and os.path.isfile(self.annot_path):
-            print('load annot')
             self.annot_data = im_utils.load_annot(self.annot_path, self.img_data.shape)
         else:
             # otherwise create empty annotation array
@@ -268,7 +267,7 @@ class RootPainter(QtWidgets.QMainWindow):
         if self.fname and os.path.isfile(self.get_seg_path()):
             print('load seg')
             self.log(f'load_seg,fname:{os.path.basename(self.get_seg_path())}')
-            self.seg_data, self.seg_props = im_utils.load_seg(self.get_seg_path(), self.img_data)
+            self.seg_data = im_utils.load_seg(self.get_seg_path())
             self.view_state = ViewState.ANNOTATING
             self.update_segmentation()
         else:
@@ -290,20 +289,25 @@ class RootPainter(QtWidgets.QMainWindow):
                 print('run cc3d')
                 labels_out = cc3d.connected_components(self.seg_data) # 26-connected
                 voxel_counts = cc3d.statistics(labels_out)['voxel_counts']
-                print('voxel counts len = ', len(voxel_counts))
                 to_keep_idx = voxel_counts[1:].argmax()
-                for label_idx in range(len(voxel_counts)):
-                    if label_idx == to_keep_idx:
-                        biggest_region_mask = labels_out == (to_keep_idx + 1)
-                        roi_corrected_no_holes = binary_fill_holes(biggest_region_mask).astype(np.int)
-                        roi_extra_fg = roi_corrected_no_holes - biggest_region_mask
-                        self.annot_data[1][roi_extra_fg > 0] = 1 # set fg regions to remove holes.
-                    else:
-                        fg_region_label = label_idx + 1
-                        mask = labels_out == fg_region_label
-                        self.annot_data[0][mask] = 1 # set bg regions to remove extra components
-                self.update_viewer_annot_slice() # update view so next view change doesnt update the annot with previously displayed annot.
-                self.navigate_to_top_of_structure(roi_corrected_no_holes)
+                if len(voxel_counts) < 30:
+                    for label_idx in range(len(voxel_counts)):
+                        print(label_idx, 'of', len(voxel_counts))
+                        if label_idx == to_keep_idx:
+                            biggest_region_mask = labels_out == (to_keep_idx + 1)
+                            roi_corrected_no_holes = binary_fill_holes(biggest_region_mask).astype(np.int)
+                            roi_extra_fg = roi_corrected_no_holes - biggest_region_mask
+                            self.annot_data[1][roi_extra_fg > 0] = 1 # set fg regions to remove holes.
+                        else:
+                            fg_region_label = label_idx + 1
+                            mask = labels_out == fg_region_label
+                            self.annot_data[0][mask] = 1 # set bg regions to remove extra components
+                    self.update_viewer_annot_slice() # update view so next view change doesnt update the annot with previously displayed annot.
+                    print('navigate to top')
+                    self.navigate_to_top_of_structure(roi_corrected_no_holes)
+                    print('done navigating to top')
+                else:
+                    print('Did not automatically correct disconnected regions as there are over 30') # it takes too long.
             else:
                 print('found annot so not automatically remoing small holes and regions')
 
@@ -320,12 +324,14 @@ class RootPainter(QtWidgets.QMainWindow):
         self.update_annot_and_seg()
 
     def get_seg_path(self):
+
+        seg_fname = self.fname.replace('.nrrd', '.nii.gz')
         # just seg path for current class.
         if hasattr(self, 'classes') and len(self.classes) > 1:
             return os.path.join(self.seg_dir,
                                 self.cur_class,
-                                self.fname)
-        return os.path.join(self.seg_dir, self.fname)
+                                seg_fname)
+        return os.path.join(self.seg_dir, seg_fname)
 
     def get_all_seg_paths(self):
         if hasattr(self, 'classes') and len(self.classes) > 1:
@@ -615,8 +621,7 @@ class RootPainter(QtWidgets.QMainWindow):
                     if self.seg_mtime is None or new_mtime != self.seg_mtime:
                         print('load new seg now')
                         self.log(f'load_seg,fname:{os.path.basename(self.get_seg_path())}')
-                        self.seg_data, self.seg_props = im_utils.load_seg(self.get_seg_path(),
-                                                                          self.img_data)
+                        self.seg_data = im_utils.load_seg(self.get_seg_path())
                         self.axial_viewer.update_seg_slice()
                         # Change to annotating state.                        
                         self.view_state = ViewState.ANNOTATING
@@ -724,11 +729,11 @@ class RootPainter(QtWidgets.QMainWindow):
                                                        fname,
                                                        self.get_train_annot_dir(),
                                                        self.get_val_annot_dir(),
-                                                       self.seg_props, self.log)
+                                                       self.log)
             if self.annot_path:
                 if self.auto_complete_enabled:
                     # also save the segmentation, as this updated due to patch updates (potencially).
-                    img = nib.Nifti1Image(self.seg_data, np.eye(4))
+                    img = nib.Nifti1Image(self.seg_data.astype(np.int8), np.eye(4))
                     img.to_filename(self.get_seg_path())
                 # 
                 #                                          
