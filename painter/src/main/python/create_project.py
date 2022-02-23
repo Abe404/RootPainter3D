@@ -232,10 +232,6 @@ class CreateProjectWidget(QtWidgets.QWidget):
         os.makedirs(self.sync_dir / project_location / 'messages')
         os.makedirs(self.sync_dir / project_location / 'logs')
 
-        os.makedirs(self.sync_dir / project_location / 'patch')
-        os.makedirs(self.sync_dir / project_location / 'patch' / 'annotation')
-        os.makedirs(self.sync_dir / project_location / 'patch' / 'segmentation')
-
         if self.use_random_weights:
             original_model_file = 'random weights'
         else:
