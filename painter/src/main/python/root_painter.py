@@ -42,7 +42,7 @@ from about import AboutWindow, LicenseWindow, ShortcutWindow
 from create_project import CreateProjectWidget
 from im_viewer import ImViewer, ImViewerWindow
 from nav import NavWidget
-from file_utils import last_fname_with_segmentation
+from file_utils import penultimate_fname_with_segmentation
 from file_utils import get_annot_path
 from file_utils import maybe_save_annotation_3d
 from instructions import send_instruction
@@ -163,9 +163,12 @@ class RootPainter(QtWidgets.QMainWindow):
             # If there are any segmentations which have already been saved
             # then go through the segmentations in the order specified
             # by self.image_fnames
-            # and set fname (current image) to be the last image with a segmentation
-            last_with_seg = last_fname_with_segmentation(self.image_fnames,
-                                                         self.seg_dir)
+            # and set fname (current image) to be the penultimate image with a segmentation
+            # The client will always segment the image after the one being viewed. So we don't
+            # show the last image segmented until the user navigates to it, or we will constantly
+            # move forwards through the dataset without annotating images 
+            # (if we simply close and re-open the client)
+            last_with_seg = penultimate_fname_with_segmentation(self.image_fnames, self.seg_dir)
             if last_with_seg:
                 fname = last_with_seg
             else:

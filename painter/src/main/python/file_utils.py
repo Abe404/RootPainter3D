@@ -25,7 +25,7 @@ from skimage.io import imread
 import nibabel as nib
 import im_utils
 
-def last_fname_with_segmentation(fnames, seg_dir):
+def penultimate_fname_with_segmentation(fnames, seg_dir):
     """
     Go through fnames and return the last one with a segmentation
     If no segmentations are found return None.
@@ -34,6 +34,7 @@ def last_fname_with_segmentation(fnames, seg_dir):
     # if the segmentation folder contains directories
     # then we assume that each directory is for a class
     
+    pen_fname = None
     last_fname = None
     
     seg_dirs = [os.path.join(seg_dir, d) for d
@@ -48,8 +49,10 @@ def last_fname_with_segmentation(fnames, seg_dir):
     for fname in fnames:
         base_fname =  fname.replace('.nrrd', '.nii.gz')
         if base_fname in seg_fnames:
+            if last_fname is not None:
+                pen_fname = last_fname
             last_fname = fname
-    return last_fname
+    return pen_fname
 
 
 def get_annot_path(fname, train_dir, val_dir):
