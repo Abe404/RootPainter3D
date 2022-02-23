@@ -133,7 +133,7 @@ def save_model(model_dir, cur_model, prev_model_path):
 
 
 def ensemble_segment_3d(model_paths, image, fname, batch_size, in_w, out_w, in_d,
-                        out_d, classes, bounded):
+                        out_d, classes):
     """ Average predictions from each model specified in model_paths """
     t = time.time()
     input_image_shape = image.shape
@@ -145,49 +145,13 @@ def ensemble_segment_3d(model_paths, image, fname, batch_size, in_w, out_w, in_d
     height_diff = in_patch_shape[1] - out_patch_shape[1]
     width_diff = in_patch_shape[2] - out_patch_shape[2]
 
-    if not bounded:
-        # pad so seg will be size of input image
-        image = im_utils.pad_3d(image, width_diff//2, depth_diff//2,
-                                mode='reflect', constant_values=0)
+    # pad so seg will be size of input image
+    image = im_utils.pad_3d(image, width_diff//2, depth_diff//2,
+                            mode='reflect', constant_values=0)
 
     # segment returns a series of prediction maps. one for each class.
     pred_maps = segment_3d(cnn, image, batch_size, in_patch_shape, out_patch_shape)
-
-    if not bounded:
-        assert pred_maps[0].shape == input_image_shape
-
-    # end of fname is constructed like this
-    # the indices e.g -14 are inserted here for convenience
-    # f"_x_{box['x'] (-14) }_y_{box['y'] (-13) }_z_{box['z'] (-11) }_pad_"
-    # f"x_{x_pad_start (-8) }_{x_pad_end (-7) }"
-    # f"y_{y_pad_start (-5) }_{y_pad_end (-4 )}"
-    # f"z_{z_pad_start (-2) }_{z_pad_end (-1) }.nii.gz")
-
-    if bounded: 
-        fname_parts = fname.replace('.nii.gz', '').split('_')
-        x_crop_start = int(fname_parts[-8])
-        x_crop_end = int(fname_parts[-7])
-        y_crop_start = int(fname_parts[-5])
-        y_crop_end = int(fname_parts[-4])
-        z_crop_start = int(fname_parts[-2])
-        z_crop_end = int(fname_parts[-1])
-
-        # The output of the cnn is already cropped during inference.
-        # subtract this default cropping from each of the crop sizes
-        z_crop_start -= depth_diff // 2
-        z_crop_end -= depth_diff // 2
-
-        y_crop_start -= height_diff // 2
-        y_crop_end -= height_diff // 2
-
-        x_crop_start -= width_diff // 2
-        x_crop_end -= width_diff // 2
-
-        for i, pred_map in enumerate(pred_maps):
-            pred_maps[i] = pred_map[z_crop_start:pred_maps[i].shape[0] - z_crop_end,
-                                    y_crop_start:pred_maps[i].shape[1] - y_crop_end,
-                                    x_crop_start:pred_maps[i].shape[2] - x_crop_end]
-
+    assert pred_maps[0].shape == input_image_shape
     print('time to segment image', time.time() - t)
     return pred_maps
 
