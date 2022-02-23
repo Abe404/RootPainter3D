@@ -16,13 +16,12 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import socket
 import time
 import ssl
-from unittest.mock import patch
 import rp_annot as rpa
 import numpy as np
 import json
 import os
 from pathlib import Path
-
+import zlib
 
 conn = None # global connection object to be re-used.
 
@@ -55,7 +54,6 @@ def request_patch_seg(annot_patch, segment_config):
     conn.sendall(message)
     conn.sendall(b'cfg')
     seg_buffer = b'' # segmentation received from server.
-
     seg_shape = annot_shape[1:]
     # 17 is known for the current architecture. 
     # At some point in the future, we will probably want to accomodate 
@@ -68,10 +66,10 @@ def request_patch_seg(annot_patch, segment_config):
         data = conn.recv(16)
         # server sends 'end' when message over.
         if b'end' == data:
+            seg_buffer = zlib.decompress(seg_buffer)
             seg_1d = rpa.decompress(seg_buffer, np.prod(seg_shape))
             seg_buffer = b'' # segmentation received from server.
             return seg_1d.reshape(seg_shape).astype(int)
-
         else:
             seg_buffer += data
     # we could call conn.close() to close the connection but instead we will leave it open.
