@@ -224,13 +224,15 @@ class RootPainter(QtWidgets.QMainWindow):
 
         # only segment if a segmentation is missing.
         if not os.path.isfile(self.get_seg_path()):
+            print('no segmentation found at', self.get_seg_path())
             segment_full_image(self, self.fname) # segment current image.
         
         # segment the next image also.
         cur_im_idx = self.image_fnames.index(self.fname)
         if cur_im_idx < len(self.image_fnames):    
             next_im_fname = self.image_fnames[cur_im_idx+1]
-            segment_full_image(self, next_im_fname) 
+            if not os.path.isfile(self.get_seg_path(next_im_fname)):
+                segment_full_image(self, next_im_fname) 
 
 
         self.log(f'update_file_end,fname:{os.path.basename(fpath)},view_state:{self.view_state}')
@@ -323,9 +325,10 @@ class RootPainter(QtWidgets.QMainWindow):
             v.scene.redo_list = []
         self.update_annot_and_seg()
 
-    def get_seg_path(self):
-
-        seg_fname = self.fname.replace('.nrrd', '.nii.gz')
+    def get_seg_path(self, fname=None):
+        if fname is None:
+            fname = self.fname
+        seg_fname = fname.replace('.nrrd', '.nii.gz')
         # just seg path for current class.
         if hasattr(self, 'classes') and len(self.classes) > 1:
             return os.path.join(self.seg_dir,
