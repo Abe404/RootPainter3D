@@ -45,10 +45,8 @@ def last_fname_with_segmentation(fnames, seg_dir):
     for seg_dir in seg_dirs:
         seg_fnames += os.listdir(seg_dir)
         
-    seg_fnames = ['_'.join(f.split('_')[0:-16]) for f in seg_fnames]
-
     for fname in fnames:
-        base_fname =  fname.replace('.nii.gz', '').replace('.nrrd', '')
+        base_fname =  fname.replace('.nrrd', '.nii.gz')
         if base_fname in seg_fnames:
             last_fname = fname
     return last_fname

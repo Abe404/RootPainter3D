@@ -96,6 +96,7 @@ class PatchSegmentor():
                     v.update_outline()
             print('patch seg duration = ', time.time() - self.start_time)
 
+
     def segment_patch(self, centroid_x, centroid_y, z):
         """
         Prepare the data from the annotation and passes only the essentials.
@@ -112,8 +113,7 @@ class PatchSegmentor():
             y = centroid_y
             z = z
             root_painter = self.root_painter
-            run_start = time.time()
-            #z = z + 1 # we dont segment the current slice. It gets confusing.
+            z = z + 1 # we dont segment the current slice. It gets confusing.
             # keep track of the region the user wanted to update. We dont allow changes outside of this region.
             self.z_valid_min = z
             self.z_valid_max = self.z_valid_min + root_painter.output_shape[0]
@@ -144,8 +144,6 @@ class PatchSegmentor():
             y_end = self.y_start + root_painter.input_shape[1]
             self.x_start = x - (root_painter.input_shape[2] // 2)
             x_end = self.x_start + root_painter.input_shape[2]
-
-            start_time = time.time()
 
             content = {
                 # required to know which image to load
@@ -186,10 +184,9 @@ class PatchSegmentor():
                                     (pad_y_start, pad_y_end),
                                     (pad_x_start, pad_x_end)],
                                     mode='constant')
-
             self.seg_patch_thread = SegmentPatchThread(annot_patch, content,
                                                     root_painter.server_ip,
                                                     root_painter.server_port)
+
             self.seg_patch_thread.complete.connect(partial(self.patch_received, fname=self.root_painter.fname))
             self.seg_patch_thread.start()
-            print('after thread start')
