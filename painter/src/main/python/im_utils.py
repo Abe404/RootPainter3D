@@ -188,7 +188,8 @@ def get_num_regions(seg_data, annot_data):
     labelled = label(corrected, connectivity=2)
     return len(np.unique(labelled)) - 1 # don't consider background a region.
 
-def restrict_to_region_containing_point(seg_data, annot_data, x, y, z):
+
+def restrict_to_regions_containing_points(seg_data, annot_data, region_points):
     # restrict corrected structure to only the selected
     # connected region found at x,y,z
     # also remove small holes.
@@ -199,18 +200,26 @@ def restrict_to_region_containing_point(seg_data, annot_data, x, y, z):
     # remove anything where seg is less than 0 as this is outside of the box
     corrected = (((seg_map + annot_plus) - annot_minus) > 0)
     labelled = label(corrected, connectivity=2)
-    selected_label = labelled[z, y, x]
-    if selected_label == 0:
-        error = "Selected region was background. Select a foreground region to keep."
-        return annot_data, 0, 0, error
-    selected_component = labelled == selected_label
-    labelled[selected_component] = -1
+    holes_removed = 0
+    removed_count = 0
+    selected_component = None
+    for x, y, z in region_points:
+        selected_label = labelled[z, y, x]
+
+        if selected_label == 0:
+            error = "Selected region was background. Select a foreground region to keep."
+            return annot_data, 0, 0, error
+        if selected_component is None:
+            selected_component = labelled == selected_label
+        else:
+            selected_component += labelled == selected_label
+        labelled[selected_component] = -1
+
     disconnected_regions = labelled > 0
-    removed_count =  np.unique(labelled[disconnected_regions])
-    # Then update the annotation so that this region is now background.
+    # Then update the annotation so that these regions are now background.
     annot_data[0][disconnected_regions] = 1
     annot_data[1][disconnected_regions] = 0
-    removed_count = len(np.unique(labelled[disconnected_regions]))
+    removed_count += len(np.unique(labelled[disconnected_regions]))
     # removing small holes
     # this was taking too long so we restrict to the object of interest.
     coords = np.where(selected_component > 0)
@@ -227,12 +236,11 @@ def restrict_to_region_containing_point(seg_data, annot_data, x, y, z):
     roi_corrected = (((seg_map[min_z: max_z, min_y:max_y, min_x:max_x] + roi_annot_plus) - roi_annot_minus) > 0)
     roi_corrected_no_holes = binary_fill_holes(roi_corrected).astype(np.int)
     roi_extra_fg = roi_corrected_no_holes - roi_corrected
-    holes_removed = len(np.unique(label(roi_extra_fg))) - 1
+    holes_removed += len(np.unique(label(roi_extra_fg))) - 1
     # Set the extra foreground from remove small holes to foreground in the annotation.
     annot_data[0, min_z: max_z, min_y:max_y, min_x:max_x][roi_extra_fg > 0] = 0
     annot_data[1, min_z: max_z, min_y:max_y, min_x:max_x][roi_extra_fg > 0] = 1
     return annot_data, removed_count, holes_removed, False
-
 
 
 def fill_annot(annot_pixmap):
