@@ -186,6 +186,7 @@ def segment_patch(segment_config, annot_patch, conn):
     # send segmented region to client
     seg = seg.astype(bool)
     compressed = rpa.compress(seg.reshape(-1))
+    compressed = zlib.compress(compressed)
     conn.sendall(compressed)
     conn.sendall(b'end')
     print('time to segment patch and transfer', time.time() - start)
