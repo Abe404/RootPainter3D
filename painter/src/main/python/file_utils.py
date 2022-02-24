@@ -25,7 +25,7 @@ from skimage.io import imread
 import nibabel as nib
 import im_utils
 
-def last_fname_with_segmentation(fnames, seg_dir):
+def penultimate_fname_with_segmentation(fnames, seg_dir):
     """
     Go through fnames and return the last one with a segmentation
     If no segmentations are found return None.
@@ -34,6 +34,7 @@ def last_fname_with_segmentation(fnames, seg_dir):
     # if the segmentation folder contains directories
     # then we assume that each directory is for a class
     
+    pen_fname = None
     last_fname = None
     
     seg_dirs = [os.path.join(seg_dir, d) for d
@@ -45,13 +46,13 @@ def last_fname_with_segmentation(fnames, seg_dir):
     for seg_dir in seg_dirs:
         seg_fnames += os.listdir(seg_dir)
         
-    seg_fnames = ['_'.join(f.split('_')[0:-16]) for f in seg_fnames]
-
     for fname in fnames:
-        base_fname =  fname.replace('.nii.gz', '').replace('.nrrd', '')
+        base_fname =  fname.replace('.nrrd', '.nii.gz')
         if base_fname in seg_fnames:
+            if last_fname is not None:
+                pen_fname = last_fname
             last_fname = fname
-    return last_fname
+    return pen_fname
 
 
 def get_annot_path(fname, train_dir, val_dir):
@@ -60,6 +61,7 @@ def get_annot_path(fname, train_dir, val_dir):
     train or val annot dirs.
     Otherwise return None
     """
+    fname = fname.replace('.nrrd', '.nii.gz')
     train_path = os.path.join(train_dir, fname)
     val_path = os.path.join(val_dir, fname)
     if os.path.isfile(train_path):
@@ -95,13 +97,8 @@ def get_new_annot_target_dir(train_annot_dir, val_annot_dir):
 
 
 def maybe_save_annotation_3d(image_data_shape, annot_data, annot_path,
-                             fname, train_annot_dir, val_annot_dir,
-                             seg_props, log):
+                             fname, train_annot_dir, val_annot_dir, log):
     annot_data = annot_data.astype(np.byte)
-    (z, y, x, seg_depth, seg_height, seg_width) = seg_props
-    annot_data = annot_data[:, z:z+seg_depth,
-                               y:y+seg_height,
-                               x:x+seg_width]
     # if there is an existing annotation.
     if annot_path:
         existing_annot = im_utils.load_annot(annot_path,

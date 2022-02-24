@@ -16,19 +16,20 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import socket
 import time
 import ssl
-from unittest.mock import patch
 import rp_annot as rpa
 import numpy as np
 import json
 import os
 from pathlib import Path
-
+import zlib
 
 conn = None # global connection object to be re-used.
 
-def request_patch_seg(annot_patch, segment_config, ip, port):
+def establish_connection(ip, port):
     global conn
     if conn is None:
+        print('Establish connection')
+        conn = False # prevent running again while establishing
         server_cert = os.path.join(Path.home(), 'root_painter_server.public_key')
         client_cert = os.path.join(Path.home(), 'root_painter_client.public_key')
         client_key = os.path.join(Path.home(), 'root_painter_client.private_key')
@@ -40,7 +41,9 @@ def request_patch_seg(annot_patch, segment_config, ip, port):
         log_cert = False
         if log_cert:
             print(f"SSL established. Peer cert: {conn.getpeercert()}'")
-    t = time.time()
+
+def request_patch_seg(annot_patch, segment_config):
+    global conn
     annot_shape = np.array(annot_patch.shape)
     shape_bytes = annot_shape.tobytes()
     annot_patch_1d = annot_patch.reshape(-1)
@@ -51,7 +54,6 @@ def request_patch_seg(annot_patch, segment_config, ip, port):
     conn.sendall(message)
     conn.sendall(b'cfg')
     seg_buffer = b'' # segmentation received from server.
-
     seg_shape = annot_shape[1:]
     # 17 is known for the current architecture. 
     # At some point in the future, we will probably want to accomodate 
@@ -64,10 +66,10 @@ def request_patch_seg(annot_patch, segment_config, ip, port):
         data = conn.recv(16)
         # server sends 'end' when message over.
         if b'end' == data:
+            seg_buffer = zlib.decompress(seg_buffer)
             seg_1d = rpa.decompress(seg_buffer, np.prod(seg_shape))
             seg_buffer = b'' # segmentation received from server.
             return seg_1d.reshape(seg_shape).astype(int)
-
         else:
             seg_buffer += data
     # we could call conn.close() to close the connection but instead we will leave it open.

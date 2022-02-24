@@ -4,9 +4,8 @@ from PyQt5 import QtWidgets
 from PyQt5 import QtGui
 from PyQt5 import QtCore
 from PyQt5.QtCore import Qt
-from bounding_box import apply_bounding_box
-from bounding_box import define_bounding_box
 from segment_folder import SegmentFolderWidget
+from segment import segment_full_image
 
 def add_network_menu(window, menu_bar):
     """ Not in use right now as training happens automatically when the 
@@ -27,13 +26,11 @@ def add_network_menu(window, menu_bar):
     # segment folder
     segment_folder_btn = QtWidgets.QAction(QtGui.QIcon('missing.png'), 'Segment folder', window)
 
-
-
     # Alt+S
     segment_action = QtWidgets.QAction(QtGui.QIcon(""), "Segment full image", window)
     segment_action.setShortcut("Alt+S")
     network_menu.addAction(segment_action)
-    segment_action.triggered.connect(partial(apply_bounding_box, window, True))
+    segment_action.triggered.connect(partial(segment_full_image, window, True))
 
 
     def show_segment_folder():
@@ -43,31 +40,6 @@ def add_network_menu(window, menu_bar):
         window.segment_folder_widget.show()
     segment_folder_btn.triggered.connect(show_segment_folder)
     network_menu.addAction(segment_folder_btn)
-
-
-def add_bounding_box_menu(window, im_viewer, menu_bar):
-    # disabled for now - full images will be segmented.
-    #         menus.add_bounding_box_menu(self, self.axial_viewer, menu_bar)
-
-    box_menu = menu_bar.addMenu("Bounding box")
-    # Define
-    define_action = QtWidgets.QAction(QtGui.QIcon(""), "Define bounding box", window)
-    define_action.setShortcut("Alt+B")
-    box_menu.addAction(define_action)
-    define_action.triggered.connect(partial(define_bounding_box, window))
-    # Apply
-    apply_action = QtWidgets.QAction(QtGui.QIcon(""), "Apply bounding box", window)
-    apply_action.setShortcut("Alt+A")
-    box_menu.addAction(apply_action)
-    apply_action.triggered.connect(partial(apply_bounding_box, window, False))
-
-    # Alt+S
-    segment_action = QtWidgets.QAction(QtGui.QIcon(""), "Segment full image", window)
-    segment_action.setShortcut("Alt+S")
-    box_menu.addAction(segment_action)
-    segment_action.triggered.connect(partial(apply_bounding_box, window, True))
-
-    return box_menu
 
 
 def add_edit_menu(window, im_viewer, menu_bar, skip_fill=False):

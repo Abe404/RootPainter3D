@@ -54,6 +54,7 @@ class CustomGraphicsView(QtWidgets.QGraphicsView):
     def keyReleaseEvent(self, event):
         if event.key() == Qt.Key_Control:
             self.setDragMode(QtWidgets.QGraphicsView.NoDrag)
+        super().keyReleaseEvent(event)
 
     def show_actual_size(self):
         self.zoom = 1

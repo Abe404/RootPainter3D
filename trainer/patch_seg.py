@@ -24,6 +24,7 @@ import numpy as np
 import zlib
 import json
 from pathlib import Path
+import threading
 
 
 
@@ -45,49 +46,57 @@ cached_model_path = None
  
 
 def start_server(sync_dir, ip, port):
-    server_cert = os.path.join(Path.home(), 'root_painter_server.public_key')
-    server_key = os.path.join(Path.home(), 'root_painter_server.private_key')
-    client_certs = os.path.join(Path.home(), 'root_painter_client.public_key')
-
-    context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-    context.verify_mode = ssl.CERT_REQUIRED
-    context.load_cert_chain(certfile=server_cert, keyfile=server_key)
-    context.load_verify_locations(cafile=client_certs)
-
-    # CUDA can be slow the first time it is used. We run this here so user interation is not
-    # delayed by waiting for CUDA.
-    print('starting CUDA..')
-    _ = torch.from_numpy(np.zeros((100))).cuda()
 
 
+    def create_server_socket(sync_dir, ip, port):
+        server_cert = os.path.join(Path.home(), 'root_painter_server.public_key')
+        server_key = os.path.join(Path.home(), 'root_painter_server.private_key')
+        client_certs = os.path.join(Path.home(), 'root_painter_client.public_key')
 
-    # Create a TCP/IP socket
-    # Listen for incoming connections
-    sock = socket.socket()
-    print(f'Listening on {ip} port {port}')
-    sock.bind((ip, port))
-    sock.listen(1)
-    while True:
-        conn, client_address = sock.accept()
-        conn = context.wrap_socket(conn, server_side=True)
-        print("SSL established. Peer: {}".format(conn.getpeercert()))
-        print('connection from', client_address)
-        annot = None
-        buf = b''
+        context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+        context.verify_mode = ssl.CERT_REQUIRED
+        context.load_cert_chain(certfile=server_cert, keyfile=server_key)
+        context.load_verify_locations(cafile=client_certs)
+
+        # CUDA can be slow the first time it is used. We run this here so user interation is not
+        # delayed by waiting for CUDA.
+        print('starting CUDA..')
+        _ = torch.from_numpy(np.zeros((100))).cuda()
+
+
+
+        # Create a TCP/IP socket
+        # Listen for incoming connections
+        sock = socket.socket()
+        print(f'Listening on {ip} port {port}')
+        sock.bind((ip, port))
+        sock.listen(1)
         while True:
-            data = conn.recv(16)
-            if data == b'end':
-                shape = np.frombuffer(buf[:16], dtype='int32')
-                annot1d = rpa.decompress(buf[16:], np.prod(shape))
-                annot = annot1d.reshape(shape)
-                buf = b''
-            elif data == b'cfg':
-                segment_config = json.loads(buf.decode())
-                segment_config = fix_config_paths(sync_dir, segment_config)
-                segment_patch(segment_config, annot, conn)
-                buf = b''
-            else:
-                buf += data
+            conn, client_address = sock.accept()
+            conn = context.wrap_socket(conn, server_side=True)
+            print("SSL established. Peer: {}".format(conn.getpeercert()))
+            print('connection from', client_address)
+            annot = None
+            buf = b''
+            while True:
+                data = conn.recv(16)
+                if data == b'end':
+                    shape = np.frombuffer(buf[:16], dtype='int32')
+                    annot1d = rpa.decompress(buf[16:], np.prod(shape))
+                    annot = annot1d.reshape(shape)
+                    buf = b''
+                elif data == b'cfg':
+                    segment_config = json.loads(buf.decode())
+                    segment_config = fix_config_paths(sync_dir, segment_config)
+                    segment_patch(segment_config, annot, conn)
+                    buf = b''
+                else:
+                    buf += data
+    
+
+    server_thread = threading.Thread(target=create_server_socket, args=(sync_dir, ip, port))
+    server_thread.start() # it doesn't finish.
+
 
 
 def segment_patch(segment_config, annot_patch, conn):
@@ -119,10 +128,12 @@ def segment_patch(segment_config, annot_patch, conn):
     if fname == cached_image_fname:
         image = cached_image
     else:
-        # load bounded/padded image for this patch
+        # load image for this patch
         (image, _, _, _) = im_utils.load_image_and_annot_for_seg(dataset_dir,
                                                                             [],
                                                                             fname)
+        # loaded image is not longer pre-padded so padding must be assigned.
+        image = im_utils.pad_3d(image, 17, 17, mode='reflect', constant_values=0)
         cached_image = image
         cached_image_fname = fname
 
@@ -175,6 +186,7 @@ def segment_patch(segment_config, annot_patch, conn):
     # send segmented region to client
     seg = seg.astype(bool)
     compressed = rpa.compress(seg.reshape(-1))
+    compressed = zlib.compress(compressed)
     conn.sendall(compressed)
     conn.sendall(b'end')
     print('time to segment patch and transfer', time.time() - start)

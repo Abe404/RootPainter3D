@@ -25,8 +25,6 @@ import numpy as np
 from skimage import img_as_float32
 from torch.utils.data import Dataset
 
-from file_utils import get_crop_start
-
 from im_utils import load_train_image_and_annot
 import im_utils
 
@@ -89,10 +87,6 @@ class RPDataset(Dataset):
         bottom_lim = image.shape[1] - self.in_w
         right_lim = image.shape[2] - self.in_w
 
-        (x_crop_start,
-         y_crop_start,
-         z_crop_start) = get_crop_start(fname)
-
         attempts = 0 
         warn_after_attempts = 100
         
@@ -135,15 +129,7 @@ class RPDataset(Dataset):
 
         (image, annots, classes, fname) = load_train_image_and_annot(self.dataset_dir,
                                                                      self.annot_dirs)
-
         annot_tiles, im_tile = self.get_random_tile_3d(annots, image, fname)
-
-        assert annot_tiles[0].shape[1:] == (self.in_d, self.in_w, self.in_w), (
-            f" annot_tiles[0].shape[1:] is {annot_tiles[0].shape[1:]} and should be "
-            f"{(self.in_d, self.in_w, self.in_w)}")
-
-        assert im_tile.shape == (self.in_d, self.in_w, self.in_w), (
-            f" shape is {im_tile.shape}")
 
         im_tile = img_as_float32(im_tile)
         im_tile = im_utils.normalize_tile(im_tile)
@@ -180,7 +166,20 @@ class RPDataset(Dataset):
 
         fname, (tile_x, tile_y, tile_z), _, _ = tile_ref
         image_path = os.path.join(self.dataset_dir, fname)
+        # image could have nrrd extension
+        if not os.path.isfile(image_path):
+            image_path = image_path.replace('.nii.gz', '.nrrd')
         image = im_utils.load_with_retry(im_utils.load_image, image_path)
+        #  needs to be swapped to channels first and rotated etc
+        # to be consistent with everything else.
+        # todo: consider removing this soon.
+        image = np.rot90(image, k=3)
+        image = np.moveaxis(image, -1, 0) # depth moved to beginning
+        # reverse lr and ud
+        image = image[::-1, :, ::-1]
+
+        # pad so seg will be size of input image
+        image = np.pad(image, ((17, 17), (17, 17), (17, 17)), mode='constant')
 
         classes = []
         foregrounds = []
@@ -200,7 +199,6 @@ class RPDataset(Dataset):
                                tile_x:tile_x+self.in_w]
             annot_tiles.append(annot_tile)
 
-       
         assert annot_tiles[0].shape[1:] == (self.in_d, self.in_w, self.in_w), (
             f" annot is {annots[0].shape}")
 

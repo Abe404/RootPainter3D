@@ -185,7 +185,6 @@ class ImViewer(QtWidgets.QWidget):
             self.scene.redo_list = []
 
         self.cur_slice_idx = self.slice_nav.slice_idx
-        self.scene.update_bounding_box_visibility()  
         
         # update image, seg and annot at current slice.
         self.update_image_slice()
@@ -447,9 +446,6 @@ class ImViewer(QtWidgets.QWidget):
             cursor = QtGui.QCursor(pixel_map)
             QtWidgets.QApplication.restoreOverrideCursor()
             self.setCursor(cursor)
-        if self.parent.view_state == ViewState.BOUNDING_BOX:
-            self.scene.clear_cursor()
-            self.setCursor(Qt.CrossCursor)
 
     def update_annot_slice(self):
         """ Update the annotation the user views """
