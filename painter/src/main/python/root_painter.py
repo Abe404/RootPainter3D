@@ -136,10 +136,11 @@ class RootPainter(QtWidgets.QMainWindow):
             self.proj_location = self.sync_dir / PurePath(settings['location'])
             self.image_fnames = settings['file_names']
             self.seg_dir = self.proj_location / 'segmentations'
-            self.train_seg_dir = self.proj_location / 'train_segmentations'
             self.log_dir = self.proj_location / 'logs'
-            train_annot_dirs = []
-            val_annot_dirs = []
+
+            self.train_seg_dirs = []
+            self.train_annot_dirs = []
+            self.val_annot_dirs = []
             # if going with a single class or old style settings
             # then use old style project structure with single train and val
             # folder, without the class name being specified
@@ -148,15 +149,15 @@ class RootPainter(QtWidgets.QMainWindow):
                 self.classes = settings['classes']
                 self.cur_class = self.classes[0]
                 for c in self.classes:
-                    train_annot_dirs.append(self.proj_location / 'annotations' / c / 'train')
-                    val_annot_dirs.append(self.proj_location / 'annotations' / c / 'val')
-                self.train_annot_dirs = train_annot_dirs
-                self.val_annot_dirs = val_annot_dirs
+                    self.train_annot_dirs.append(self.proj_location / 'annotations' / c / 'train')
+                    self.val_annot_dirs.append(self.proj_location / 'annotations' / c / 'val')
+                    self.train_seg_dirs.append(self.proj_location / 'segmentations' / c )
             else:         
                 self.classes = ['annotations'] # default class for single class project.
                 self.cur_class = self.classes[0]
                 self.train_annot_dirs = [self.proj_location / 'annotations' / 'train']
                 self.val_annot_dirs = [self.proj_location / 'annotations' / 'val']
+                self.train_seg_dirs = [self.proj_location / 'train_segmentations']
 
             self.model_dir = self.proj_location / 'models'
             self.message_dir = self.proj_location / 'messages'
@@ -729,9 +730,9 @@ class RootPainter(QtWidgets.QMainWindow):
         content = {
             "model_dir": self.model_dir,
             "dataset_dir": self.dataset_dir,
-            "train_annot_dir": self.train_annot_dirs,
-            "train_seg_dir": self.train_seg_dir,
-            "val_annot_dir": self.val_annot_dirs,
+            "train_annot_dirs": self.train_annot_dirs,
+            "train_seg_dirs": self.train_seg_dirs,
+            "val_annot_dirs": self.val_annot_dirs,
             "seg_dir": self.seg_dir,
             "log_dir": self.log_dir,
             "message_dir": self.message_dir,
