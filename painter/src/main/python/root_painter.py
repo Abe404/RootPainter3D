@@ -137,8 +137,10 @@ class RootPainter(QtWidgets.QMainWindow):
             self.image_fnames = settings['file_names']
             self.seg_dir = self.proj_location / 'segmentations'
             self.log_dir = self.proj_location / 'logs'
-            train_annot_dirs = []
-            val_annot_dirs = []
+
+            self.train_seg_dirs = []
+            self.train_annot_dirs = []
+            self.val_annot_dirs = []
             # if going with a single class or old style settings
             # then use old style project structure with single train and val
             # folder, without the class name being specified
@@ -147,15 +149,15 @@ class RootPainter(QtWidgets.QMainWindow):
                 self.classes = settings['classes']
                 self.cur_class = self.classes[0]
                 for c in self.classes:
-                    train_annot_dirs.append(self.proj_location / 'annotations' / c / 'train')
-                    val_annot_dirs.append(self.proj_location / 'annotations' / c / 'val')
-                self.train_annot_dirs = train_annot_dirs
-                self.val_annot_dirs = val_annot_dirs
+                    self.train_annot_dirs.append(self.proj_location / 'annotations' / c / 'train')
+                    self.val_annot_dirs.append(self.proj_location / 'annotations' / c / 'val')
+                    self.train_seg_dirs.append(self.proj_location / 'segmentations' / c )
             else:         
                 self.classes = ['annotations'] # default class for single class project.
                 self.cur_class = self.classes[0]
                 self.train_annot_dirs = [self.proj_location / 'annotations' / 'train']
                 self.val_annot_dirs = [self.proj_location / 'annotations' / 'val']
+                self.train_seg_dirs = [self.proj_location / 'train_segmentations']
 
             self.model_dir = self.proj_location / 'models'
             self.message_dir = self.proj_location / 'messages'
@@ -338,6 +340,19 @@ class RootPainter(QtWidgets.QMainWindow):
                                 self.cur_class,
                                 seg_fname)
         return os.path.join(self.seg_dir, seg_fname)
+
+
+    def get_train_seg_path(self, fname=None):
+        if fname is None:
+            fname = self.fname
+        seg_fname = fname.replace('.nrrd', '.nii.gz')
+        # just seg path for current class.
+        if hasattr(self, 'classes') and len(self.classes) > 1:
+            return os.path.join(self.train_seg_dir,
+                                self.cur_class,
+                                seg_fname)
+        return os.path.join(self.train_seg_dir, seg_fname)
+
 
     def get_all_seg_paths(self):
         if hasattr(self, 'classes') and len(self.classes) > 1:
@@ -715,8 +730,9 @@ class RootPainter(QtWidgets.QMainWindow):
         content = {
             "model_dir": self.model_dir,
             "dataset_dir": self.dataset_dir,
-            "train_annot_dir": self.train_annot_dirs,
-            "val_annot_dir": self.val_annot_dirs,
+            "train_annot_dirs": self.train_annot_dirs,
+            "train_seg_dirs": self.train_seg_dirs,
+            "val_annot_dirs": self.val_annot_dirs,
             "seg_dir": self.seg_dir,
             "log_dir": self.log_dir,
             "message_dir": self.message_dir,
@@ -741,8 +757,9 @@ class RootPainter(QtWidgets.QMainWindow):
                     # also save the segmentation, as this updated due to patch updates (potencially).
                     img = nib.Nifti1Image(self.seg_data.astype(np.int8), np.eye(4))
                     img.to_filename(self.get_seg_path())
-                # 
-                #                                          
+                    # if annotation was saved to train 
+                    if str(self.get_train_annot_dir()) in self.annot_path:
+                        img.to_filename(self.get_train_seg_path())
             # if self.annot_path:
             # start training when an annotation exists
             #    self.start_training()
