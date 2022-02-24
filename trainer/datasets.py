@@ -34,7 +34,7 @@ def rnd():
 
 
 class RPDataset(Dataset):
-    def __init__(self, annot_dirs, dataset_dir, in_w, out_w,
+    def __init__(self, annot_dirs, train_seg_dirs, dataset_dir, in_w, out_w,
                  in_d, out_d, mode, tile_refs=None, length=None):
         """
         in_w and out_w are the tile size in pixels
@@ -54,6 +54,7 @@ class RPDataset(Dataset):
         self.in_d = in_d
         self.out_d = out_d
         self.annot_dirs = annot_dirs
+        self.train_seg_dirs = train_seg_dirs
         self.dataset_dir = dataset_dir
         assert (tile_refs is None) or (length is None) and (length or tile_refs)
         # if tile_refs are defined then these will be used.
@@ -127,8 +128,9 @@ class RPDataset(Dataset):
             # For now just return the tile. We plan to add augmentation here.
             return im_tile, foregrounds, backgrounds, classes
 
-        (image, annots, classes, fname) = load_train_image_and_annot(self.dataset_dir,
-                                                                     self.annot_dirs)
+        (image, annots, segs, classes, fname) = load_train_image_and_annot(self.dataset_dir,
+                                                                           self.train_seg_dirs,
+                                                                           self.annot_dirs)
         annot_tiles, im_tile = self.get_random_tile_3d(annots, image, fname)
 
         im_tile = img_as_float32(im_tile)
@@ -154,7 +156,7 @@ class RPDataset(Dataset):
         # add dimension for input channel
         im_tile = np.expand_dims(im_tile, axis=0)
 
-        return im_tile, foregrounds, backgrounds, classes
+        return im_tile, foregrounds, backgrounds, segs, classes
        
     def get_val_item(self, tile_ref):
         return self.get_tile_from_ref_3d(tile_ref)
@@ -223,4 +225,5 @@ class RPDataset(Dataset):
         im_tile = im_utils.normalize_tile(im_tile)
         im_tile = im_tile.astype(np.float32)
         im_tile = np.expand_dims(im_tile, axis=0)
-        return im_tile, foregrounds, backgrounds, classes
+        segs = [None] * len(classes)
+        return im_tile, foregrounds, backgrounds, segs, classes

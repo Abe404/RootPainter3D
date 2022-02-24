@@ -23,6 +23,7 @@ def collate_fn(batch):
     im_tiles = []
     batch_fgs = []
     batch_bgs = []
+    batch_segs = []
     batch_classes = []
 
     for i in range(num_items):
@@ -31,8 +32,9 @@ def collate_fn(batch):
         im_tiles.append(item[0])
         batch_fgs.append(item[1])
         batch_bgs.append(item[2])
-        batch_classes.append(item[3])
+        batch_segs.append(item[3])
+        batch_classes.append(item[4])
 
     im_tiles = np.array(im_tiles)
-    return im_tiles, batch_fgs, batch_bgs, batch_classes
+    return im_tiles, batch_fgs, batch_bgs, batch_segs, batch_classes
 

@@ -170,17 +170,6 @@ class Trainer():
             else:
                 self.train_config['classes'] = classes
 
-            # as train_annot_dir and val_annot_dir
-            # are lists in the multi-class case.
-            # convert to list containing one item for single class case
-            # to allow consistent handling of the variables.
-            if isinstance(self.train_config['train_annot_dir'], list):
-                self.train_config['train_annot_dirs'] = self.train_config['train_annot_dir']
-                self.train_config['val_annot_dirs'] = self.train_config['val_annot_dir']
-            else:
-                self.train_config['train_annot_dirs'] = [self.train_config['train_annot_dir']]
-                self.train_config['val_annot_dirs'] = [self.train_config['val_annot_dir']]
-
             self.val_tile_refs = [] # dont want to cache these between projects
             self.epochs_without_progress = 0
             self.msg_dir = self.train_config['message_dir']
@@ -239,6 +228,7 @@ class Trainer():
 
         if mode == 'val':
             dataset = RPDataset(self.train_config['val_annot_dirs'],
+                                None,
                                 self.train_config['dataset_dir'],
                                 self.train_config['in_w'],
                                 self.train_config['out_w'],
@@ -252,6 +242,7 @@ class Trainer():
                                 num_workers=16, drop_last=False, pin_memory=True)
         elif mode == 'train':
             dataset = RPDataset(self.train_config['train_annot_dirs'],
+                                self.train_config['train_seg_dirs'],
                                 self.train_config['dataset_dir'],
                                 self.train_config['in_w'],
                                 self.train_config['out_w'],
@@ -277,7 +268,7 @@ class Trainer():
         fns = []
         loss_sum = 0
         for step, (batch_im_tiles, batch_fg_tiles,
-                   batch_bg_tiles, batch_classes) in enumerate(loader):
+                   batch_bg_tiles, batch_segs, batch_classes) in enumerate(loader):
 
             self.check_for_instructions()
             batch_im_tiles = torch.from_numpy(np.array(batch_im_tiles)).cuda()
