@@ -222,11 +222,15 @@ class CreateProjectWidget(QtWidgets.QWidget):
                             'annotations' / class_name / 'val')
                 os.makedirs(self.sync_dir / project_location /
                             'segmentations' / class_name)
+                os.makedirs(self.sync_dir / project_location /
+                            'train_segmentations' / class_name)
+ 
         else:
             # Create only the 'annotation' and 'segmentation' folders - classic structure
             os.makedirs(self.sync_dir / project_location / 'annotations' / 'train')
             os.makedirs(self.sync_dir / project_location / 'annotations' / 'val')
             os.makedirs(self.sync_dir / project_location / 'segmentations')
+            os.makedirs(self.sync_dir / project_location / 'train_segmentations')
 
         os.makedirs(self.sync_dir / project_location / 'models')
         os.makedirs(self.sync_dir / project_location / 'messages')
