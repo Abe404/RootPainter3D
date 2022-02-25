@@ -151,7 +151,7 @@ class RootPainter(QtWidgets.QMainWindow):
                 for c in self.classes:
                     self.train_annot_dirs.append(self.proj_location / 'annotations' / c / 'train')
                     self.val_annot_dirs.append(self.proj_location / 'annotations' / c / 'val')
-                    self.train_seg_dirs.append(self.proj_location / 'segmentations' / c )
+                    self.train_seg_dirs.append(self.proj_location / 'train_segmentations' / c )
             else:         
                 self.classes = ['annotations'] # default class for single class project.
                 self.cur_class = self.classes[0]
@@ -346,12 +346,12 @@ class RootPainter(QtWidgets.QMainWindow):
         if fname is None:
             fname = self.fname
         seg_fname = fname.replace('.nrrd', '.nii.gz')
-        # just seg path for current class.
         if hasattr(self, 'classes') and len(self.classes) > 1:
-            return os.path.join(self.train_seg_dir,
+            return os.path.join(self.proj_location,
+                                'train_segmentations',
                                 self.cur_class,
                                 seg_fname)
-        return os.path.join(self.train_seg_dir, seg_fname)
+        return os.path.join(self.proj_location, 'train_segmentations', seg_fname)
 
 
     def get_all_seg_paths(self):
