@@ -289,6 +289,7 @@ class RootPainter(QtWidgets.QMainWindow):
                 # show seg in order to show the loading message
                 v.show_hide_seg()
 
+        """
         if self.seg_data is not None:
             # assign bg annotations to regions that are not the largest
             import cc3d
@@ -317,6 +318,7 @@ class RootPainter(QtWidgets.QMainWindow):
                     print('Did not automatically correct disconnected regions as there are over 30') # it takes too long.
             else:
                 print('found annot so not automatically remoing small holes and regions')
+        """
 
     def update_class(self, class_name):
         # Save current annotation (if it exists) before moving on
