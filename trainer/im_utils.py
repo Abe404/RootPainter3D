@@ -153,31 +153,38 @@ def load_image_and_annot_for_seg(dataset_dir, train_annot_dirs, fname):
 
 
 
-def load_train_image_and_annot(dataset_dir, train_annot_dirs):
+def load_train_image_and_annot(dataset_dir, train_seg_dirs, train_annot_dirs):
     """
     returns
         image (np.array) - image data
         annots (list(np.array)) - annotations associated with fname
+        segs (list(np.array)) - segmentations associated with fname
         classes (list(string)) - classes for each annot,
                                  taken from annot directory name
         fname - file name
     """
 
-    def load_random(train_annot_dirs, dataset_dir, _):
+    def load_random(train_annot_dirs, train_seg_dirs, dataset_dir, _):
         # This might take ages, profile and optimize
         fnames = []
-            # each annotation corresponds to an individual class.
+        # each annotation corresponds to an individual class.
         all_classes = []
-        all_dirs = []
+        all_annot_dirs = []
+        all_seg_dirs = []
+
+        train_seg_dirs = sorted(train_seg_dirs)
+        train_annot_dirs = sorted(train_annot_dirs)
+        assert len(train_seg_dirs) == len(train_annot_dirs)
     
-        for train_annot_dir in train_annot_dirs:
+        for train_seg_dir, train_annot_dir in zip(train_seg_dirs, train_annot_dirs):
             annot_fnames = ls(train_annot_dir)
             fnames += annot_fnames
             # Assuming class name is in annotation path
             # i.e annotations/{class_name}/train/annot1.png,annot2.png..
             class_name = Path(train_annot_dir).parts[-2]
             all_classes += [class_name] * len(annot_fnames)
-            all_dirs += [train_annot_dir] * len(annot_fnames)
+            all_annot_dirs += [train_annot_dir] * len(annot_fnames)
+            all_seg_dirs += [train_seg_dir] * len(annot_fnames)
         
         assert len(fnames), 'should be at least one fname'
 
@@ -189,16 +196,26 @@ def load_train_image_and_annot(dataset_dir, train_annot_dirs):
         # annots and classes associated with fname
         indices = [i for i, f in enumerate(fnames) if f == fname]
         classes = [all_classes[i] for i in indices]
-        annot_dirs = [all_dirs[i] for i in indices]
+        annot_dirs = [all_annot_dirs[i] for i in indices]
+        seg_dirs = [all_seg_dirs[i] for i in indices]
         annots = []
+        segs = []
 
-        for annot_dir in annot_dirs:
+        for annot_dir, seg_dir in zip(annot_dirs, seg_dirs): # for each of the classes.
             annot_path = os.path.join(annot_dir, fname)
             annot = load_image(annot_path)
             # Why would we have annotations without content?
             assert np.sum(annot) > 0
             annot = np.pad(annot, ((0, 0), (17,17), (17,17), (17, 17)), mode='constant')
             annots.append(annot)
+
+            seg_path = os.path.join(seg_dir, fname)
+            if os.path.isfile(seg_path):
+                seg = load_image(seg_path)
+                seg = np.pad(seg, ((17,17), (17,17), (17, 17)), mode='constant')
+                segs.append(seg)
+            else:
+                seg = None
 
         # it's possible the image has a different extenstion
         # so use glob to get it
@@ -216,9 +233,9 @@ def load_train_image_and_annot(dataset_dir, train_annot_dirs):
         # images are no longer padded on disk
         image = np.pad(image, ((17,17), (17,17), (17, 17)), mode='constant')
         # also return fname for debugging purposes.
-        return image, annots, classes, fname
+        return image, annots, segs, classes, fname
 
-    load_random = partial(load_random, train_annot_dirs, dataset_dir)
+    load_random = partial(load_random, train_annot_dirs, train_seg_dirs, dataset_dir)
     return load_with_retry(load_random, None)
 
 def pad_3d(image, width, depth, mode='reflect', constant_values=0):
