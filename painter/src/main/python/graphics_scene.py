@@ -37,7 +37,7 @@ class GraphicsScene(QtWidgets.QGraphicsScene):
     def __init__(self, parent):
         super().__init__()
         self.parent = parent
-        self.patch_segmentor = PatchSegmentor(self.parent.parent)
+        #self.patch_segmentor = PatchSegmentor(self.parent.parent)
         self.regions_to_restrict_to = []
         self.cursor_shown = False
         self.brush_size = 25
@@ -201,7 +201,7 @@ class GraphicsScene(QtWidgets.QGraphicsScene):
                 if self.brush_size == 1:
                     painter.drawPoint(circle_x, circle_y)
                 else:
-                    painter.drawEllipse(circle_x, circle_y, self.brush_size-1, self.brush_size-1)
+                    painter.drawEllipse(round(circle_x), round(circle_y), round(self.brush_size-1), round(self.brush_size-1))
                 self.annot_pixmap_holder.setPixmap(self.annot_pixmap)
                 painter.end()
             self.last_x = x
@@ -289,9 +289,9 @@ class GraphicsScene(QtWidgets.QGraphicsScene):
             painter.setBrush(QtGui.QBrush(color, Qt.SolidPattern))
 
             if self.brush_size == 1:
-                painter.drawPoint(circle_x, circle_y)
+                painter.drawPoint(round(circle_x), round(circle_y))
             else:
-                painter.drawEllipse(circle_x, circle_y, self.brush_size-1, self.brush_size-1)
+                painter.drawEllipse(round(circle_x), round(circle_y), round(self.brush_size-1), round(self.brush_size-1))
             painter.end()
             self.cursor_shown = True
             self.cursor_pixmap_holder.setPixmap(self.cursor_pixmap)
@@ -333,7 +333,7 @@ class GraphicsScene(QtWidgets.QGraphicsScene):
             if self.brush_size % 2 == 0:
                 painter.drawLine(self.last_x+0.5, self.last_y+0.5, x+0.5, y+0.5)
             else:
-                painter.drawLine(self.last_x, self.last_y, x, y)
+                painter.drawLine(round(self.last_x), round(self.last_y), round(x), round(y))
 
             self.annot_pixmap_holder.setPixmap(self.annot_pixmap)
             painter.end()
