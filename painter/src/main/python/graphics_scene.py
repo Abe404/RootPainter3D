@@ -37,7 +37,8 @@ class GraphicsScene(QtWidgets.QGraphicsScene):
     def __init__(self, parent):
         super().__init__()
         self.parent = parent
-        #self.patch_segmentor = PatchSegmentor(self.parent.parent)
+        if self.parent.parent.auto_complete_enabled:
+            self.patch_segmentor = PatchSegmentor(self.parent.parent)
         self.regions_to_restrict_to = []
         self.cursor_shown = False
         self.brush_size = 25
