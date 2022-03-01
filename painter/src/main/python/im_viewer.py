@@ -430,8 +430,8 @@ class ImViewer(QtWidgets.QWidget):
 
         if self.parent.view_state == ViewState.ANNOTATING:
             brush_w = self.scene.brush_size * self.graphics_view.zoom * 0.93
-            brush_w = max(brush_w, 3)
-            canvas_w = max(brush_w, 30)
+            brush_w = round(max(brush_w, 3))
+            canvas_w = round(max(brush_w, 30))
             pixel_map = QtGui.QPixmap(canvas_w, canvas_w)
             pixel_map.fill(Qt.transparent)
             painter = QtGui.QPainter(pixel_map)
@@ -440,8 +440,8 @@ class ImViewer(QtWidgets.QWidget):
             painter.setPen(QtGui.QPen(QtGui.QColor(0, 0, 0, 180), 2,
                                       Qt.SolidLine, Qt.FlatCap))
             # Draw black to show where cursor is even when brush is small
-            painter.drawLine(0, (canvas_w/2), canvas_w*2, (canvas_w/2))
-            painter.drawLine((canvas_w/2), 0, (canvas_w/2), canvas_w*2)
+            painter.drawLine(0, round(canvas_w/2), canvas_w*2, round(canvas_w/2))
+            painter.drawLine(round(canvas_w/2), 0, round(canvas_w/2), canvas_w*2)
             painter.end()
             cursor = QtGui.QCursor(pixel_map)
             QtWidgets.QApplication.restoreOverrideCursor()
