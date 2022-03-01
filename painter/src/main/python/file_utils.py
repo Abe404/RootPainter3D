@@ -124,9 +124,13 @@ def maybe_save_annotation_3d(image_data_shape, annot_data, annot_path,
             log(f'maybe_save_annot,{fname},create new')
             # then find the best place to put it based on current counts.
             annot_dir = get_new_annot_target_dir(train_annot_dir, val_annot_dir)
+            # files starting with . are not used in training.
+            tmp_annot_path = os.path.join(annot_dir, '.tmp_' + fname)
             annot_path = os.path.join(annot_dir, fname)
             img = nib.Nifti1Image(annot_data, np.eye(4))
-            img.to_filename(annot_path)
+            img.to_filename(tmp_annot_path) 
+            # rename after finished saving to avoid error with loading partially saved annotation.
+            os.rename(tmp_annot_path, annot_path)
         else:
             # if the annotation did not have content.
             # and there was not an existing annotation
