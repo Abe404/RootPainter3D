@@ -755,13 +755,13 @@ class RootPainter(QtWidgets.QMainWindow):
                                                        self.get_val_annot_dir(),
                                                        self.log)
             if self.annot_path:
-                if self.auto_complete_enabled:
-                    # also save the segmentation, as this updated due to patch updates (potencially).
-                    img = nib.Nifti1Image(self.seg_data.astype(np.int8), np.eye(4))
-                    img.to_filename(self.get_seg_path())
-                    # if annotation was saved to train 
-                    if str(self.get_train_annot_dir()) in self.annot_path:
-                        img.to_filename(self.get_train_seg_path())
+                #if self.auto_complete_enabled:
+                # also save the segmentation, as this updated due to patch updates (potencially).
+                img = nib.Nifti1Image(self.seg_data.astype(np.int8), np.eye(4))
+                img.to_filename(self.get_seg_path())
+                # if annotation was saved to train 
+                if str(self.get_train_annot_dir()) in self.annot_path:
+                    img.to_filename(self.get_train_seg_path())
             # if self.annot_path:
             # start training when an annotation exists
             #    self.start_training()
