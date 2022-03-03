@@ -736,7 +736,7 @@ class AboutWindow(QtWidgets.QWidget):
         paper: 'RootPainter3D: Interactive-machine-learning enables rapid and accurate contouring for radiotherapy'
         <br />
         <br />
-        Version: 0.0.1
+        Version: 0.0.2
         <br />
         <br />
         Copyright (C) 2021 Abraham George Smith
