@@ -20,6 +20,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import torch
 from torch.nn.functional import softmax
 from torch.nn.functional import cross_entropy
+from torch.nn.functional import l1_loss
 import numpy as np
 
 
@@ -48,7 +49,7 @@ def combined_loss(predictions, labels):
     return 0.3 * cross_entropy(predictions, labels)
 
 
-def get_batch_loss(outputs, batch_fg_tiles, batch_bg_tiles,
+def get_batch_loss(outputs, batch_fg_tiles, batch_bg_tiles, batch_seg_tiles,
                    batch_classes, project_classes,
                    compute_loss):
     """
@@ -75,7 +76,6 @@ def get_batch_loss(outputs, batch_fg_tiles, batch_bg_tiles,
     instance_fps = list(instance_tps)
     instance_fns = list(instance_tps)
 
-
     for unique_class in project_classes:
 
         # for each class we need to get a tensor with shape
@@ -87,6 +87,8 @@ def get_batch_loss(outputs, batch_fg_tiles, batch_bg_tiles,
         # The fg tiles (ground truth)
         fg_tiles = []
         masks = [] # and regions of the image that were annotated.
+        seg_tiles = []
+        seg_class_outputs = []
         
         # go through each instance in the batch.
         for im_idx in range(outputs.shape[0]):
@@ -124,6 +126,16 @@ def get_batch_loss(outputs, batch_fg_tiles, batch_bg_tiles,
                     fg_tiles.append(fg_tile)
                     class_outputs.append(class_output)
 
+                    seg_tile = batch_seg_tiles[im_idx][i]
+                    if seg_tile is not None:
+                        seg_tile = torch.from_numpy(seg_tile[17:-17,17:-17,17:-17]).cuda()
+                        # for this purpose we ensure segmentation never disagrees with annotation.
+                        seg_tile[fg_tile] = 1
+                        seg_tile[bg_tile] = 0
+                        seg_tiles.append(seg_tile)
+                        seg_class_outputs.append(class_output)
+             
+
         if not len(fg_tiles):
             continue
         
@@ -131,9 +143,17 @@ def get_batch_loss(outputs, batch_fg_tiles, batch_bg_tiles,
             fg_tiles = torch.stack(fg_tiles).cuda()
             masks = torch.stack(masks).cuda()
             class_outputs = torch.stack(class_outputs)
-            softmaxed = softmax(class_outputs, 1)
-            # just the foreground probability.
-            foreground_probs = softmaxed[:, 1]
+                        
+            if len(seg_class_outputs):
+
+                seg_class_outputs = torch.stack(seg_class_outputs)
+                seg_class_outputs_softmaxed = softmax(seg_class_outputs, 1)
+                seg_foreground_probs = seg_class_outputs_softmaxed[:, 1]
+                seg_tiles = torch.stack(seg_tiles).long()
+                # See loss functions in https://arxiv.org/pdf/1912.02911.pdfhttps://arxiv.org/pdf/1912.02911.pdf
+                class_seg_loss = l1_loss(seg_foreground_probs, seg_tiles, reduction='mean') # MAE
+                class_losses.append(class_seg_loss)
+
             # remove any of the predictions for which we don't have ground truth
             # Set outputs to 0 where annotation undefined so that
             # The network can predict whatever it wants without any penalty.
@@ -141,6 +161,7 @@ def get_batch_loss(outputs, batch_fg_tiles, batch_bg_tiles,
             class_outputs[:, 1] *= masks
             class_loss = combined_loss(class_outputs, fg_tiles)
             class_losses.append(class_loss)
+
     if compute_loss:
         return torch.mean(torch.stack(class_losses)), instance_tps, instance_tns, instance_fps, instance_fns
     return None, instance_tps, instance_tns, instance_fps, instance_fns
