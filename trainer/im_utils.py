@@ -25,19 +25,19 @@ from math import ceil
 import random
 import numpy as np
 import skimage.util as skim_util
-from skimage import color
-from skimage import img_as_ubyte
 from skimage.exposure import rescale_intensity
-from skimage.io import imread, imsave
 import nibabel as nib
 from file_utils import ls
 import nrrd
+from pathlib import Path
+import traceback
 
 def is_image(fname):
     """ extensions that have been tested with so far """
     extensions = {".jpg", ".png", ".jpeg", '.tif', '.tiff'}
     fname_ext = os.path.splitext(fname)[1].lower()
-    return fname_ext in extensions or fname.endswith('.nii.gz') or fname.endswith('.npy') or fname.endswith('.nrrd')
+    return (fname_ext in extensions or fname.endswith('.nii.gz') or 
+            fname.endswith('.npy') or fname.endswith('.nrrd'))
 
 def normalize_tile(tile):
     if np.min(tile) < np.max(tile):
@@ -52,8 +52,17 @@ def normalize_tile(tile):
     return tile
 
 
+def reconstruct_from_tiles(tiles, coords, output_shape):
+    image = np.zeros(output_shape)
+    for tile, (x_coord, y_coord, z_coord) in zip(tiles, coords):
+        image[z_coord:z_coord+tile.shape[0],
+              y_coord:y_coord+tile.shape[1],
+              x_coord:x_coord+tile.shape[2]] = tile
+    return image
+
+
 def load_with_retry(load_fn, fpath):
-    max_attempts = 60
+    max_attempts = 2
     attempts = 0
     while attempts < max_attempts:
         attempts += 1
@@ -65,7 +74,7 @@ def load_with_retry(load_fn, fpath):
             image = load_fn(fpath)
             return image
         except Exception as e:
-            print('load_with_retry', fpath, 'exception', e)
+            print('load_with_retry', fpath, 'exception', e, traceback.format_exc())
             # This could be due to an empty annotation saved by the user.
             # Which happens rarely due to deleting all labels in an
             # existing annotation and is not a problem.
@@ -75,22 +84,158 @@ def load_with_retry(load_fn, fpath):
         raise Exception('Could not load. Too many retries')
 
 
-def load_train_image_and_annot(dataset_dir, train_annot_dir):
 
-    def load_random(train_annot_dir, dataset_dir, _):
-        fnames = ls(train_annot_dir)
-        fnames = [a for a in fnames if is_image(a)]
-        fname = random.sample(fnames, 1)[0]
-        annot_path = os.path.join(train_annot_dir, fname)
-        image_path = os.path.join(dataset_dir, fname)
-        assert (fname.endswith('.nii.gz') or fname.endswith('.nrrd'))
+def load_image_and_annot_for_seg(dataset_dir, train_annot_dirs, fname):
+    """
+    Load image and annotation to enable segmentation.
+
+    returns
+        image (np.array) - image data
+        annots (list(np.array)) - annotations associated with fname
+        classes (list(string)) - classes for each annot,
+                                 taken from annot directory name
+        fname - file name
+    """
+    def load_fname(train_annot_dirs, dataset_dir, fname):
+        # This might take ages, profile and optimize
+        fnames = []
+        # each annotation corresponds to an individual class.
+        all_classes = []
+        all_dirs = []
+        
+       
+        for train_annot_dir in train_annot_dirs:
+            annot_fnames = ls(train_annot_dir)
+            fnames += annot_fnames
+            # Assuming class name is in annotation path
+            # i.e annotations/{class_name}/train/annot1.png,annot2.png..
+            class_name = Path(train_annot_dir).parts[-2]
+            all_classes += [class_name] * len(annot_fnames)
+            all_dirs += [train_annot_dir] * len(annot_fnames)
+
+        # triggers retry if assertion fails
+        assert is_image(fname), f'{fname} is not a valid image'
+
+        # annots and classes associated with fname
+        indices = [i for i, f in enumerate(fnames) if f == fname]
+        classes = [all_classes[i] for i in indices]
+        annot_dirs = [all_dirs[i] for i in indices]
+        annots = []
+
+        for annot_dir in annot_dirs:
+            annot_path = os.path.join(annot_dir, fname)
+            annot = load_image(annot_path)
+            # Why would we have annotations without content?
+            assert np.sum(annot) > 0
+            annot = np.pad(annot, ((0, 0), (17,17), (17,17), (17, 17)), mode='constant')
+            annots.append(annot)
+
+        # it's possible the image has a different extenstion
+        # so use glob to get it
+        fname_no_ext = fname.replace('.nii.gz', '').replace('.nrrd', '')
+        image_path_part = os.path.join(dataset_dir, fname_no_ext)
+        image_path = glob.glob(image_path_part + '.*')[0]
         image = load_image(image_path)
-        annot = load_image(annot_path)
-        assert np.any(annot) # should not be all zero
-        # also return fname for debugging purposes.
-        return image, annot, fname 
 
-    load_random = partial(load_random, train_annot_dir, dataset_dir)
+        #  needs to be swapped to channels first and rotated etc
+        # to be consistent with everything else.
+        # todo: consider removing this soon.
+        image = np.rot90(image, k=3)
+        image = np.moveaxis(image, -1, 0) # depth moved to beginning
+        # reverse lr and ud
+        image = image[::-1, :, ::-1]
+
+        # also return fname for debugging purposes.
+        return image, annots, classes, fname
+
+    load_fname = partial(load_fname, train_annot_dirs, dataset_dir)
+    return load_with_retry(load_fname, fname)
+
+
+
+def load_train_image_and_annot(dataset_dir, train_seg_dirs, train_annot_dirs):
+    """
+    returns
+        image (np.array) - image data
+        annots (list(np.array)) - annotations associated with fname
+        segs (list(np.array)) - segmentations associated with fname
+        classes (list(string)) - classes for each annot,
+                                 taken from annot directory name
+        fname - file name
+    """
+
+    def load_random(train_annot_dirs, train_seg_dirs, dataset_dir, _):
+        # This might take ages, profile and optimize
+        fnames = []
+        # each annotation corresponds to an individual class.
+        all_classes = []
+        all_annot_dirs = []
+        all_seg_dirs = []
+
+        train_seg_dirs = sorted(train_seg_dirs)
+        train_annot_dirs = sorted(train_annot_dirs)
+        assert len(train_seg_dirs) == len(train_annot_dirs)
+    
+        for train_seg_dir, train_annot_dir in zip(train_seg_dirs, train_annot_dirs):
+            annot_fnames = ls(train_annot_dir)
+            fnames += annot_fnames
+            # Assuming class name is in annotation path
+            # i.e annotations/{class_name}/train/annot1.png,annot2.png..
+            class_name = Path(train_annot_dir).parts[-2]
+            all_classes += [class_name] * len(annot_fnames)
+            all_annot_dirs += [train_annot_dir] * len(annot_fnames)
+            all_seg_dirs += [train_seg_dir] * len(annot_fnames)
+        
+        assert len(fnames), 'should be at least one fname'
+
+        fname = random.sample(fnames, 1)[0]
+
+        # triggers retry if assertion fails
+        assert is_image(fname), f'{fname} is not a valid image'
+
+        # annots and classes associated with fname
+        indices = [i for i, f in enumerate(fnames) if f == fname]
+        classes = [all_classes[i] for i in indices]
+        annot_dirs = [all_annot_dirs[i] for i in indices]
+        seg_dirs = [all_seg_dirs[i] for i in indices]
+        annots = []
+        segs = []
+
+        for annot_dir, seg_dir in zip(annot_dirs, seg_dirs): # for each of the classes.
+            annot_path = os.path.join(annot_dir, fname)
+            annot = load_image(annot_path)
+            # Why would we have annotations without content?
+            assert np.sum(annot) > 0
+            annot = np.pad(annot, ((0, 0), (17,17), (17,17), (17, 17)), mode='constant')
+            annots.append(annot)
+
+            seg_path = os.path.join(seg_dir, fname)
+            if os.path.isfile(seg_path):
+                seg = load_image(seg_path)
+                seg = np.pad(seg, ((17,17), (17,17), (17, 17)), mode='constant')
+            else:
+                seg = None
+            segs.append(seg)
+
+        # it's possible the image has a different extenstion
+        # so use glob to get it
+        fname_no_ext = fname.replace('.nii.gz', '').replace('.nrrd', '')
+        image_path_part = os.path.join(dataset_dir, fname_no_ext)
+        image_path = glob.glob(image_path_part + '.*')[0]
+        image = load_image(image_path)
+        #  needs to be swapped to channels first and rotated etc
+        # to be consistent with everything else.
+        # todo: consider removing this soon.
+        image = np.rot90(image, k=3)
+        image = np.moveaxis(image, -1, 0) # depth moved to beginning
+        # reverse lr and ud
+        image = image[::-1, :, ::-1]
+        # images are no longer padded on disk
+        image = np.pad(image, ((17,17), (17,17), (17, 17)), mode='constant')
+        # also return fname for debugging purposes.
+        return image, annots, segs, classes, fname
+
+    load_random = partial(load_random, train_annot_dirs, train_seg_dirs, dataset_dir)
     return load_with_retry(load_random, None)
 
 def pad_3d(image, width, depth, mode='reflect', constant_values=0):
@@ -105,7 +250,7 @@ def pad_3d(image, width, depth, mode='reflect', constant_values=0):
                          constant_values=constant_values)
 
 
-def get_val_tile_refs(annot_dir, prev_tile_refs, in_shape, out_shape):
+def get_val_tile_refs(annot_dirs, prev_tile_refs, out_shape):
     """
     Get tile info which covers all annotated regions of the annotation dataset.
     The list must be structured such that an index can be used to refer to each example
@@ -132,20 +277,39 @@ def get_val_tile_refs(annot_dir, prev_tile_refs, in_shape, out_shape):
     other images the tile_refs from prev_tile_refs can be used.
     """
     tile_refs = []
-    cur_annot_fnames = ls(annot_dir)
+
+    # TODO, change this so we have a list of all annot names and their corresopnding classes.
+    #  make a large list of classes that corresponds to all the file names. Ive done this elsewhere.
+
+    # This might take ages, profile and optimize
+    cur_annot_fnames = []
+    # each annotation corresponds to an individual class.
+    all_classes = []
+    all_dirs = []
+
+    for annot_dir in annot_dirs:
+        annot_fnames = ls(annot_dir)
+        if annot_fnames:
+            cur_annot_fnames += annot_fnames
+            # Assuming class name is in annotation path
+            # i.e annotations/{class_name}/train/annot1.png,annot2.png..
+            class_name = Path(annot_dir).parts[-2]
+            all_classes += [class_name] * len(annot_fnames)
+            all_dirs += [annot_dir] * len(annot_fnames)
+    
     prev_annot_fnames = [r[0] for r in prev_tile_refs]
     all_annot_fnames = set(cur_annot_fnames + prev_annot_fnames)
 
-    for fname in all_annot_fnames:
+    for annot_dir, annot_fname in zip(all_dirs, all_annot_fnames):
         # get existing coord refs for this image
-        prev_refs = [r for r in prev_tile_refs if r[0] == fname]
-        prev_mtimes = [r[2] for r in prev_tile_refs if r[0] == fname]
+        prev_refs = [r for r in prev_tile_refs if r[0] == annot_fname]
+        prev_mtimes = [r[2] for r in prev_tile_refs if r[0] == annot_fname]
         need_new_refs = False
         # if no refs for this image then check again
         if not prev_refs:
             need_new_refs = True
         else:
-            annot_path = os.path.join(annot_dir, fname)
+            annot_path = os.path.join(annot_dir, annot_fname)
             # if the file no longer exists then we do need new refs
             # surprisingly this did happen, I presume the file list was somehow out of date
             # and the removal of the file was only detected when trying to read it.
@@ -154,21 +318,20 @@ def get_val_tile_refs(annot_dir, prev_tile_refs, in_shape, out_shape):
             else:
                 # otherwise check the modified time of the refs against the file.
                 prev_mtime = prev_mtimes[0]
-                cur_mtime = os.path.getmtime(os.path.join(annot_dir, fname))
+                cur_mtime = os.path.getmtime(os.path.join(annot_dir, annot_fname))
 
                 # if file has been updated then get new refs
                 if cur_mtime > prev_mtime:
                     need_new_refs = True
         if need_new_refs:
-            new_file_refs = get_val_tile_refs_for_annot_3d(annot_dir, fname,
-                                                           in_shape, out_shape)
+            new_file_refs = get_val_tile_refs_for_annot_3d(annot_dir, annot_fname, out_shape)
             tile_refs += new_file_refs
         else:
             tile_refs += prev_refs
     return tile_refs
 
 
-def get_val_tile_refs_for_annot_3d(annot_dir, annot_fname, in_shape, out_shape):
+def get_val_tile_refs_for_annot_3d(annot_dir, annot_fname, out_shape):
     """
     Each element of tile_refs is a list that includes:
         * image file name (string) - for loading the image from disk during validation
@@ -251,7 +414,6 @@ def save_then_move(out_path, seg):
 
 
 def load_image(image_path):
-    dims = None
     if image_path.endswith('.npy'):
         image = np.load(image_path, mmap_mode='c')
     elif image_path.endswith('.nrrd'):

@@ -5,3 +5,5 @@ Pillow==9.0.0
 pytest==5.4.2
 nibabel==3.1.0
 pynrrd==0.4.2
+paramiko==2.9.2
+scp==0.14.2

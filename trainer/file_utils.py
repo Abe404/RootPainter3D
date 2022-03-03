@@ -18,7 +18,11 @@ import os
 import time
 
 def ls(dir_path):
-    # retry as there may be temporary issues with a mounted network drive. 
+    """
+    list directory with
+    retry as there may be temporary issues with a mounted network drive. 
+    hidden files are not returned
+    """
     retries = 100
     for _ in range(retries):
         try:
@@ -33,4 +37,3 @@ def ls(dir_path):
             print(ex)
             time.sleep(1)
     raise Exception(f'Cannot list file names from {dir_path} after {retries} retries')
-        

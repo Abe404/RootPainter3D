@@ -52,13 +52,18 @@ class CreateProjectWidget(QtWidgets.QWidget):
         self.add_im_dir_widget()
         self.add_radio_widget()
         self.add_model_btn()
+        self.add_palette_widget()
         
-        self.palette_edit_widget = PaletteEditWidget()
-        self.palette_edit_widget.changed.connect(self.validate)
-        # for later.
-        # self.layout.addWidget(self.palette_edit_widget) 
         self.add_info_label()
         self.add_create_btn()
+
+    
+    def add_info_label(self):
+        info_label = QtWidgets.QLabel()
+        info_label.setText("Name, directory and model must be specified"
+                           " to create project.")
+        self.layout.addWidget(info_label)
+        self.info_label = info_label
 
     def add_im_dir_widget(self):
         # Add specify image directory button
@@ -102,12 +107,10 @@ class CreateProjectWidget(QtWidgets.QWidget):
         self.model_label.setVisible(False)
         self.specify_model_btn.setVisible(False)
 
-    def add_info_label(self):
-        info_label = QtWidgets.QLabel()
-        info_label.setText("Name, directory and model must be specified"
-                           " to create project.")
-        self.layout.addWidget(info_label)
-        self.info_label = info_label
+    def add_palette_widget(self):
+        self.palette_edit_widget = PaletteEditWidget()
+        self.palette_edit_widget.changed.connect(self.validate)
+        self.layout.addWidget(self.palette_edit_widget)
 
     def add_create_btn(self):
         # Add create button
@@ -153,7 +156,7 @@ class CreateProjectWidget(QtWidgets.QWidget):
             self.create_project_btn.setEnabled(False)
             return
 
-        if len(self.palette_edit_widget.get_brush_data()) < 2:
+        if len(self.palette_edit_widget.get_brush_data()) < 1:
             self.info_label.setText(f"At least one foreground brush must be specified")
             self.create_project_btn.setEnabled(False)
             return
@@ -165,7 +168,6 @@ class CreateProjectWidget(QtWidgets.QWidget):
         else:
             self.info_label.setText(f"Project location: {self.project_location}")
             self.create_project_btn.setEnabled(True)
-
 
     def select_photo_dir(self):
         self.photo_dialog = QtWidgets.QFileDialog(self)
@@ -194,6 +196,8 @@ class CreateProjectWidget(QtWidgets.QWidget):
         project_name = self.proj_name
         project_location = Path(self.project_location)
 
+        classes = self.palette_edit_widget.get_brush_data()
+
         dataset_path = os.path.abspath(self.selected_dir)
         datasets_dir = str(self.sync_dir / 'datasets')
     
@@ -208,10 +212,26 @@ class CreateProjectWidget(QtWidgets.QWidget):
         os.makedirs(self.sync_dir / project_location)
         proj_file_path = (self.sync_dir / project_location /
                           (project_name + '.seg_proj'))
-        os.makedirs(self.sync_dir / project_location / 'annotations' / 'train')
-        os.makedirs(self.sync_dir / project_location / 'annotations' / 'val')
-        os.makedirs(self.sync_dir / project_location / 'segmentations')
-        os.makedirs(self.sync_dir / project_location / 'bounded_images')
+
+        if len(classes) > 1:
+            # Create annotation folder for each class
+            for class_name in classes:
+                os.makedirs(self.sync_dir / project_location /
+                            'annotations' / class_name / 'train')
+                os.makedirs(self.sync_dir / project_location /
+                            'annotations' / class_name / 'val')
+                os.makedirs(self.sync_dir / project_location /
+                            'segmentations' / class_name)
+                os.makedirs(self.sync_dir / project_location /
+                            'train_segmentations' / class_name)
+ 
+        else:
+            # Create only the 'annotation' and 'segmentation' folders - classic structure
+            os.makedirs(self.sync_dir / project_location / 'annotations' / 'train')
+            os.makedirs(self.sync_dir / project_location / 'annotations' / 'val')
+            os.makedirs(self.sync_dir / project_location / 'segmentations')
+            os.makedirs(self.sync_dir / project_location / 'train_segmentations')
+
         os.makedirs(self.sync_dir / project_location / 'models')
         os.makedirs(self.sync_dir / project_location / 'messages')
         os.makedirs(self.sync_dir / project_location / 'logs')
@@ -242,10 +262,18 @@ class CreateProjectWidget(QtWidgets.QWidget):
             'name': project_name,
             'dataset': dataset,
             'original_model_file': original_model_file,
-            'location': str(PurePosixPath(project_location)),
-            'file_names': all_fnames,
-            'classes': self.palette_edit_widget.get_brush_data()
+            'location': str(PurePosixPath(project_location))
         }
+
+        # only add classes info if the palette is defined.
+        # otherwise the server will default to single class (fg/bg)
+        if hasattr(self, 'palette_edit_widget'):
+            project_info['classes'] = classes
+
+        # add these at the end because it makes the json more readable
+        # to have the short entries at the top.
+        project_info['file_names'] = all_fnames
+
         with open(proj_file_path, 'w') as json_file:
             json.dump(project_info, json_file, indent=4)
         self.created.emit(proj_file_path)

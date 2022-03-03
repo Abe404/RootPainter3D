@@ -26,13 +26,16 @@ class NavWidget(QtWidgets.QWidget):
     """ Shows next and previous buttons as well as image position in folder.
     """
     file_change = QtCore.pyqtSignal(str)
+    class_change = QtCore.pyqtSignal(str)
 
-    def __init__(self, all_fnames, before_change):
+
+    def __init__(self, all_fnames, classes, before_change):
         super().__init__()
         self.image_path = None
         self.all_fnames = all_fnames
         # validation.
         self.before_change = before_change
+        self.classes = classes
         self.initUI()
 
     def initUI(self):
@@ -59,11 +62,22 @@ class NavWidget(QtWidgets.QWidget):
         nav.setLayout(nav_layout)
         nav.setMaximumWidth(600)
 
+
+        # only need a way to change 
+        if len(self.classes) > 1:
+            self.cb = QtWidgets.QComboBox()
+            self.cb.addItems(self.classes)
+            self.cb.currentIndexChanged.connect(self.selection_change)
+            nav_layout.addWidget(self.cb)
+
         container_layout = QtWidgets.QHBoxLayout()
         container_layout.setAlignment(Qt.AlignCenter)
         container_layout.addWidget(nav)
         self.setLayout(container_layout)
         container_layout.setContentsMargins(0, 0, 0, 0)
+    
+    def selection_change(self, _):
+        self.class_change.emit(self.cb.currentText())
 
     def get_path_list(self, dir_path):
         all_files = self.all_fnames

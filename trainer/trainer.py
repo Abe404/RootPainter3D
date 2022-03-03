@@ -20,20 +20,21 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import os
 import time
 import warnings
-import threading
 import traceback
 from pathlib import Path
 import json
 import sys
 from datetime import datetime
-from functools import partial
 import copy
+import random
+
 
 import numpy as np
 import torch
-from torch.nn.functional import softmax
 from torch.utils.data import DataLoader
-from loss import combined_loss as criterion
+import torch.nn.functional as F
+from loss import get_batch_loss
+from instructions import fix_config_paths
 
 from datasets import RPDataset
 from metrics import get_metrics, get_metrics_str, get_metric_csv_row
@@ -43,16 +44,23 @@ from model_utils import random_model
 import model_utils
 from model_utils import save_if_better, save_model
 from metrics import metrics_from_val_tile_refs
+import data_utils
+import patch_seg
 
-from im_utils import is_image, load_image, save_then_move, load_train_image_and_annot
+from im_utils import is_image, load_image, save_then_move
 import im_utils
 from file_utils import ls
+from startup import add_config_shape
 
 
 class Trainer():
 
-    def __init__(self, sync_dir):
+    def __init__(self, sync_dir, ip=None, port=None):
         self.sync_dir = sync_dir
+        self.ip = ip
+        self.port = port
+        self.patch_update_enabled = ip and port
+
         self.instruction_dir = os.path.join(self.sync_dir, 'instructions')
         self.training = False
         self.running = False
@@ -61,12 +69,8 @@ class Trainer():
         self.train_config = None
         self.model = None
         self.first_loop = True
-        mem_per_item = 3800000000
-        total_mem = 0
-        for i in range(torch.cuda.device_count()):
-            total_mem += torch.cuda.get_device_properties(i).total_memory
-        self.batch_size = 4 # total_mem // mem_per_item
-        print('Batch size', self.batch_size)
+        # TODO: derrive both batch_size and input_patch size based on available GPU memory
+        self.batch_size = 4 
         self.optimizer = None
         self.val_tile_refs = []
         # used to check for updates
@@ -74,17 +78,24 @@ class Trainer():
         self.msg_dir = None
         self.epochs_without_progress = 0
         self.training_restart = False
+        self.restart_best_val_dice = 0
 
         # approx 30 minutes
         self.max_epochs_without_progress = 60
         # These can be trigged by data sent from client
         self.valid_instructions = [self.start_training,
                                    self.segment,
-                                   self.stop_training]
+                                   self.stop_training,
+                                   self.segment_patch]
 
     def main_loop(self, on_epoch_end=None):
         print('Started main loop. Checking for instructions in',
               self.instruction_dir)
+        if self.patch_update_enabled:
+            print('start patch seg server')
+            patch_seg.start_server(self.sync_dir, self.ip, self.port) # direct socket connection
+            print('after start server')
+
         self.running = True
         while self.running:
             self.check_for_instructions()
@@ -112,45 +123,6 @@ class Trainer():
                 time.sleep(1.0)
 
 
-    def add_config_shape(self, config):
-        new_config = copy.deepcopy(config)
-        # for now we will have defaults 
-        # we may want to allow the user to specify this or adapt based
-        # on image dimensions, hardware capabilities and batch size
-        new_config['in_w'] = 228
-        new_config['out_w'] = 194
-        new_config['in_d'] = 52
-        new_config['out_d'] = 18
-        return new_config
-
-
-    def fix_config_paths(self, old_config):
-        """ get paths relative to local machine """
-        new_config = {}
-        for k, v in old_config.items():
-            if k == 'file_names':
-                # names dont need a path appending
-                new_config[k] = v
-            elif k == 'classes':
-                # classes should not be altered
-                new_config[k] = v
-            elif isinstance(v, list):
-                # if its a list fix each string in the list.
-                new_list = []
-                for e in v:
-                    new_val = e.replace('\\', '/')
-                    new_val = os.path.join(self.sync_dir,
-                                           os.path.normpath(new_val))
-                    new_list.append(new_val)
-                new_config[k] = new_list
-            elif isinstance(v, str):
-                v = v.replace('\\', '/')
-                new_config[k] = os.path.join(self.sync_dir,
-                                             os.path.normpath(v))
-            else:
-                new_config[k] = v
-        return new_config
-
     def check_for_instructions(self):
         for fname in ls(self.instruction_dir):
             print('found instruction', fname)
@@ -165,7 +137,7 @@ class Trainer():
             try:
                 with open(fpath, 'r') as json_file:
                     contents = json_file.read()
-                    config = self.fix_config_paths(json.loads(contents))
+                    config = fix_config_paths(self.sync_dir, json.loads(contents))
                     getattr(self, name)(config)
             except Exception as e:
                 tb = traceback.format_exc()
@@ -191,29 +163,37 @@ class Trainer():
 
         if not self.training:
             self.train_config = config
+            
+            classes = ['annotations']
+            if 'classes' in self.train_config:
+                classes = self.train_config['classes']
+            else:
+                self.train_config['classes'] = classes
+
             self.val_tile_refs = [] # dont want to cache these between projects
             self.epochs_without_progress = 0
             self.msg_dir = self.train_config['message_dir']
             model_dir = self.train_config['model_dir']
             classes = self.train_config['classes']
-            self.train_config = self.add_config_shape(self.train_config)
+            self.train_config = add_config_shape(self.train_config)
 
             model_paths = model_utils.get_latest_model_paths(model_dir, 1)
             if model_paths:
-                self.model = model_utils.load_model(model_paths[0], num_classes=len(classes))
+                self.model = model_utils.load_model(model_paths[0], classes)
             else:
-                self.model = create_first_model_with_random_weights(model_dir, num_classes=len(classes))
+                self.model = create_first_model_with_random_weights(model_dir, classes)
             self.optimizer = torch.optim.SGD(self.model.parameters(), lr=0.01,
                                              momentum=0.99, nesterov=True)
 
             self.model.train()
             self.training = True
 
+
     def reset_progress_if_annots_changed(self):
-        train_annot_dir = self.train_config['train_annot_dir']
-        val_annot_dir = self.train_config['val_annot_dir']
+        train_annot_dirs = self.train_config['train_annot_dirs']
+        val_annot_dirs = self.train_config['val_annot_dirs']
         new_annot_mtimes = []
-        for annot_dir in [train_annot_dir, val_annot_dir]:
+        for annot_dir in train_annot_dirs + val_annot_dirs:
             for fname in ls(annot_dir):
                 fpath = os.path.join(annot_dir, fname)
                 new_annot_mtimes.append(os.path.getmtime(fpath))
@@ -227,13 +207,19 @@ class Trainer():
         """ write a message for the user (client) """
         Path(os.path.join(self.msg_dir, message)).touch()
 
+
+    def train_annotation_exists(self):
+        train_annot_dirs = self.train_config['train_annot_dirs']
+        found_train_annot = False
+        for d in train_annot_dirs:
+            if [is_image(a) for a in ls(d)]:
+                found_train_annot = True
+        return found_train_annot 
+
     def one_epoch(self, model, mode='train', val_tile_refs=None, length=None):
-        #torch.cuda.empty_cache() # we need to make sure we have enough memory
-        # mode is train or val
-        annot_dir = self.train_config[f'{mode}_annot_dir']
-        if not [is_image(a) for a in ls(annot_dir)]:
-            print(f'skip {mode} epoch because no annotations')
-            return None
+        if not self.train_annotation_exists():
+            # no training until data ready
+            return False
 
         if self.first_loop:
             self.first_loop = False
@@ -241,29 +227,34 @@ class Trainer():
             self.log('Starting Training')
 
         if mode == 'val':
-            dataset = RPDataset(self.train_config['val_annot_dir'],
+            dataset = RPDataset(self.train_config['val_annot_dirs'],
+                                None,
                                 self.train_config['dataset_dir'],
                                 self.train_config['in_w'],
                                 self.train_config['out_w'],
                                 self.train_config['in_d'],
                                 self.train_config['out_d'],
-                                self.train_config['classes'], 'val',
+                                'val',
                                 val_tile_refs)
             torch.set_grad_enabled(False)
             loader = DataLoader(dataset, self.batch_size * 2, shuffle=True,
+                                collate_fn=data_utils.collate_fn,
                                 num_workers=16, drop_last=False, pin_memory=True)
         elif mode == 'train':
-            dataset = RPDataset(self.train_config['train_annot_dir'],
+            dataset = RPDataset(self.train_config['train_annot_dirs'],
+                                self.train_config['train_seg_dirs'],
                                 self.train_config['dataset_dir'],
                                 self.train_config['in_w'],
                                 self.train_config['out_w'],
                                 self.train_config['in_d'],
                                 self.train_config['out_d'],
-                                self.train_config['classes'], 'train',
+                                'train',
                                 val_tile_refs,
                                 length=length)
             torch.set_grad_enabled(True)
-            loader = DataLoader(dataset, self.batch_size, shuffle=False, num_workers=16,
+            loader = DataLoader(dataset, self.batch_size, shuffle=False,
+                                collate_fn=data_utils.collate_fn,
+                                num_workers=16,
                                 drop_last=False, pin_memory=True)
             model.train()
         else:
@@ -275,49 +266,61 @@ class Trainer():
         fps = []
         tns = []
         fns = []
-
-        for step, (im_tiles,
-                   target_tiles,
-                   defined_tiles) in enumerate(loader):
+        loss_sum = 0
+        for step, (batch_im_tiles, batch_fg_tiles,
+                   batch_bg_tiles, batch_seg_tiles, batch_classes) in enumerate(loader):
 
             self.check_for_instructions()
-            im_tiles = im_tiles.cuda()
-            defined_tiles = defined_tiles.cuda()
-            target_tiles = target_tiles.cuda()
+            batch_im_tiles = torch.from_numpy(np.array(batch_im_tiles)).cuda()
             self.optimizer.zero_grad()
-            outputs = model(im_tiles)
-            outputs[:, 0] *= defined_tiles
-            outputs[:, 1] *= defined_tiles
+        
+            # padd channels to allow annotation input (or not)
+            # l,r, l,r, but from end to start    w  w  h  h  d  d, c, c, b, b
+            model_input = F.pad(batch_im_tiles, (0, 0, 0, 0, 0, 0, 0, 2), 'constant', 0)
+    
+            # model_input[:, 0] is the input image
+            # model_input[:, 1] is fg
+            # model_input[:, 2] is bg
+            if self.patch_update_enabled and mode == 'train':
+                for i, (fg_tiles, bg_tiles) in enumerate(zip(batch_fg_tiles, batch_bg_tiles)):
+                    # if it's trianing then with 50% chance 
+                    # add the annotations to the model input
+                    # Validation should not have access to the annotations.
+                    if random.random() > 0.5:
+                        # go through fg tiles and bg_tiles for each batch item
+                        # in this case we know there is always 1 bg and 1 fg tile.
+                        # at random add the annotation slice
+                        for slice_idx in range(fg_tiles[0].shape[0]):
+                            if torch.any(fg_tiles[0][slice_idx]) or torch.any(bg_tiles[0][slice_idx]):
+                                # each slice with annotation is included with 50 percent probability.
+                                # This allows the network to learn how to use the annotation to improve predictions
+                                if random.random() > 0.5: 
+                                    model_input[i, 1, slice_idx] = fg_tiles[0][slice_idx]
+                                    model_input[i, 2, slice_idx] = bg_tiles[0][slice_idx]
 
-            loss = criterion(outputs, target_tiles)
-            softmaxed = softmax(outputs, 1)
-            # just the foreground probability.
-            foreground_preds = softmaxed[:, 1] > 0.5
+            outputs = model(model_input)
 
-            # we only want to calculate metrics on the
-            # part of the predictions for which annotations are defined
-            # so remove all predictions and foreground labels where
-            # we didn't have any annotation.
+            (batch_loss, batch_tps, batch_tns,
+             batch_fps, batch_fns) = get_batch_loss(
+                 outputs, batch_fg_tiles, batch_bg_tiles, batch_seg_tiles,
+                 #outputs, batch_fg_tiles, batch_bg_tiles,
+                 batch_classes, self.train_config['classes'],
+                 compute_loss=(mode=='train'))
 
-            for batch_index in range(defined_tiles.shape[0]):
-                defined_list = defined_tiles[batch_index].view(-1)
-                preds_list = foreground_preds[batch_index].view(-1)[defined_list > 0]
-                foregrounds_list = target_tiles[batch_index, 1].reshape(-1)[defined_list > 0]
-
-                # # calculate all the false positives, false negatives etc
-                tps.append(torch.sum((foregrounds_list == 1) * (preds_list == 1)).cpu().numpy())
-                tns.append(torch.sum((foregrounds_list == 0) * (preds_list == 0)).cpu().numpy())
-                fps.append(torch.sum((foregrounds_list == 0) * (preds_list == 1)).cpu().numpy())
-                fns.append(torch.sum((foregrounds_list == 1) * (preds_list == 0)).cpu().numpy())
+            tps += batch_tps
+            fps += batch_fps
+            tns += batch_tns
+            fns += batch_fns
 
             if mode == 'train':
-                loss.backward()
+                loss_sum += batch_loss.item() # float
+                batch_loss.backward()
                 self.optimizer.step()
 
             if mode == 'train':
                 sys.stdout.write(f"{mode} {(step+1) * self.batch_size}/"
                                  f"{len(loader.dataset)} "
-                                 f" loss={round(loss.item(), 3)} \r")
+                                 f" loss={round(batch_loss.item(), 3)} \r")
 
             self.check_for_instructions() # could update training parameter
             if not self.training: # in this context we consider validation part of training.
@@ -335,13 +338,9 @@ class Trainer():
             # go through the val tile refs to find the equivalent tile ref
             self.val_tile_refs[i][3] = [tp, fp, tn, fn]
 
-
     def get_new_val_tiles_refs(self):
-        return im_utils.get_val_tile_refs(self.train_config['val_annot_dir'],
+        return im_utils.get_val_tile_refs(self.train_config['val_annot_dirs'],
                                           copy.deepcopy(self.val_tile_refs),
-                                          in_shape=(self.train_config['in_d'],
-                                                    self.train_config['in_w'],
-                                                    self.train_config['in_w']),
                                           out_shape=(self.train_config['out_d'],
                                                      self.train_config['out_w'],
                                                      self.train_config['out_w']))
@@ -368,7 +367,7 @@ class Trainer():
         """
         model_dir = self.train_config['model_dir']
         prev_model, prev_path = model_utils.get_prev_model(model_dir,
-                                                           len(self.train_config['classes']))
+                                                           self.train_config['classes'])
         self.val_tile_refs = self.get_new_val_tiles_refs()
 
         if not self.val_tile_refs:
@@ -404,6 +403,20 @@ class Trainer():
         else:
             self.epochs_without_progress += 1
 
+        # if we are doing a restart (from random weights) then lets consider the
+        # performance improvements local to that restart, 
+        # rather than the best model from all starts.
+        if self.training_restart: 
+            # we know that data doesn't change during a restart 
+            # (because this would cause the restart to stop and typical training to resumse)
+            # so we keep track of the best dice so far for this specific restart, and extend
+            # training if we beat it, i.e set epochs_without_progress to 0
+            if cur_m['dice'] > self.restart_best_val_dice:
+                print('local restart dice improvement from',
+                      round(self.restart_best_val_dice, 4), 'to', round(cur_m['dice'], 4))
+                self.restart_best_val_dice = cur_m['dice']
+                self.epochs_without_progress = 0
+
         self.reset_progress_if_annots_changed()
 
         message = (f'Training {self.epochs_without_progress}'
@@ -424,9 +437,10 @@ class Trainer():
         self.write_message('Restarting training from scratch')
         self.log('Restarting training from scratch')
         self.training_restart = True
+        self.restart_best_val_dice = 0 # need to beat this or restart will stop after 60 epochs
         self.val_tile_refs = [] # dont want to cache these
         self.epochs_without_progress = 0
-        self.model = random_model(num_classes=len(self.train_config['classes']))
+        self.model = random_model(self.train_config['classes'])
         self.optimizer = torch.optim.SGD(self.model.parameters(), lr=0.01,
                                          momentum=0.99, nesterov=True)
         self.model.train()
@@ -454,7 +468,7 @@ class Trainer():
         in_dir = segment_config['dataset_dir']
         seg_dir = segment_config['seg_dir']
 
-        segment_config = self.add_config_shape(segment_config)
+        segment_config = add_config_shape(segment_config)
         classes = segment_config['classes']
         if "file_names" in segment_config:
             fnames = segment_config['file_names']
@@ -471,7 +485,7 @@ class Trainer():
             # if latest is not found then create a model with random weights
             # and use that.
             if not model_paths:
-                create_first_model_with_random_weights(model_dir, len(classes))
+                create_first_model_with_random_weights(model_dir, classes)
                 model_paths = model_utils.get_latest_model_paths(model_dir, 1)
         if "overwrite" in segment_config:
             overwrite = segment_config['overwrite']
@@ -481,18 +495,16 @@ class Trainer():
         start = time.time()
 
         for fname in fnames:
-            # if more than one file is specified then we presume that
-            # the images are channels last and need to be moved to channels first.
-            bounded = len(fnames) == 1
             self.segment_file(in_dir, seg_dir, fname,
-                              model_paths, classes,
-                              in_w = segment_config['in_w'],
-                              out_w = segment_config['out_w'],
-                              in_d = segment_config['in_d'],
-                              out_d = segment_config['out_d'],
-                              bounded = bounded,
-                              sync_save = len(fnames) == 1,
-                              overwrite = overwrite)
+                              model_paths,
+                              in_w=segment_config['in_w'],
+                              out_w=segment_config['out_w'],
+                              in_d=segment_config['in_d'],
+                              out_d=segment_config['out_d'],
+                              classes=classes,
+                              sync_save=len(fnames) == 1,
+                              overwrite=overwrite)
+
         duration = time.time() - start
         print(f'Seconds to segment {len(fnames)} images: ', round(duration, 3))
 
@@ -504,15 +516,17 @@ class Trainer():
         if use_cache:
             # for each val tile
             for t in self.val_tile_refs:
-                if t[3] == None:
+                if t[3] is None:
                     refs_to_compute.append(t)
         else:
             refs_to_compute = self.val_tile_refs
 
-        print('computing prev model metrics for ', len(refs_to_compute), 'out of', len(self.val_tile_refs))
+        print('computing prev model metrics for ', len(refs_to_compute),
+              'out of', len(self.val_tile_refs))
         # if it is missing metrics then add it to refs_to_compute
         # then compute the errors for these tile refs
         if refs_to_compute:
+            
             (tps, fps, tns, fns) = self.one_epoch(prev_model, 'val', refs_to_compute)
             assert len(tps) == len(fps) == len(tns) == len(fns) == len(refs_to_compute)
 
@@ -522,63 +536,68 @@ class Trainer():
                 for i, ref in enumerate(self.val_tile_refs):
                     if ref[0] == computed_ref[0] and ref[1] == computed_ref[1]:
                         if use_cache:
-                            assert self.val_tile_refs[i][3] ==  None, self.val_tile_refs[i][3]
-                            assert ref[3] == None
+                            assert self.val_tile_refs[i][3] is None, self.val_tile_refs[i][3]
+                            assert ref[3] is None
                         ref[3] = [tp, fp, tn, fn]
                         assert self.val_tile_refs[i][3] is not None
 
         prev_m = metrics_from_val_tile_refs(self.val_tile_refs)
         return prev_m
 
+    def segment_patch(self, segment_config):
+        patch_seg.segment_patch(segment_config)
 
-    def segment_file(self, in_dir, seg_dir, fname, model_paths, classes,
-                     in_w, out_w, in_d, out_d, bounded, sync_save, overwrite=False):
-        fpath = os.path.join(in_dir, fname)
-        # Segmentations are always saved as PNG for 2d or nifty for 3d
-        if fname.endswith('.nii.gz'):
-            out_path = os.path.join(seg_dir, fname)
-        elif fname.endswith('.npy'):
+    def segment_file(self, in_dir, seg_dir, fname, model_paths,
+                     in_w, out_w, in_d, out_d, classes, sync_save, overwrite=False):
+
+        # segmentations are always saved as .nii.gz
+        out_paths = []
+        if len(classes) > 1:
+            for c in classes:
+                out_paths.append(os.path.join(seg_dir, c, fname))
+        else:
             # segment to nifty as they don't get loaded repeatedly in training.
-            out_path = os.path.join(seg_dir, os.path.splitext(fname)[0] + '.nii.gz')
-        if not overwrite and os.path.isfile(out_path):
-            print('Skip because found existing segmentation file')
+            out_paths = [os.path.join(seg_dir, fname)]
+
+        if not overwrite and all([os.path.isfile(out_path) for out_path in out_paths]):
+            print(f'Skip because found existing segmentation files for {fname}')
             return
+
+        fpath = os.path.join(in_dir, fname)
+
         if not os.path.isfile(fpath):
             raise Exception(f'Cannot segment as missing file {fpath}')
         try:
             im = load_image(fpath)
-            if not bounded:
-                # for bounded images the client takes care of this.
-                # if it's not bounded we presume it's channels last
-                # so needs to be swapped to channels first and rotated etc
-                # to be consistent with everything else.
-                im = np.rot90(im, k=3)
-                im = np.moveaxis(im, -1, 0) # depth moved to beginning
-                # reverse lr and ud
-                im = im[::-1, :, ::-1]
+            # TODO: Consider removing thie soon
+            im = np.rot90(im, k=3)
+            im = np.moveaxis(im, -1, 0) # depth moved to beginning
+            # reverse lr and ud
+            im = im[::-1, :, ::-1]
         except Exception as e:
             # Could be temporary issues reading the image.
             # its ok just skip it.
             print('Exception loading', fpath, e)
             return
         seg_start = time.time()
-        print('segmented input shape', im.shape)
+        print('segment image, input shape = ', im.shape)
         segmented = ensemble_segment_3d(model_paths, im, fname, self.batch_size,
-                                        in_w, out_w, in_d,
-                                        out_d, 1, bounded, aug=False)
-        print('segmented output shape', segmented.shape)
+                                        in_w, out_w, in_d, out_d, classes)
         print(f'ensemble segment {fname}, dur', round(time.time() - seg_start, 2))
-        # catch warnings as low contrast is ok here.
-        with warnings.catch_warnings():
-            # create a version with alpha channel
-            warnings.simplefilter("ignore")
-            if sync_save:
-                # other wise do sync because we don't want to delete the segment
-                # instruction too early.
-                save_then_move(out_path, segmented)
-            else:
-                # TODO find a cleaner way to do this.
-                # if more than one file then optimize speed over stability.
-                x = threading.Thread(target=save_then_move,
-                                     args=(out_path, segmented))
-                x.start()
+        
+        for seg, outpath in zip(segmented, out_paths):
+            # catch warnings as low contrast is ok here.
+            with warnings.catch_warnings():
+                # create a version with alpha channel
+                warnings.simplefilter("ignore")
+                if sync_save:
+                    # other wise do sync because we don't want to delete the segment
+                    # instruction too early.
+                    outpath = outpath.replace('.nrrd', '.nii.gz')
+                    save_then_move(outpath, seg)
+                else:
+                    # TODO find a cleaner way to do this.
+                    # if more than one file then optimize speed over stability.
+                    x = threading.Thread(target=save_then_move,
+                                         args=(outpath, segmented))
+                    x.start()
