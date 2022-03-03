@@ -1,0 +1,10 @@
+{
+    "verbose": true,
+    "app_name": "RootPainter3D",
+    "author": "Abraham George Smith",
+    "main_module": "src/main.py",
+    "version": "0.0.2",
+    "hidden_imports": ["pywt._extensions._cwt",
+                       "skimage.io._plugins.pil_plugin",
+                       "pkg_resources.py2_warn"]
+}
