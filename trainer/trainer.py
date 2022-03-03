@@ -268,7 +268,7 @@ class Trainer():
         fns = []
         loss_sum = 0
         for step, (batch_im_tiles, batch_fg_tiles,
-                   batch_bg_tiles, batch_segs, batch_classes) in enumerate(loader):
+                   batch_bg_tiles, batch_seg_tiles, batch_classes) in enumerate(loader):
 
             self.check_for_instructions()
             batch_im_tiles = torch.from_numpy(np.array(batch_im_tiles)).cuda()
@@ -281,7 +281,6 @@ class Trainer():
             # model_input[:, 0] is the input image
             # model_input[:, 1] is fg
             # model_input[:, 2] is bg
-
             for i, (fg_tiles, bg_tiles) in enumerate(zip(batch_fg_tiles, batch_bg_tiles)):
                 # if it's trianing then with 50% chance 
                 # add the annotations to the model input
@@ -302,7 +301,8 @@ class Trainer():
 
             (batch_loss, batch_tps, batch_tns,
              batch_fps, batch_fns) = get_batch_loss(
-                 outputs, batch_fg_tiles, batch_bg_tiles,
+                 outputs, batch_fg_tiles, batch_bg_tiles, batch_seg_tiles,
+                 #outputs, batch_fg_tiles, batch_bg_tiles,
                  batch_classes, self.train_config['classes'],
                  compute_loss=(mode=='train'))
 
