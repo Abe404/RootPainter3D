@@ -27,7 +27,11 @@ if __name__ == '__main__':
     startup_setup(settings_path)
     settings = json.load(open(settings_path, 'r'))
     sync_dir = Path(settings['sync_dir'])
-    ip = settings['server_ip']
-    port = settings['server_port']
-    trainer = Trainer(sync_dir, ip, port)
+    if 'auto_complete' in settings and settings['auto_complete']:
+        ip = settings['server_ip']
+        port = settings['server_port']
+        trainer = Trainer(sync_dir, ip, port)
+    else:
+        trainer = Trainer(sync_dir)
+
     trainer.main_loop()

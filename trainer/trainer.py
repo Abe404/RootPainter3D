@@ -55,7 +55,7 @@ from startup import add_config_shape
 
 class Trainer():
 
-    def __init__(self, sync_dir, ip, port):
+    def __init__(self, sync_dir, ip=None, port=None):
         self.sync_dir = sync_dir
         self.ip = ip
         self.port = port
@@ -91,10 +91,10 @@ class Trainer():
     def main_loop(self, on_epoch_end=None):
         print('Started main loop. Checking for instructions in',
               self.instruction_dir)
-        print('start patch seg server')
-
-        patch_seg.start_server(self.sync_dir, self.ip, self.port) # direct socket connection
-        print('after start server')
+        if self.patch_update_enabled:
+            print('start patch seg server')
+            patch_seg.start_server(self.sync_dir, self.ip, self.port) # direct socket connection
+            print('after start server')
 
         self.running = True
         while self.running:
@@ -286,6 +286,7 @@ class Trainer():
                 # add the annotations to the model input
                 # Validation should not have access to the annotations.
                 if self.patch_update_enabled and mode == 'train' and random.random() > 0.5:
+                    print('patch update enabled')
                     # go through fg tiles and bg_tiles for each batch item
                     # in this case we know there is always 1 bg and 1 fg tile.
                     # at random add the annotation slice
