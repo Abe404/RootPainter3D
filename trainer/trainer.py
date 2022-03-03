@@ -281,22 +281,22 @@ class Trainer():
             # model_input[:, 0] is the input image
             # model_input[:, 1] is fg
             # model_input[:, 2] is bg
-            for i, (fg_tiles, bg_tiles) in enumerate(zip(batch_fg_tiles, batch_bg_tiles)):
-                # if it's trianing then with 50% chance 
-                # add the annotations to the model input
-                # Validation should not have access to the annotations.
-                if self.patch_update_enabled and mode == 'train' and random.random() > 0.5:
-                    print('patch update enabled')
-                    # go through fg tiles and bg_tiles for each batch item
-                    # in this case we know there is always 1 bg and 1 fg tile.
-                    # at random add the annotation slice
-                    for slice_idx in range(fg_tiles[0].shape[0]):
-                        if torch.any(fg_tiles[0][slice_idx]) or torch.any(bg_tiles[0][slice_idx]):
-                            # each slice with annotation is included with 50 percent probability.
-                            # This allows the network to learn how to use the annotation to improve predictions
-                            if random.random() > 0.5: 
-                                model_input[i, 1, slice_idx] = fg_tiles[0][slice_idx]
-                                model_input[i, 2, slice_idx] = bg_tiles[0][slice_idx]
+            if self.patch_update_enabled and mode == 'train':
+                for i, (fg_tiles, bg_tiles) in enumerate(zip(batch_fg_tiles, batch_bg_tiles)):
+                    # if it's trianing then with 50% chance 
+                    # add the annotations to the model input
+                    # Validation should not have access to the annotations.
+                    if random.random() > 0.5:
+                        # go through fg tiles and bg_tiles for each batch item
+                        # in this case we know there is always 1 bg and 1 fg tile.
+                        # at random add the annotation slice
+                        for slice_idx in range(fg_tiles[0].shape[0]):
+                            if torch.any(fg_tiles[0][slice_idx]) or torch.any(bg_tiles[0][slice_idx]):
+                                # each slice with annotation is included with 50 percent probability.
+                                # This allows the network to learn how to use the annotation to improve predictions
+                                if random.random() > 0.5: 
+                                    model_input[i, 1, slice_idx] = fg_tiles[0][slice_idx]
+                                    model_input[i, 2, slice_idx] = bg_tiles[0][slice_idx]
 
             outputs = model(model_input)
 
