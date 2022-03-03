@@ -79,7 +79,7 @@ class RPDataset(Dataset):
     def get_train_item(self, tile_ref=None):
         return self.get_train_item_3d(tile_ref)
 
-    def get_random_tile_3d(self, annots, image, fname):
+    def get_random_tile_3d(self, annots, segs, image, fname):
         # this will find something eventually as we know
         # all annotation contain labels somewhere
 
@@ -98,12 +98,21 @@ class RPDataset(Dataset):
             z_in = math.floor(rnd() * depth_lim)
 
             annot_tiles = []
-            for annot in annots:
+            seg_tiles = []
+            for seg, annot in zip(segs, annots):
                 # Get the corresponding region of the annotation after network crop
                 annot_tiles.append(annot[:,
                                          z_in:z_in+self.in_d,
                                          y_in:y_in+self.in_w,
                                          x_in:x_in+self.in_w])
+                if seg is None:
+                    seg_tiles.append(None)
+                else:
+                    seg_tiles.append(seg[z_in:z_in+self.in_d,
+                                         y_in:y_in+self.in_w,
+                                         x_in:x_in+self.in_w])
+
+
 
             # we only want annotations with defiend regions in the output area.
             # Otherwise we will have nothing to update the loss.
@@ -113,7 +122,8 @@ class RPDataset(Dataset):
                 im_tile = image[z_in:z_in+self.in_d,
                                 y_in:y_in+self.in_w,
                                 x_in:x_in+self.in_w]
-                return annot_tiles, im_tile
+
+                return annot_tiles, seg_tiles, im_tile
             if attempts > warn_after_attempts:
                 print(f'Warning {attempts} attempts to get random patch from {fname}')
                 warn_after_attempts *= 10
@@ -131,7 +141,7 @@ class RPDataset(Dataset):
         (image, annots, segs, classes, fname) = load_train_image_and_annot(self.dataset_dir,
                                                                            self.train_seg_dirs,
                                                                            self.annot_dirs)
-        annot_tiles, im_tile = self.get_random_tile_3d(annots, image, fname)
+        annot_tiles, seg_tiles, im_tile = self.get_random_tile_3d(annots, segs, image, fname)
 
         im_tile = img_as_float32(im_tile)
         im_tile = im_utils.normalize_tile(im_tile)
@@ -155,8 +165,8 @@ class RPDataset(Dataset):
         
         # add dimension for input channel
         im_tile = np.expand_dims(im_tile, axis=0)
-
-        return im_tile, foregrounds, backgrounds, segs, classes
+        assert len(backgrounds) == len(seg_tiles)
+        return im_tile, foregrounds, backgrounds, seg_tiles, classes
        
     def get_val_item(self, tile_ref):
         return self.get_tile_from_ref_3d(tile_ref)
@@ -225,5 +235,5 @@ class RPDataset(Dataset):
         im_tile = im_utils.normalize_tile(im_tile)
         im_tile = im_tile.astype(np.float32)
         im_tile = np.expand_dims(im_tile, axis=0)
-        segs = [None] * len(classes)
+        segs = [None] * len(backgrounds)
         return im_tile, foregrounds, backgrounds, segs, classes
