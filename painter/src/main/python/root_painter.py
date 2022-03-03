@@ -151,7 +151,7 @@ class RootPainter(QtWidgets.QMainWindow):
                 for c in self.classes:
                     self.train_annot_dirs.append(self.proj_location / 'annotations' / c / 'train')
                     self.val_annot_dirs.append(self.proj_location / 'annotations' / c / 'val')
-                    self.train_seg_dirs.append(self.proj_location / 'segmentations' / c )
+                    self.train_seg_dirs.append(self.proj_location / 'train_segmentations' / c )
             else:         
                 self.classes = ['annotations'] # default class for single class project.
                 self.cur_class = self.classes[0]
@@ -289,6 +289,7 @@ class RootPainter(QtWidgets.QMainWindow):
                 # show seg in order to show the loading message
                 v.show_hide_seg()
 
+        """
         if self.seg_data is not None:
             # assign bg annotations to regions that are not the largest
             import cc3d
@@ -317,6 +318,7 @@ class RootPainter(QtWidgets.QMainWindow):
                     print('Did not automatically correct disconnected regions as there are over 30') # it takes too long.
             else:
                 print('found annot so not automatically remoing small holes and regions')
+        """
 
     def update_class(self, class_name):
         # Save current annotation (if it exists) before moving on
@@ -346,12 +348,12 @@ class RootPainter(QtWidgets.QMainWindow):
         if fname is None:
             fname = self.fname
         seg_fname = fname.replace('.nrrd', '.nii.gz')
-        # just seg path for current class.
         if hasattr(self, 'classes') and len(self.classes) > 1:
-            return os.path.join(self.train_seg_dir,
+            return os.path.join(self.proj_location,
+                                'train_segmentations',
                                 self.cur_class,
                                 seg_fname)
-        return os.path.join(self.train_seg_dir, seg_fname)
+        return os.path.join(self.proj_location, 'train_segmentations', seg_fname)
 
 
     def get_all_seg_paths(self):
@@ -753,13 +755,13 @@ class RootPainter(QtWidgets.QMainWindow):
                                                        self.get_val_annot_dir(),
                                                        self.log)
             if self.annot_path:
-                if self.auto_complete_enabled:
-                    # also save the segmentation, as this updated due to patch updates (potencially).
-                    img = nib.Nifti1Image(self.seg_data.astype(np.int8), np.eye(4))
-                    img.to_filename(self.get_seg_path())
-                    # if annotation was saved to train 
-                    if str(self.get_train_annot_dir()) in self.annot_path:
-                        img.to_filename(self.get_train_seg_path())
+                #if self.auto_complete_enabled:
+                # also save the segmentation, as this updated due to patch updates (potencially).
+                img = nib.Nifti1Image(self.seg_data.astype(np.int8), np.eye(4))
+                img.to_filename(self.get_seg_path())
+                # if annotation was saved to train 
+                if str(self.get_train_annot_dir()) in self.annot_path:
+                    img.to_filename(self.get_train_seg_path())
             # if self.annot_path:
             # start training when an annotation exists
             #    self.start_training()

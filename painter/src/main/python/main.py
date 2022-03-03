@@ -22,14 +22,12 @@ import json
 import traceback
 
 from PyQt5 import QtWidgets
-from fbs_runtime.application_context.PyQt5 import ApplicationContext
-
 from root_painter import RootPainter
 
 def init_root_painter():
+    app = QtWidgets.QApplication(sys.argv)
     settings_path = os.path.join(Path.home(), 'root_painter_settings.json')
     try:
-        app_context = ApplicationContext()
         # if the settings file does not exist then create it with
         # a user specified sync_dir
         if not os.path.isfile(settings_path):
@@ -66,8 +64,8 @@ def init_root_painter():
         # close project causes reopen with missing project UI
         main_window.closed.connect(reopen)
         main_window.show()
+        sys.exit(app.exec_())
 
-        exit_code = app_context.app.exec_()
     except Exception as e:
         msg = QtWidgets.QMessageBox()
         output = f"""
@@ -77,8 +75,6 @@ def init_root_painter():
         """
         msg.setText(output)
         msg.exec_()
-    else:
-        sys.exit(exit_code)
 
 if __name__ == '__main__':
     init_root_painter()
