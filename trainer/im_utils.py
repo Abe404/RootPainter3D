@@ -213,9 +213,9 @@ def load_train_image_and_annot(dataset_dir, train_seg_dirs, train_annot_dirs):
             if os.path.isfile(seg_path):
                 seg = load_image(seg_path)
                 seg = np.pad(seg, ((17,17), (17,17), (17, 17)), mode='constant')
-                segs.append(seg)
             else:
                 seg = None
+            segs.append(seg)
 
         # it's possible the image has a different extenstion
         # so use glob to get it
