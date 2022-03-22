@@ -560,6 +560,10 @@ class RootPainter(QtWidgets.QMainWindow):
         bottom_bar_r_layout = QtWidgets.QVBoxLayout()
         bottom_bar_r.setLayout(bottom_bar_r_layout)
         self.axial_viewer.bottom_bar_layout.addWidget(bottom_bar_r)
+        self.hu_label = QtWidgets.QLabel()
+        self.hu_label.setAlignment(Qt.AlignRight)
+        bottom_bar_r_layout.addWidget(self.hu_label)
+
         
         # Nav
         self.nav.file_change.connect(self.update_file)

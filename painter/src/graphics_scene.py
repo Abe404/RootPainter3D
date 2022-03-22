@@ -201,7 +201,7 @@ class GraphicsScene(QtWidgets.QGraphicsScene):
                                           Qt.RoundCap, Qt.RoundJoin))
                 painter.setBrush(QtGui.QBrush(self.parent.brush_color, Qt.SolidPattern))            
                 if self.brush_size == 1:
-                    painter.drawPoint(circle_x, circle_y)
+                    painter.drawPoint(round(circle_x), round(circle_y))
                 else:
                     painter.drawEllipse(round(circle_x), round(circle_y), round(self.brush_size-1), round(self.brush_size-1))
                 self.annot_pixmap_holder.setPixmap(self.annot_pixmap)
@@ -298,6 +298,16 @@ class GraphicsScene(QtWidgets.QGraphicsScene):
             self.cursor_shown = True
             self.cursor_pixmap_holder.setPixmap(self.cursor_pixmap)
 
+    def update_info_label(self, x, y):
+        idx = (self.parent.slice_nav.max_slice_idx - self.parent.cur_slice_idx) - 1
+        x = round(x)
+        y = round(y)
+        x = max(0, x)
+        y = max(0, y)
+        x = min(self.parent.parent.img_data.shape[2]-1, x)
+        y = min(self.parent.parent.img_data.shape[1]-1, y)
+        hu = self.parent.parent.img_data[idx, y, x]
+        self.parent.parent.hu_label.setText(f'HU: {hu} ') # | Position: (x:{round(x)}, y:{round(y)}')
 
     def mouseMoveEvent(self, event):
         super().mouseMoveEvent(event)
@@ -339,5 +349,7 @@ class GraphicsScene(QtWidgets.QGraphicsScene):
 
             self.annot_pixmap_holder.setPixmap(self.annot_pixmap)
             painter.end()
+        self.update_info_label(x, y) 
+
         self.last_x = x
         self.last_y = y
