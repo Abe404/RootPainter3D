@@ -129,6 +129,7 @@ class GraphicsScene(QtWidgets.QGraphicsScene):
 
 
     def flood_fill(self, x, y):
+        raise Exception('disabled')
         x = round(x)
         y = round(y)
         # all rgb channels must match for the flood region to expand
@@ -179,11 +180,11 @@ class GraphicsScene(QtWidgets.QGraphicsScene):
                 idx = self.parent.slice_nav.max_slice_idx - self.parent.cur_slice_idx 
                 self.regions_to_restrict_to.append((round(x), round(y), idx))
                 self.mouse_down = False
-            elif modifiers == QtCore.Qt.AltModifier:
+            #elif modifiers == QtCore.Qt.AltModifier:
                 # if alt key is pressed then we want to flood fill
                 #  from the clicked region.
-                self.annot_pixmap = self.flood_fill(x, y)
-                self.annot_pixmap_holder.setPixmap(self.annot_pixmap)
+            #     self.annot_pixmap = self.flood_fill(x, y)
+            #     self.annot_pixmap_holder.setPixmap(self.annot_pixmap)
             else:
                 # draw the circle
                 if self.brush_size == 1:
