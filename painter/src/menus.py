@@ -42,7 +42,7 @@ def add_network_menu(window, menu_bar):
     network_menu.addAction(segment_folder_btn)
 
 
-def add_edit_menu(window, im_viewer, menu_bar, skip_fill=False):
+def add_edit_menu(window, im_viewer, menu_bar, skip_fill=True):
     edit_menu = menu_bar.addMenu("Edit")
 
     # Undo
@@ -64,6 +64,7 @@ def add_edit_menu(window, im_viewer, menu_bar, skip_fill=False):
     save_annotation_action.triggered.connect(im_viewer.parent.save_annotation)
 
     if not skip_fill:
+        raise Exception('disabled')
         # skip the fill with the sagittal view, it's too annoying when this gets pressed by accident
 
         # Using alt key and clicking is slow when wanting to fill a 
