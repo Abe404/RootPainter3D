@@ -825,32 +825,26 @@ class ShortcutWindow(QtWidgets.QWidget):
         table.setItem(5, 0, QtWidgets.QTableWidgetItem("Ctrl+Shift+Z"))
         table.setItem(5, 1, QtWidgets.QTableWidgetItem("Redo"))
         
-        table.setItem(6, 0, QtWidgets.QTableWidgetItem("Alt+Shift+Click on structure"))
-        table.setItem(6, 1, QtWidgets.QTableWidgetItem("Restrict to this structure in 3D and exclude other disconnected components"))
+        table.setItem(6, 0, QtWidgets.QTableWidgetItem("Alt+Shift+Click on structure(s)"))
+        table.setItem(6, 1, QtWidgets.QTableWidgetItem("Restrict to this structure(s) in 3D and exclude other disconnected components"))
 
-        table.setItem(7, 0, QtWidgets.QTableWidgetItem("G"))
-        table.setItem(7, 1, QtWidgets.QTableWidgetItem("Fill closed region as foreground and everything else as background"))
+        table.setItem(7, 0, QtWidgets.QTableWidgetItem("V"))
+        table.setItem(7, 1, QtWidgets.QTableWidgetItem("Zoom in"))
 
-        table.setItem(8, 0, QtWidgets.QTableWidgetItem("V"))
-        table.setItem(8, 1, QtWidgets.QTableWidgetItem("Zoom in"))
+        table.setItem(8, 0, QtWidgets.QTableWidgetItem("C"))
+        table.setItem(8, 1, QtWidgets.QTableWidgetItem("Zoom out"))
 
-        table.setItem(9, 0, QtWidgets.QTableWidgetItem("C"))
-        table.setItem(9, 1, QtWidgets.QTableWidgetItem("Zoom out"))
+        table.setItem(9, 0, QtWidgets.QTableWidgetItem("T"))
+        table.setItem(9, 1, QtWidgets.QTableWidgetItem("Show or hide Outline"))
 
-        table.setItem(10, 0, QtWidgets.QTableWidgetItem("T"))
-        table.setItem(10, 1, QtWidgets.QTableWidgetItem("Show or hide Outline"))
+        table.setItem(10, 0, QtWidgets.QTableWidgetItem("Shift+Move mouse"))
+        table.setItem(10, 1, QtWidgets.QTableWidgetItem("Change brush size"))
 
-        table.setItem(11, 0, QtWidgets.QTableWidgetItem("Shift+Move mouse"))
-        table.setItem(11, 1, QtWidgets.QTableWidgetItem("Change brush size"))
+        table.setItem(11, 0, QtWidgets.QTableWidgetItem("Ctrl+click and drag"))
+        table.setItem(11, 1, QtWidgets.QTableWidgetItem("Pan (move view position)"))
 
-        table.setItem(12, 0, QtWidgets.QTableWidgetItem("Ctrl+click and drag"))
-        table.setItem(12, 1, QtWidgets.QTableWidgetItem("Pan (move view position)"))
-
-        table.setItem(13, 0, QtWidgets.QTableWidgetItem("E"))
-        table.setItem(13, 1, QtWidgets.QTableWidgetItem("Switch to eraser"))
-
-        table.setItem(14, 0, QtWidgets.QTableWidgetItem("Alt+Click inside closed region"))
-        table.setItem(14, 1, QtWidgets.QTableWidgetItem("Fill closed region as foreground"))
+        table.setItem(12, 0, QtWidgets.QTableWidgetItem("E"))
+        table.setItem(12, 1, QtWidgets.QTableWidgetItem("Switch to eraser"))
 
         table.horizontalHeader().sectionSizeFromContents(True)
         table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
