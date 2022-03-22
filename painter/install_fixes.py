@@ -32,11 +32,11 @@ def fix_app():
     # If you are using Mac, then you will have the following folder after
     # running the fbs freeze command
     # ./target/RootPainter.app
-    is_mac = os.path.isdir('./target/RootPainter.app')
-    is_linux = os.path.exists('./target/RootPainter/RootPainter')
+    is_mac = os.path.isdir('./target/RootPainter3D.app')
+    is_linux = os.path.exists('./target/RootPainter3D/RootPainter3D')
     
     # or the following folder on windows
-    is_windows = os.path.exists('target\RootPainter\RootPainter.exe')
+    is_windows = os.path.exists('target\RootPainter3D\RootPainter3D.exe')
    
     print('is_windows', is_windows)
     print('is_mac', is_mac)
@@ -54,14 +54,14 @@ def fix_app():
     env_dir = './env'
     assert os.path.isdir(env_dir), f'Could not find env folder {env_dir}'
     if is_mac:
-        site_packages_dir = os.path.join(env_dir, 'lib/python3.6/site-packages')
-        build_dir = './target/RootPainter.app/Contents/MacOS/'
+        site_packages_dir = os.path.join(env_dir, 'lib/python3.10/site-packages')
+        build_dir = './target/RootPainter3D.app/Contents/MacOS/'
     elif is_windows:
         site_packages_dir = os.path.join(env_dir, 'Lib', 'site-packages')
-        build_dir = './target/RootPainter'
+        build_dir = './target/RootPainter3D'
     elif is_linux:
-        site_packages_dir = os.path.join(env_dir, 'lib/python3.7/site-packages')
-        build_dir = './target/RootPainter'
+        site_packages_dir = os.path.join(env_dir, 'lib/python3.10/site-packages')
+        build_dir = './target/RootPainter3D'
 
 
     # Copy missing orb files
@@ -82,6 +82,14 @@ def fix_app():
     tif_target = join(build_dir, 'skimage/io/_plugins/tifffile_plugin.py')
     shutil.copyfile(tif_src, tif_target)
 
+    for dir_name in ['filters', 'metrics', 'segmentation', 'restoration']:
+        if not os.path.isdir(os.path.join(build_dir, 'skimage', dir_name)):
+            os.makedirs(os.path.join(build_dir, 'skimage', dir_name))
+        for f in os.listdir(os.path.join(skimage_dir, dir_name)):
+            src = join(skimage_dir, dir_name, f)
+            target = join(build_dir, 'skimage', dir_name, f)
+            if not os.path.isfile(target) and not os.path.isdir(src):
+                shutil.copyfile(src, target)
 
 if __name__ == '__main__':
     fix_app()
