@@ -190,6 +190,7 @@ def get_num_regions(seg_data, annot_data):
 
 
 def restrict_to_regions_containing_points(seg_data, annot_data, region_points):
+    assert len(region_points), 'at least one region point must be specified'
     # restrict corrected structure to only the selected
     # connected region found at x,y,z
     # also remove small holes.
@@ -205,7 +206,6 @@ def restrict_to_regions_containing_points(seg_data, annot_data, region_points):
     selected_component = None
     for x, y, z in region_points:
         selected_label = labelled[z, y, x]
-
         if selected_label == 0:
             error = "Selected region was background. Select a foreground region to keep."
             return annot_data, 0, 0, error

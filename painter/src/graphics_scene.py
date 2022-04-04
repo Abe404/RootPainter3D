@@ -58,31 +58,33 @@ class GraphicsScene(QtWidgets.QGraphicsScene):
         if event.key() == QtCore.Qt.Key_Alt:
             # then remove everything except for the clicked regions
             n = len(self.regions_to_restrict_to)
-            button_reply = QtWidgets.QMessageBox.question(self.parent,
-                'Confirm',
-                "Are you sure you want to assign corrections to restrict" 
-                f" to the {n} clicked 3D object(s)? This action cannot be undone.",
-                QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.Cancel, 
-                QtWidgets.QMessageBox.Cancel)
+            # dont do anything unless some regions were selected.
+            if n > 0:
+                button_reply = QtWidgets.QMessageBox.question(self.parent,
+                    'Confirm',
+                    "Are you sure you want to assign corrections to restrict" 
+                    f" to the {n} clicked 3D object(s)? This action cannot be undone.",
+                    QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.Cancel, 
+                    QtWidgets.QMessageBox.Cancel)
 
-            if button_reply == QtWidgets.QMessageBox.Yes:
-                self.parent.parent.info_label.setText("Removing disconnected regions")
-                idx = self.parent.slice_nav.max_slice_idx - self.parent.cur_slice_idx 
-                # correct to restrict to only the selected region
-                new_annot, removed_count, holes, error = im_utils.restrict_to_regions_containing_points(
-                    self.parent.parent.seg_data,
-                    self.parent.parent.annot_data,
-                    self.regions_to_restrict_to)
-                if error:
-                    self.parent.parent.info_label.setText(error)
-                else:
-                    message = f"{removed_count} foreground regions and {holes} holes were removed"
-                    self.parent.parent.info_label.setText(message)
-                self.parent.parent.annot_data = new_annot
-                self.parent.parent.update_viewer_annot_slice()
-                self.parent.parent.update_viewer_outline()
+                if button_reply == QtWidgets.QMessageBox.Yes:
+                    self.parent.parent.info_label.setText("Removing disconnected regions")
+                    idx = self.parent.slice_nav.max_slice_idx - self.parent.cur_slice_idx 
+                    # correct to restrict to only the selected region
+                    new_annot, removed_count, holes, error = im_utils.restrict_to_regions_containing_points(
+                        self.parent.parent.seg_data,
+                        self.parent.parent.annot_data,
+                        self.regions_to_restrict_to)
+                    if error:
+                        self.parent.parent.info_label.setText(error)
+                    else:
+                        message = f"{removed_count} foreground regions and {holes} holes were removed"
+                        self.parent.parent.info_label.setText(message)
+                    self.parent.parent.annot_data = new_annot
+                    self.parent.parent.update_viewer_annot_slice()
+                    self.parent.parent.update_viewer_outline()
 
-                self.regions_to_restrict_to = []
+                    self.regions_to_restrict_to = []
         super().keyReleaseEvent(event)
 
     def undo(self):
