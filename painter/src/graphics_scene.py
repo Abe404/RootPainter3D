@@ -301,15 +301,18 @@ class GraphicsScene(QtWidgets.QGraphicsScene):
             self.cursor_pixmap_holder.setPixmap(self.cursor_pixmap)
 
     def update_info_label(self, x, y):
-        idx = (self.parent.slice_nav.max_slice_idx - self.parent.cur_slice_idx) - 1
-        x = round(x)
-        y = round(y)
-        x = max(0, x)
-        y = max(0, y)
-        x = min(self.parent.parent.img_data.shape[2]-1, x)
-        y = min(self.parent.parent.img_data.shape[1]-1, y)
-        hu = self.parent.parent.img_data[idx, y, x]
-        self.parent.parent.hu_label.setText(f'HU: {hu} ') # | Position: (x:{round(x)}, y:{round(y)}')
+        try:
+            idx = (self.parent.slice_nav.max_slice_idx - self.parent.cur_slice_idx) - 1
+            x = round(x)
+            y = round(y)
+            x = max(0, x)
+            y = max(0, y)
+            x = min(self.parent.parent.img_data.shape[2]-1, x)
+            y = min(self.parent.parent.img_data.shape[1]-1, y)
+            hu = self.parent.parent.img_data[idx, y, x]
+            self.parent.parent.hu_label.setText(f'HU: {hu} ') # | Position: (x:{round(x)}, y:{round(y)}')
+        except Exception as _:
+            pass
 
     def mouseMoveEvent(self, event):
         super().mouseMoveEvent(event)
