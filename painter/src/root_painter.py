@@ -50,6 +50,7 @@ from contrast_slider import ContrastSlider
 import im_utils
 import menus
 from segment import segment_full_image
+from lock import create_lock_file, delete_lock_files_for_current_user, get_lock_file_path, show_locked_message
 
 
 use_plugin("pil")
@@ -110,7 +111,6 @@ class RootPainter(QtWidgets.QMainWindow):
                     f"{sys.argv[1]} ' is not a valid "
                     "segmentation project (.seg_proj) file")
             self.init_missing_project_ui()
-
 
     def get_train_annot_dir(self):
         # taking into account the current class.
@@ -201,9 +201,19 @@ class RootPainter(QtWidgets.QMainWindow):
         """ Invoked when the file to view has been changed by the user.
             Show image file and it's associated annotation and segmentation """
         # save annotation for current file before changing to new file.
-
         self.log(f'update_file_start,fname:{os.path.basename(fpath)},view_state:{self.view_state}')
+
+        delete_lock_files_for_current_user(self.proj_location) 
+        lock_file_path = get_lock_file_path(self.proj_location, os.path.basename(fpath))
+        if lock_file_path:
+            self.msg = show_locked_message(self.proj_location, os.path.basename(fpath))
+            # if a file is locked then show a warning to the user
+            self.nav.update_to_next_image()
+            return
+
+        create_lock_file(self.proj_location, os.path.basename(fpath)) 
         self.tracking = False # take a break from tracking until we get the next image.
+        
         if self.view_state == ViewState.ANNOTATING:
             self.save_annotation()
         self.fname = os.path.basename(fpath)
@@ -472,6 +482,8 @@ class RootPainter(QtWidgets.QMainWindow):
                             " - Not approved for clinical use")
 
     def closeEvent(self, _):
+        if hasattr(self, 'proj_location'):
+            delete_lock_files_for_current_user(self.proj_location)
         if hasattr(self, 'contrast_slider'):
             self.contrast_slider.close()
         if hasattr(self, 'sagittal_viewer'):
@@ -510,6 +522,16 @@ class RootPainter(QtWidgets.QMainWindow):
         I'm trying to make sure the user doesn't forget to remove
         disconnected regions.
         """
+        if self.seg_data is None:
+            button_reply = QtWidgets.QMessageBox.question(
+                self,
+                'Confirm',
+                f"The segmentation has not yet loaded for this image. "
+                "Are you sure you want to proceed to the next image?",
+                QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, 
+                QtWidgets.QMessageBox.No)
+            return button_reply == QtWidgets.QMessageBox.Yes
+
         # return False to block nav change
         num_regions = im_utils.get_num_regions(self.seg_data,
                                                self.annot_data)
