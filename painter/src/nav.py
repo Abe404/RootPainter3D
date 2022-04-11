@@ -62,7 +62,6 @@ class NavWidget(QtWidgets.QWidget):
         nav.setLayout(nav_layout)
         nav.setMaximumWidth(600)
 
-
         # only need a way to change 
         if len(self.classes) > 1:
             self.cb = QtWidgets.QComboBox()
@@ -87,19 +86,22 @@ class NavWidget(QtWidgets.QWidget):
 
     def show_next_image(self):
         if self.before_change():
-            self.next_image_button.setEnabled(False)
-            self.next_image_button.setText('Loading..')
-            self.next_image_button.setEnabled(False)
-            QtWidgets.QApplication.processEvents()
-            dir_path, _ = os.path.split(self.image_path)
-            all_paths = self.get_path_list(dir_path)
-            cur_idx = all_paths.index(self.image_path)
-            next_idx = cur_idx + 1
-            if next_idx >= len(all_paths):
-                next_idx = 0
-            self.image_path = all_paths[next_idx]
-            self.file_change.emit(self.image_path)
-            self.update_nav_label()
+            self.update_to_next_image()
+
+    def update_to_next_image(self):
+        self.next_image_button.setEnabled(False)
+        self.next_image_button.setText('Loading..')
+        self.next_image_button.setEnabled(False)
+        QtWidgets.QApplication.processEvents()
+        dir_path, _ = os.path.split(self.image_path)
+        all_paths = self.get_path_list(dir_path)
+        cur_idx = all_paths.index(self.image_path)
+        next_idx = cur_idx + 1
+        if next_idx >= len(all_paths):
+            next_idx = 0
+        self.image_path = all_paths[next_idx]
+        self.file_change.emit(self.image_path)
+        self.update_nav_label()
 
     def show_prev_image(self):
         dir_path, _ = os.path.split(self.image_path)
