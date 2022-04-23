@@ -580,7 +580,7 @@ class Trainer():
             print('Exception loading', fpath, e)
             return
         seg_start = time.time()
-        print('segment image, input shape = ', im.shape)
+        print('segment image, input shape = ', im.shape, datetime.now())
         segmented = ensemble_segment_3d(model_paths, im, fname, self.batch_size,
                                         in_w, out_w, in_d, out_d, classes)
         print(f'ensemble segment {fname}, dur', round(time.time() - seg_start, 2))
