@@ -321,6 +321,7 @@ class Trainer():
                 sys.stdout.write(f"{mode} {(step+1) * self.batch_size}/"
                                  f"{len(loader.dataset)} "
                                  f" loss={round(batch_loss.item(), 3)} \r")
+                sys.stdout.flush()
 
             self.check_for_instructions() # could update training parameter
             if not self.training: # in this context we consider validation part of training.
