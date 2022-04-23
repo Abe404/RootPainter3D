@@ -85,7 +85,7 @@ pip install -r requirements.txt
 
 4. Run the client.
 ```
-fbs run
+python src/main.py
 ```
 
 To interactively train a model and annotate images, you will need to add a set of compressed nifty images (.nii.gz) to a folder in the datasets folder and then create a project using the client that references this dataset.
