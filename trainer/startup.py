@@ -41,11 +41,11 @@ def startup_setup(settings_path, sync_dir=None):
             # Or if the settings file doesn't exist get a sync_dir
             # from the user and save it to a settings file.
             sync_dir = input("Please specify RootPainter3D sync directory")
-            sync_dir = os.path.expanduser(sync_dir)
-            sync_dir_abs = os.path.abspath(sync_dir)
-            with open(settings_path, 'w') as json_file:
-                content = {
-                    "sync_dir": sync_dir_abs,
+        sync_dir = os.path.expanduser(sync_dir)
+        sync_dir_abs = os.path.abspath(sync_dir)
+        with open(settings_path, 'w') as json_file:
+            content = {
+                "sync_dir": sync_dir_abs,
                     "contrast_presets": {
                         'Mediastinal': [-125, 250, 100]
                     }
