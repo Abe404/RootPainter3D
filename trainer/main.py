@@ -31,17 +31,18 @@ if __name__ == '__main__':
                         help=('location of directory where data is'
                               ' synced between the client and server'))
     settings_path = os.path.join(Path.home(), 'root_painter_settings.json')
-    startup_setup(settings_path)
-    settings = json.load(open(settings_path, 'r'))
+   
+    settings = None
     
     args = parser.parse_args()
     
     if args.syncdir:
         sync_dir = args.syncdir
     else:
+        startup_setup(settings_path, sync_dir=None)
+        settings = json.load(open(settings_path, 'r'))
         sync_dir = Path(settings['sync_dir'])
-        
-    if 'auto_complete' in settings and settings['auto_complete']:
+    if settings and 'auto_complete' in settings and settings['auto_complete']:
         ip = settings['server_ip']
         port = settings['server_port']
         trainer = Trainer(sync_dir, ip, port)
