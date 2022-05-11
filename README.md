@@ -68,7 +68,7 @@ python -m venv env
 
 And then activate it.
 
-On linux:
+On linux/mac:
 ```
 source ./env/bin/activate
 ```
