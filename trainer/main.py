@@ -38,10 +38,12 @@ if __name__ == '__main__':
     
     if args.syncdir:
         sync_dir = args.syncdir
+        startup_setup(settings_path, sync_dir=sync_dir)
     else:
         startup_setup(settings_path, sync_dir=None)
         settings = json.load(open(settings_path, 'r'))
         sync_dir = Path(settings['sync_dir'])
+        
     if settings and 'auto_complete' in settings and settings['auto_complete']:
         ip = settings['server_ip']
         port = settings['server_port']
