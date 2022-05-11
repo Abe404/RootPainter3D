@@ -7,3 +7,4 @@ nibabel==3.1.0
 pynrrd==0.4.2
 paramiko==2.9.2
 scp==0.14.2
+rp-annot==0.0.4
