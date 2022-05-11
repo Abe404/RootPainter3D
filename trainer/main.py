@@ -2,6 +2,8 @@
 Human in the loop deep learning segmentation for biological images
 
 Copyright (C) 2020 Abraham George Smith
+Copyright (C) 2022 Abraham George Smith
+
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -19,14 +21,26 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from pathlib import Path
 import os
 import json
+import argparse
 from trainer import Trainer
 from startup import startup_setup
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--syncdir',
+                        help=('location of directory where data is'
+                              ' synced between the client and server'))
     settings_path = os.path.join(Path.home(), 'root_painter_settings.json')
     startup_setup(settings_path)
     settings = json.load(open(settings_path, 'r'))
-    sync_dir = Path(settings['sync_dir'])
+    
+    args = parser.parse_args()
+    
+    if args.syncdir:
+        sync_dir = args.syncdir
+    else:
+        sync_dir = Path(settings['sync_dir'])
+        
     if 'auto_complete' in settings and settings['auto_complete']:
         ip = settings['server_ip']
         port = settings['server_port']
