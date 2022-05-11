@@ -18,7 +18,7 @@ git clone https://github.com/Abe404/RootPainter3D.git
 cd RootPainter3D/trainer
 ```
 
-2. To avoid alterating global packages. I suggest using a virtual environment. Create a virtual environment 
+2. To avoid alterating global packages. I suggest using a virtual environment. Create a virtual environment. Note: Make sure to use python3 you may need to run python3 instead of python3 to do this.
 ```
 python -m venv env
 ```
