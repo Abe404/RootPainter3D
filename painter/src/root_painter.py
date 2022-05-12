@@ -788,6 +788,7 @@ class RootPainter(QtWidgets.QMainWindow):
                 # if annotation was saved to train 
                 if str(self.get_train_annot_dir()) in self.annot_path:
                     img.to_filename(self.get_train_seg_path())
-            # if self.annot_path:
-            # start training when an annotation exists
-            #    self.start_training()
+                else:
+                    # otherwise if it was saved to validation then start training
+                    # as we now believe there is training and validation data.
+                    self.start_training()
