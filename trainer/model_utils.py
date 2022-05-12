@@ -64,8 +64,8 @@ def allocate_net(in_w, out_w, num_classes):
         input_data = np.zeros((4, 1, 52, in_w, in_w))
         optimizer.zero_grad()
         outputs = net(torch.from_numpy(input_data).cuda().float())
-        batch_fg_tiles = torch.ones(4, num_classes, 18, in_w, in_w).long().cuda()
-        batch_bg_tiles = torch.zeros(4, num_classes, 18, in_w, in_w).long().cuda()
+        batch_fg_tiles = torch.ones(4, num_classes, 52, in_w, in_w).long().cuda()
+        batch_bg_tiles = torch.zeros(4, num_classes, 52, in_w, in_w).long().cuda()
         batch_fg_tiles[:, 0, 0] = 0
         batch_bg_tiles[:, 0, 0] = 1
         batch_classes = []
