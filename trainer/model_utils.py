@@ -74,7 +74,7 @@ def allocate_net(in_w, out_w, num_classes):
         (batch_loss, _, _,
          _, _) = get_batch_loss(
              outputs, batch_fg_tiles, batch_bg_tiles,
-             [None for c in batch_fg_tiles], # segmentation excluded from loss for now.
+             [[None for c in range(num_classes)] for t in batch_fg_tiles], # segmentation excluded from loss for now.
              batch_classes,
              [f'c_{c}' for c in range(num_classes)],
              compute_loss=True)
