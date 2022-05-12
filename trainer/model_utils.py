@@ -54,7 +54,7 @@ def get_in_w_out_w_pairs():
 
 
 def allocate_net(in_w, out_w, num_classes):
-    net = UNet3D(im_channels=1, num_classes=num_classes).cuda()
+    net = UNet3D(im_channels=3, num_classes=num_classes).cuda()
     net = torch.nn.DataParallel(net)
     optimizer = torch.optim.SGD(net.parameters(), lr=0.01,
                                 momentum=0.99, nesterov=True)
