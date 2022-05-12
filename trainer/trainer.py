@@ -46,7 +46,7 @@ import model_utils
 from model_utils import save_if_better, save_model
 from metrics import metrics_from_val_tile_refs
 import data_utils
-import patch_seg
+#import patch_seg
 
 from im_utils import is_image, load_image, save_then_move, save
 import im_utils
@@ -591,6 +591,7 @@ class Trainer():
         return prev_m
 
     def segment_patch(self, segment_config):
+        raise Exception('feature disabled')
         patch_seg.segment_patch(segment_config)
         
     def get_in_w_and_out_w_for_image(self, im, in_w, out_w):
