@@ -402,6 +402,7 @@ def save_then_move(out_path, seg):
         folder to try loading the file half way through saving
         as this causes errors. Thus we save and then rename.
     """
+    raise Exception('Depracated')
     fname = os.path.basename(out_path)
     token = str(time.time()) # add token to avoid resaving over files wiith the same name
     temp_path = os.path.join('/tmp', token + fname)

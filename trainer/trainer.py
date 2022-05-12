@@ -514,6 +514,7 @@ class Trainer():
         seg_dir = segment_config['seg_dir']
 
         segment_config = self.add_config_shape(segment_config)
+        
         classes = segment_config['classes']
         if "file_names" in segment_config:
             fnames = segment_config['file_names']
@@ -588,11 +589,9 @@ class Trainer():
 
         prev_m = metrics_from_val_tile_refs(self.val_tile_refs)
         return prev_m
-<<<<<<< HEAD
 
     def segment_patch(self, segment_config):
         patch_seg.segment_patch(segment_config)
-=======
         
     def get_in_w_and_out_w_for_image(self, im, in_w, out_w):
         """ the input image may be smaller than the default 
@@ -609,10 +608,9 @@ class Trainer():
                 return valid_in_w, valid_out_w
 
         raise Exception('cannot find patch size small enough for image with shape' + str(im.shape))
->>>>>>> dev_mc
 
     def segment_file(self, in_dir, seg_dir, fname, model_paths,
-                     in_w, out_w, in_d, out_d, classes, sync_save, overwrite=False):
+                     in_w, out_w, in_d, out_d, classes, overwrite=False):
 
         # segmentations are always saved as .nii.gz
         out_paths = []
@@ -645,18 +643,12 @@ class Trainer():
             print('Exception loading', fpath, e)
             return
         seg_start = time.time()
-<<<<<<< HEAD
         print('segment image, input shape = ', im.shape, datetime.now())
-        segmented = ensemble_segment_3d(model_paths, im, fname, self.batch_size,
-                                        in_w, out_w, in_d, out_d, classes)
-=======
-        print('segment image, input shape = ', im.shape)
+
         seg_in_w, seg_out_w = self.get_in_w_and_out_w_for_image(im, in_w, out_w) 
         segmented = ensemble_segment_3d(model_paths, im, fname, self.batch_size,
-                                        seg_in_w, seg_out_w, in_d,
-                                        out_d, classes, bounded)
+                                        seg_in_w, seg_out_w, in_d, out_d, classes)
 
->>>>>>> dev_mc
         print(f'ensemble segment {fname}, dur', round(time.time() - seg_start, 2))
         
         for seg, outpath in zip(segmented, out_paths):
@@ -670,18 +662,5 @@ class Trainer():
             with warnings.catch_warnings():
                 # create a version with alpha channel
                 warnings.simplefilter("ignore")
-                if sync_save:
-                    # other wise do sync because we don't want to delete the segment
-                    # instruction too early.
-<<<<<<< HEAD
-                    outpath = outpath.replace('.nrrd', '.nii.gz')
-                    save_then_move(outpath, seg)
-=======
-                    save(outpath, seg)
->>>>>>> dev_mc
-                else:
-                    # TODO find a cleaner way to do this.
-                    # if more than one file then optimize speed over stability.
-                    x = threading.Thread(target=save,
-                                         args=(outpath, seg))
-                    x.start()
+                outpath = outpath.replace('.nrrd', '.nii.gz')
+                save(outpath, seg)
