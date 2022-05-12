@@ -150,7 +150,7 @@ def random_model(classes):
     # as we have a positive and negative output for each structure.
     # disabled for now as auto-complete feature is stalled.
     #model = UNet3D(classes, im_channels=3)
-    model = UNet3D(num_classes=len(classes), im_channels=1)
+    model = UNet3D(num_classes=len(classes), im_channels=3) # 3 channels to enable optional annotation as input.
     model = torch.nn.DataParallel(model)
     if not use_fake_cnn: 
         model.cuda()
