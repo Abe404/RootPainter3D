@@ -548,7 +548,6 @@ class Trainer():
                               in_d=segment_config['in_d'],
                               out_d=segment_config['out_d'],
                               classes=classes,
-                              sync_save=len(fnames) == 1,
                               overwrite=overwrite)
 
         duration = time.time() - start
