@@ -200,15 +200,25 @@ class RPDataset(Dataset):
 
         for annot_dir in self.annot_dirs:
             annot_path = os.path.join(annot_dir, fname)
+
             annot = im_utils.load_with_retry(im_utils.load_image, annot_path)
             classes.append(Path(annot_dir).parts[-2])
 
-            annot = np.pad(annot, ((0, 0), (17, 17), (17, 17), (17, 17)), mode='constant')
-            # The x, y and z are in reference to the annotation tile before padding.
-            annot_tile = annot[:,
-                               tile_z:tile_z+self.in_d,
-                               tile_y:tile_y+self.in_w,
-                               tile_x:tile_x+self.in_w]
+            if False: # if auto-complete:
+                annot = np.pad(annot, ((0, 0), (17, 17), (17, 17), (17, 17)), mode='constant')
+                # The x, y and z are in reference to the annotation tile before padding.
+                annot_tile = annot[:,
+                                   tile_z:tile_z+self.in_d,
+                                   tile_y:tile_y+self.in_w,
+                                   tile_x:tile_x+self.in_w]
+            else: # not auto-complete
+                if os.path.isfile(annot_path):
+                    # The x, y and z are in reference to the annotation tile before padding.
+                    annot_tile = annot[:,
+                                       tile_z:tile_z+self.out_d,
+                                       tile_y:tile_y+self.out_w,
+                                       tile_x:tile_x+self.out_w]
+
             annot_tiles.append(annot_tile)
 
         assert annot_tiles[0].shape[1:] == (self.in_d, self.in_w, self.in_w), (

@@ -27,6 +27,7 @@ from unet3d import UNet3D
 from file_utils import ls
 from torch.nn.functional import softmax
 import torch.nn.functional as F
+from loss import get_batch_loss
 
 cached_model = None
 cached_model_path = None
@@ -41,6 +42,69 @@ def fake_cnn(tiles_for_gpu):
         output.append((v > v_mean).astype(np.int8))
     return np.array(output)
  
+def get_in_w_out_w_pairs():
+    # matching pairs of input/output sizes for specific unet used
+    # 36 to 228 in incrememnts of 16 (sorted large to small)
+    in_w_list = sorted([36 + (x*16) for x in range(15)], reverse=True)
+    
+    # output always 34 less than input
+    out_w_list = [x - 34 for x in in_w_list]
+    return list(zip(in_w_list, out_w_list))
+
+
+def allocate_net(in_w, out_w, num_classes):
+    net = UNet3D(im_channels=1, num_classes=num_classes).cuda()
+    net = torch.nn.DataParallel(net)
+    optimizer = torch.optim.SGD(net.parameters(), lr=0.01,
+                                momentum=0.99, nesterov=True)
+    net.train()
+    for _ in range(3):
+        #                      b, c,  d,  h,    w    
+        input_data = np.zeros((4, 1, 52, in_w, in_w))
+        optimizer.zero_grad()
+        outputs = net(torch.from_numpy(input_data).cuda().float())
+        batch_fg_tiles = torch.ones(4, num_classes, 18, out_w, out_w).long().cuda()
+        batch_bg_tiles = torch.zeros(4, num_classes, 18, out_w, out_w).long().cuda()
+        batch_fg_tiles[:, 0, 0] = 0
+        batch_bg_tiles[:, 0, 0] = 1
+        batch_classes = []
+        for _ in range(4):
+            batch_classes.append([f'c_{c}' for c in range(num_classes)])
+        (batch_loss, _, _,
+         _, _) = get_batch_loss(
+             outputs, batch_fg_tiles, batch_bg_tiles,
+             batch_classes,
+             [f'c_{c}' for c in range(num_classes)],
+             compute_loss=True)
+        batch_loss.backward()
+        optimizer.step()
+        del batch_loss
+        del batch_fg_tiles
+        del batch_bg_tiles
+        del outputs
+        del input_data
+
+
+def get_in_w_out_w_for_memory(num_classes):
+    print('computing largest patch size for GPU')
+    # search for appropriate input size for GPU
+    # in_w, out_w = get_in_w_out_w_for_memory(num_classes)
+    # try to train a network and see which patch size fits on the gpu.
+    pairs = get_in_w_out_w_pairs()
+    for i, (in_w, out_w) in enumerate(pairs):
+        torch.cuda.empty_cache()
+        try:
+            allocate_net(in_w, out_w, num_classes)
+            torch.cuda.empty_cache()
+            print(in_w, out_w, 'ok')
+            print('using', pairs[i+1], 'to be safe') # return the next smallest to be safe
+            return pairs[i+1] # return the next smallest to be safe
+        except Exception as e:
+            if 'out of memory' in str(e):
+                print(in_w, out_w, 'too big')
+            else:
+                print(e)
+    raise Exception('Could not find patch small enough for available GPU memory')
 
 
 def get_latest_model_paths(model_dir, k):
@@ -57,6 +121,7 @@ def load_model(model_path, classes):
     # using cache can save up to half a second per segmentation with network drives
     if model_path == cached_model_path:
         return copy.deepcopy(cached_model)
+
     # two channels as one is input image and another is some of the fg and bg annotation
     # each non-empty channel in the annotation is included with 50% chance.
     # Option1 - fg and bg will go in as seprate channels 
@@ -64,7 +129,10 @@ def load_model(model_path, classes):
     # Option2 - 
     #   when included both fg a bg go into the model bg is -1 and fg is +1. undefined is 0
     # Option 1 will be evaluated first (possibilty easier to implement)
-    model = UNet3D(classes, im_channels=3)
+    # disabled for now as auto-complete feature is postponed. 
+    # model = UNet3D(classes, im_channels=3)
+
+    model = UNet3D(num_classes=len(classes), im_channels=1)
     try:
         model.load_state_dict(torch.load(model_path))
         model = torch.nn.DataParallel(model)
@@ -83,7 +151,9 @@ def load_model(model_path, classes):
 def random_model(classes):
     # num out channels is twice number of channels
     # as we have a positive and negative output for each structure.
-    model = UNet3D(classes, im_channels=3)
+    # disabled for now as auto-complete feature is stalled.
+    #model = UNet3D(classes, im_channels=3)
+    model = UNet3D(num_classes=len(classes), im_channels=1)
     model = torch.nn.DataParallel(model)
     if not use_fake_cnn: 
         model.cuda()
@@ -201,6 +271,7 @@ def segment_3d(cnn, image, batch_size, in_tile_shape, out_tile_shape):
 
                 tile = img_as_float32(tile)
                 tile = im_utils.normalize_tile(tile)
+                tile = img_as_float32(tile)
                 coord_idx += 1
                 tiles_to_process.append(tile) # need channel dimension
                 coords_to_process.append(coord)
@@ -208,7 +279,7 @@ def segment_3d(cnn, image, batch_size, in_tile_shape, out_tile_shape):
         tiles_to_process = np.array(tiles_to_process)
         tiles_for_gpu = torch.from_numpy(tiles_to_process)
 
-        tiles_for_gpu = tiles_for_gpu.cuda()
+        tiles_for_gpu = tiles_for_gpu.cuda().float()
         # TODO: consider use of detach. 
         # I might want to move to cpu later to speed up the next few operations.
         # I added .detach().cpu() to prevent a memory error.

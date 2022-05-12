@@ -36,16 +36,18 @@ def penultimate_fname_with_segmentation(fnames, seg_dir):
     
     pen_fname = None
     last_fname = None
-    
     seg_dirs = [os.path.join(seg_dir, d) for d
-                in os.listdir(seg_dir) if os.path.isdir(d)]
+                in os.listdir(seg_dir) if os.path.isdir(os.path.join(seg_dir, d))]
     if not len(seg_dirs):
         seg_dirs = [seg_dir]
     
     seg_fnames = []
+
     for seg_dir in seg_dirs:
         seg_fnames += os.listdir(seg_dir)
-        
+
+    seg_fnames = ['_'.join(f.split('_')[0:-16]) for f in seg_fnames]
+
     for fname in fnames:
         base_fname =  fname.replace('.nrrd', '.nii.gz')
         if base_fname in seg_fnames:
