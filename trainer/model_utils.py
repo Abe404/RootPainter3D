@@ -18,6 +18,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import os
 import time
 import math
+import traceback
 import numpy as np
 import torch
 import copy
@@ -104,7 +105,7 @@ def get_in_w_out_w_for_memory(num_classes):
             if 'out of memory' in str(e):
                 print(in_w, out_w, 'too big')
             else:
-                print(e)
+                print(e, traceback.format_exc())
     raise Exception('Could not find patch small enough for available GPU memory')
 
 
