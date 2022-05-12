@@ -60,8 +60,9 @@ def allocate_net(in_w, out_w, num_classes):
                                 momentum=0.99, nesterov=True)
     net.train()
     for _ in range(3):
+    
         #                      b, c,  d,  h,    w    
-        input_data = np.zeros((4, 1, 52, in_w, in_w))
+        input_data = np.zeros((4, 3, 52, in_w, in_w))
         optimizer.zero_grad()
         outputs = net(torch.from_numpy(input_data).cuda().float())
         batch_fg_tiles = torch.ones(4, num_classes, 52, in_w, in_w).long().cuda()
