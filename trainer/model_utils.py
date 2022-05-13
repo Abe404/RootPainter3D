@@ -233,10 +233,31 @@ def segment_3d(cnn, image, batch_size, in_tile_shape, out_tile_shape):
     # don't need channel dimension
     # make sure the width, height and depth is at least as big as the tile.
     assert len(image.shape) == 3, str(image.shape)
-    assert image.shape[0] >= in_tile_shape[0], f"{image.shape[0]},{in_tile_shape[0]}"
-    assert image.shape[1] >= in_tile_shape[1], f"{image.shape[1]},{in_tile_shape[1]}"
-    assert image.shape[2] >= in_tile_shape[2], f"{image.shape[2]},{in_tile_shape[2]}"
 
+    # if the image is smaller than the patch size then pad it to be the same as the patch.
+    padded_for_patch = False
+    patch_pad_z = 0
+    patch_pad_y = 0
+    patch_pad_x = 0
+
+    if image.shape[0] < in_tile_shape[0]:
+        padde_for_patch = True
+        patch_pad_z = in_tile_shape[0] - image.shape[0]
+    if image.shape[1] < in_tile_shape[1]:
+        padde_for_patch = True
+        patch_pad_z = in_tile_shape[1] - image.shape[1]
+    if image.shape[2] < in_tile_shape[2]:
+        padde_for_patch = True
+        patch_pad_z = in_tile_shape[2] - image.shape[2]
+
+    padded_image = np.zeros((
+        image.shape[0] + patch_pad_z,
+        image.shape[1] + patch_pad_y,
+        image.shape[2] + patch_pad_x),
+        dtype=image.dtype)
+
+    padded_image[:image.shape[0], :image.shape[1], :image.shape[2]] = image
+    image = padded_image  
     depth_diff = in_tile_shape[0] - out_tile_shape[0]
     width_diff = in_tile_shape[1] - out_tile_shape[1]
     
@@ -307,5 +328,8 @@ def segment_3d(cnn, image, batch_size, in_tile_shape, out_tile_shape):
         # reconstruct for each class
         reconstructed = im_utils.reconstruct_from_tiles(output_tiles,
                                                         coords, out_im_shape)
+        if padded_for_patch:
+            reconstructed = reconstructed[:patch_pad_z, :patch_pad_y, :patch_pad_x]
         class_pred_maps.append(reconstructed)
+
     return class_pred_maps
