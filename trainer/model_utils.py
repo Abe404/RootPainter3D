@@ -212,7 +212,6 @@ def ensemble_segment_3d(model_paths, image, fname, batch_size, in_w, out_w, in_d
     height_diff = in_patch_shape[1] - out_patch_shape[1]
     width_diff = in_patch_shape[2] - out_patch_shape[2]
 
-
     print('input image shape (before pad)= ', image.shape)
     # pad so seg will be size of input image
     image = im_utils.pad_3d(image, width_diff//2, depth_diff//2,
@@ -221,8 +220,12 @@ def ensemble_segment_3d(model_paths, image, fname, batch_size, in_w, out_w, in_d
     # segment returns a series of prediction maps. one for each class.
     print('input image shape (after pad)= ', image.shape)
     pred_maps = segment_3d(cnn, image, batch_size, in_patch_shape, out_patch_shape)
+
     print('pred maps[0].shape = ', pred_maps[0].shape)
-    assert pred_maps[0].shape == input_image_shape
+    assert pred_maps[0].shape == input_image_shape, (
+        f'pred_maps[0].shape: {pred_maps[0].shape}, '
+        f'input_image_shape: {input_image_shape}')
+
     print('time to segment image', time.time() - t)
     return pred_maps
 
@@ -339,7 +342,11 @@ def segment_3d(cnn, image, batch_size, in_tile_shape, out_tile_shape):
                                                         coords, out_im_shape)
         if padded_for_patch:
             # go back to the original shape before padding.
-            reconstructed = reconstructed[:original_shape[0], :original_shape[1], :original_shape[2]]
+            # what ever we added on to make it as big as the patch size
+            # now take that away.
+            reconstructed = reconstructed[:reconstructed.shape[0] - patch_pad_z,
+                                          :reconstructed.shape[1] - patch_pad_y,
+                                          :reconstructed.shape[2] - patch_pad_x]
         class_pred_maps.append(reconstructed)
 
     return class_pred_maps
