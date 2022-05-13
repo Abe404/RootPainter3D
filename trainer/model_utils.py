@@ -212,12 +212,16 @@ def ensemble_segment_3d(model_paths, image, fname, batch_size, in_w, out_w, in_d
     height_diff = in_patch_shape[1] - out_patch_shape[1]
     width_diff = in_patch_shape[2] - out_patch_shape[2]
 
+
+    print('input image shape (before pad)= ', image.shape)
     # pad so seg will be size of input image
     image = im_utils.pad_3d(image, width_diff//2, depth_diff//2,
                             mode='reflect', constant_values=0)
 
     # segment returns a series of prediction maps. one for each class.
+    print('input image shape (after pad)= ', image.shape)
     pred_maps = segment_3d(cnn, image, batch_size, in_patch_shape, out_patch_shape)
+    print('pred maps[0].shape = ', pred_maps[0].shape)
     assert pred_maps[0].shape == input_image_shape
     print('time to segment image', time.time() - t)
     return pred_maps
@@ -240,13 +244,14 @@ def segment_3d(cnn, image, batch_size, in_tile_shape, out_tile_shape):
     patch_pad_y = 0
     patch_pad_x = 0
 
-
     if image.shape[0] < in_tile_shape[0]:
         padded_for_patch = True
         patch_pad_z = in_tile_shape[0] - image.shape[0]
+
     if image.shape[1] < in_tile_shape[1]:
         padded_for_patch = True
         patch_pad_y = in_tile_shape[1] - image.shape[1]
+
     if image.shape[2] < in_tile_shape[2]:
         padded_for_patch = True
         patch_pad_x = in_tile_shape[2] - image.shape[2]
@@ -331,7 +336,9 @@ def segment_3d(cnn, image, batch_size, in_tile_shape, out_tile_shape):
         reconstructed = im_utils.reconstruct_from_tiles(output_tiles,
                                                         coords, out_im_shape)
         if padded_for_patch:
+            print('reconstructed shape b4 pad = ', reconstructed.shape)
             reconstructed = reconstructed[:patch_pad_z, :patch_pad_y, :patch_pad_x]
+            print('reconstructed shape after pad = ', reconstructed.shape)
         class_pred_maps.append(reconstructed)
 
     return class_pred_maps
