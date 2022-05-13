@@ -238,6 +238,8 @@ def segment_3d(cnn, image, batch_size, in_tile_shape, out_tile_shape):
     # make sure the width, height and depth is at least as big as the tile.
     assert len(image.shape) == 3, str(image.shape)
 
+    original_shape = image.shape
+
     # if the image is smaller than the patch size then pad it to be the same as the patch.
     padded_for_patch = False
     patch_pad_z = 0
@@ -336,9 +338,8 @@ def segment_3d(cnn, image, batch_size, in_tile_shape, out_tile_shape):
         reconstructed = im_utils.reconstruct_from_tiles(output_tiles,
                                                         coords, out_im_shape)
         if padded_for_patch:
-            print('reconstructed shape b4 pad = ', reconstructed.shape)
-            reconstructed = reconstructed[:patch_pad_z, :patch_pad_y, :patch_pad_x]
-            print('reconstructed shape after pad = ', reconstructed.shape)
+            # go back to the original shape before padding.
+            reconstructed = reconstructed[:original_shape[0], :original_shape[1], :original_shape[2]]
         class_pred_maps.append(reconstructed)
 
     return class_pred_maps
