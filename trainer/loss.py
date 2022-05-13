@@ -99,15 +99,16 @@ def get_batch_loss(outputs, batch_fg_tiles, batch_bg_tiles, batch_seg_tiles,
                 # if the classname is the class we are interested in
                 if classname == unique_class:
                     print('')
-                    print('fg_tile shape', batch_fg_tiles[im_idx][i])
+                    print('fg_tile shape', batch_fg_tiles[im_idx][i].shape)
 
                     # foregorund and background channels
                     fg_tile = batch_fg_tiles[im_idx][i][17:-17,17:-17,17:-17]
+                    print('fg tile shape after crop', fg_tile.shape)
                     bg_tile = batch_bg_tiles[im_idx][i][17:-17,17:-17,17:-17]
                     mask = fg_tile + bg_tile
                     class_idx = project_classes.index(classname) * 2 # posiion in output.
                     class_output = outputs[im_idx][class_idx:class_idx+2]
-
+    
                     print('class_output shape shape', class_output.shape)
 
 
