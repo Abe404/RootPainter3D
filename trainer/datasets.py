@@ -63,6 +63,8 @@ class RPDataset(Dataset):
         self.length = length
 
     def __len__(self):
+        return 12
+
         if self.mode == 'val':
             return len(self.tile_refs)
         if self.tile_refs is not None:
