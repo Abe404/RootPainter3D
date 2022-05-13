@@ -244,20 +244,21 @@ def segment_3d(cnn, image, batch_size, in_tile_shape, out_tile_shape):
         padde_for_patch = True
         patch_pad_z = in_tile_shape[0] - image.shape[0]
     if image.shape[1] < in_tile_shape[1]:
-        padde_for_patch = True
-        patch_pad_z = in_tile_shape[1] - image.shape[1]
+        padded_for_patch = True
+        patch_pad_y = in_tile_shape[1] - image.shape[1]
     if image.shape[2] < in_tile_shape[2]:
-        padde_for_patch = True
-        patch_pad_z = in_tile_shape[2] - image.shape[2]
+        padded_for_patch = True
+        patch_pad_x = in_tile_shape[2] - image.shape[2]
 
-    padded_image = np.zeros((
-        image.shape[0] + patch_pad_z,
-        image.shape[1] + patch_pad_y,
-        image.shape[2] + patch_pad_x),
-        dtype=image.dtype)
-
-    padded_image[:image.shape[0], :image.shape[1], :image.shape[2]] = image
-    image = padded_image  
+    if padded_for_patch:
+        padded_image = np.zeros((
+            image.shape[0] + patch_pad_z,
+            image.shape[1] + patch_pad_y,
+            image.shape[2] + patch_pad_x),
+            dtype=image.dtype)
+        padded_image[:image.shape[0], :image.shape[1], :image.shape[2]] = image
+        image = padded_image  
+    print(f'image after padding={padded_for_patch}', image.shape)
     depth_diff = in_tile_shape[0] - out_tile_shape[0]
     width_diff = in_tile_shape[1] - out_tile_shape[1]
     
@@ -274,6 +275,7 @@ def segment_3d(cnn, image, batch_size, in_tile_shape, out_tile_shape):
         coords_to_process = []
         for _ in range(batch_size):
             if coord_idx < len(coords):
+                print('prep patch')
                 coord = coords[coord_idx]
                 x_coord, y_coord, z_coord = coord
                 tile = image[z_coord:z_coord+in_tile_shape[0],
@@ -305,6 +307,7 @@ def segment_3d(cnn, image, batch_size, in_tile_shape, out_tile_shape):
         # l,r, l,r, but from end to start     w  w  h  h  d  d, c, c, b, b
         tiles_for_gpu = F.pad(tiles_for_gpu, (0, 0, 0, 0, 0, 0, 0, 2), 'constant', 0)
         # tiles shape after padding torch.Size([4, 3, 52, 228, 228])
+        print('predict patches with gpu')
         outputs = cnn(tiles_for_gpu).detach().cpu()
         # bg channel index for each class in network output.
         class_idxs = [x * 2 for x in range(outputs.shape[1] // 2)]
