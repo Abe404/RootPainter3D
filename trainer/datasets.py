@@ -213,8 +213,9 @@ class RPDataset(Dataset):
                                tile_z:tile_z+self.in_d,
                                tile_y:tile_y+self.in_w,
                                tile_x:tile_x+self.in_w]
-            assert annot_tiles[0].shape[1:] == (self.in_d, self.in_w, self.in_w), (
-                f" annot is {annot_tiles[0].shape}, and "
+
+            assert annot_tile.shape[1:] == (self.in_d, self.in_w, self.in_w), (
+                f" annot is {annot_tile.shape}, and "
                 f"should be ({self.in_d},{self.in_w},{self.in_w})")
 
             #else: # not auto-complete
