@@ -787,7 +787,14 @@ class RootPainter(QtWidgets.QMainWindow):
                 img.to_filename(self.get_seg_path())
                 # if annotation was saved to train 
                 if str(self.get_train_annot_dir()) in self.annot_path:
-                    img.to_filename(self.get_train_seg_path())
+                    # if there are at least 4 train annotations (happens after
+                    # saving annotaiton for image 5) then save segmentation for
+                    # training. The first 4 segmentations are not fully
+                    # corrected per the new protocol from image 5 and onwards
+                    # all segmentations will be saved for training as they are
+                    # fully corrected.
+                    if len(os.listdir(self.get_train_annot_dir())) >= 4:
+                        img.to_filename(self.get_train_seg_path())
                 else:
                     # otherwise if it was saved to validation then start training
                     # as we now believe there is training and validation data.
