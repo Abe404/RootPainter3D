@@ -320,7 +320,10 @@ class Trainer():
         
             # padd channels to allow annotation input (or not)
             # l,r, l,r, but from end to start    w  w  h  h  d  d, c, c, b, b
-            model_input = F.pad(batch_im_tiles, (0, 0, 0, 0, 0, 0, 0, 2), 'constant', 0)
+            if self.patch_update_enabled:
+                model_input = F.pad(batch_im_tiles, (0, 0, 0, 0, 0, 0, 0, 2), 'constant', 0)
+            else:
+                model_input = batch_im_tiles
     
             # model_input[:, 0] is the input image
             # model_input[:, 1] is fg
