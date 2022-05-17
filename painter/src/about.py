@@ -846,7 +846,6 @@ class ShortcutWindow(QtWidgets.QWidget):
         table.setItem(12, 0, QtWidgets.QTableWidgetItem("E"))
         table.setItem(12, 1, QtWidgets.QTableWidgetItem("Switch to eraser"))
 
-        table.horizontalHeader().sectionSizeFromContents(True)
         table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         table.setSizeAdjustPolicy(QtWidgets.QAbstractScrollArea.AdjustToContents)
 

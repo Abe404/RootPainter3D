@@ -105,6 +105,9 @@ def get_batch_loss(outputs, batch_fg_tiles, batch_bg_tiles, batch_seg_tiles,
                     mask = fg_tile + bg_tile
                     class_idx = project_classes.index(classname) * 2 # posiion in output.
                     class_output = outputs[im_idx][class_idx:class_idx+2]
+    
+
+
                     mask = mask.cuda()
                     fg_tile = fg_tile.cuda()
 
@@ -112,6 +115,11 @@ def get_batch_loss(outputs, batch_fg_tiles, batch_bg_tiles, batch_seg_tiles,
                     # from fg_tile, mask, class_outputs
                     softmaxed = softmax(class_output, 0)
                     fg_prob = softmaxed[1]
+
+
+                    assert fg_prob.shape == mask.shape, (
+                        f"fg_prob shape {fg_prob.shape} and mask shape {mask.shape}"
+                        f"should be equal")
                     fg_prob = fg_prob * mask
                     class_pred = fg_prob > 0.5   
                     class_pred = class_pred[mask > 0]

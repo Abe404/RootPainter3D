@@ -14,7 +14,10 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-def segment_full_image(root_painter, fname):
+def segment_full_image(root_painter, fname=None):
+    # if file name not specified then segment the current image.
+    if fname is None:
+        fname = root_painter.fname
     # send instruction to segment the image.
     root_painter.send_instruction('segment', {
         "dataset_dir": root_painter.dataset_dir,

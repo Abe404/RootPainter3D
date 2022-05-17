@@ -46,19 +46,21 @@ def is_image(fname):
 def load_image(image_path):
     if image_path.endswith('.npy'):
         return np.load(image_path, mmap_mode='c')
-    if image_path.endswith('.nii.gz'):
+    elif image_path.endswith('.nii.gz'):
         image = nib.load(image_path)
         image = np.array(image.dataobj)
         image = np.rot90(image, k=3)
         image = np.moveaxis(image, -1, 0) # depth moved to beginning
         # reverse lr and ud
         image = image[::-1, :, ::-1]
-    if image_path.endswith('.nrrd'):
+    elif image_path.endswith('.nrrd'):
         image, header = nrrd.read(image_path)
         image = np.rot90(image, k=3)
         image = np.moveaxis(image, -1, 0) # depth moved to beginning
         # reverse lr and ud
         image = image[::-1, :, ::-1]
+    else:
+        raise Exception(f"Unhandled file ending {image_path}")
     return image
 
 
