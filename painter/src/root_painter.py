@@ -246,7 +246,10 @@ class RootPainter(QtWidgets.QMainWindow):
         cur_im_idx = self.image_fnames.index(self.fname)
         if cur_im_idx < len(self.image_fnames):    
             next_im_fname = self.image_fnames[cur_im_idx+1]
-            if not os.path.isfile(self.get_seg_path(next_im_fname)):
+            num_segmentations = len(os.listdir(self.get_all_seg_paths()))
+            # dont segment the next image early on in training (first 10 images).
+            # We don't want the user to have to correct segmentations from old models at this point in training.
+            if num_segmentations > 10 and not os.path.isfile(self.get_seg_path(next_im_fname)):
                 segment_full_image(self, next_im_fname) 
 
 
