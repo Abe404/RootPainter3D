@@ -14,7 +14,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-def segment_full_image(root_painter, fname=None):
+def segment_full_image(root_painter, fname=None, overwrite=False):
     # if file name not specified then segment the current image.
     if fname is None:
         fname = root_painter.fname
@@ -25,6 +25,7 @@ def segment_full_image(root_painter, fname=None):
         "file_names": [fname],
         "message_dir": root_painter.message_dir,
         "model_dir": root_painter.model_dir,
+        "overwrite": overwrite,
         "classes": root_painter.classes # used for saving segmentation output to correct directories
     })
 
