@@ -54,7 +54,9 @@ def get_in_w_out_w_pairs():
 
 
 def allocate_net(in_w, out_w, num_classes):
-    net = UNet3D(im_channels=3, num_classes=num_classes).cuda()
+
+    channels = 1 # change to 3 for auto-complete
+    net = UNet3D(im_channels=channels, num_classes=num_classes).cuda()
     net = torch.nn.DataParallel(net)
     optimizer = torch.optim.SGD(net.parameters(), lr=0.01,
                                 momentum=0.99, nesterov=True)
@@ -62,7 +64,7 @@ def allocate_net(in_w, out_w, num_classes):
     for _ in range(3):
     
         #                      b, c,  d,  h,    w    
-        input_data = np.zeros((4, 3, 52, in_w, in_w))
+        input_data = np.zeros((4, channels, 52, in_w, in_w))
         optimizer.zero_grad()
         outputs = net(torch.from_numpy(input_data).cuda().float())
         batch_fg_tiles = torch.ones(4, num_classes, 52, in_w, in_w).long().cuda()
@@ -89,7 +91,7 @@ def allocate_net(in_w, out_w, num_classes):
 
 
 def get_in_w_out_w_for_memory(num_classes):
-    print('computing largest patch size for GPU')
+    print('computing largest patch size for GPU, num class = ', num_classes)
     # search for appropriate input size for GPU
     # in_w, out_w = get_in_w_out_w_for_memory(num_classes)
     # try to train a network and see which patch size fits on the gpu.
@@ -129,7 +131,8 @@ def load_model(model_path, classes):
     # each non-empty channel in the annotation is included with 50% chance.
     # - fg and bg will go in as seprate channels 
     #  so channels are [image, fg_annot, bg_annot]
-    model = UNet3D(num_classes=len(classes), im_channels=3) # 3 channels as annotation may be used as input.
+    model = UNet3D(num_classes=len(classes), im_channels=1) # 3 channels as annotation may be used as input.
+
     try:
         model.load_state_dict(torch.load(model_path))
         model = torch.nn.DataParallel(model)
@@ -150,7 +153,7 @@ def random_model(classes):
     # as we have a positive and negative output for each structure.
     # disabled for now as auto-complete feature is stalled.
     #model = UNet3D(classes, im_channels=3)
-    model = UNet3D(num_classes=len(classes), im_channels=3) # 3 channels to enable optional annotation as input.
+    model = UNet3D(num_classes=len(classes), im_channels=1) # 3 channels to enable optional annotation as input.
     model = torch.nn.DataParallel(model)
     if not use_fake_cnn: 
         model.cuda()
@@ -230,7 +233,7 @@ def ensemble_segment_3d(model_paths, image, fname, batch_size, in_w, out_w, in_d
     return pred_maps
 
 
-def segment_3d(cnn, image, batch_size, in_tile_shape, out_tile_shape):
+def segment_3d(cnn, image, batch_size, in_tile_shape, out_tile_shape, auto_complete_enabled=False):
     """
     in_tile_shape and out_tile_shape are (depth, height, width)
     """
@@ -315,7 +318,9 @@ def segment_3d(cnn, image, batch_size, in_tile_shape, out_tile_shape):
         # I added .detach().cpu() to prevent a memory error.
         # pad with zeros for the annotation input channels
         # l,r, l,r, but from end to start     w  w  h  h  d  d, c, c, b, b
-        tiles_for_gpu = F.pad(tiles_for_gpu, (0, 0, 0, 0, 0, 0, 0, 2), 'constant', 0)
+        if auto_complete_enabled:
+            # add channels for annotation if auto_complete enabled
+            tiles_for_gpu = F.pad(tiles_for_gpu, (0, 0, 0, 0, 0, 0, 0, 2), 'constant', 0)
         # tiles shape after padding torch.Size([4, 3, 52, 228, 228])
         outputs = cnn(tiles_for_gpu).detach().cpu()
         # bg channel index for each class in network output.
