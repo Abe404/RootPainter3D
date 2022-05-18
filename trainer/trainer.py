@@ -27,6 +27,7 @@ import sys
 from datetime import datetime
 import copy
 import random
+import multiprocessing
 
 
 import numpy as np
@@ -45,12 +46,11 @@ import model_utils
 from model_utils import save_if_better, save_model
 from metrics import metrics_from_val_tile_refs
 import data_utils
-import patch_seg
+#import patch_seg
 
-from im_utils import is_image, load_image, save_then_move
+from im_utils import is_image, load_image, save_then_move, save
 import im_utils
 from file_utils import ls
-from startup import add_config_shape
 
 
 class Trainer():
@@ -69,7 +69,6 @@ class Trainer():
         self.train_config = None
         self.model = None
         self.first_loop = True
-        # TODO: derrive both batch_size and input_patch size based on available GPU memory
         self.batch_size = 4 
         self.optimizer = None
         self.val_tile_refs = []
@@ -79,6 +78,9 @@ class Trainer():
         self.epochs_without_progress = 0
         self.training_restart = False
         self.restart_best_val_dice = 0
+        
+        self.in_w = None
+        self.out_w = None
 
         # approx 30 minutes
         self.max_epochs_without_progress = 60
@@ -122,6 +124,47 @@ class Trainer():
                 self.first_loop = True
                 time.sleep(1.0)
 
+    def add_config_shape(self, config):
+        new_config = copy.deepcopy(config)
+        num_classes = len(config['classes'])
+        if self.in_w is None:
+            in_w, out_w = model_utils.get_in_w_out_w_for_memory(num_classes)
+            self.in_w = in_w
+            self.out_w = out_w
+            print('found input width of', in_w, 'and output width of', out_w)
+        new_config['in_w'] = self.in_w
+        new_config['out_w'] = self.out_w
+        new_config['in_d'] = 52
+        new_config['out_d'] = 18
+        return new_config
+
+
+    def fix_config_paths(self, old_config):
+        """ get paths relative to local machine """
+        new_config = {}
+        for k, v in old_config.items():
+            if k == 'file_names':
+                # names dont need a path appending
+                new_config[k] = v
+            elif k == 'classes':
+                # classes should not be altered
+                new_config[k] = v
+            elif isinstance(v, list):
+                # if its a list fix each string in the list.
+                new_list = []
+                for e in v:
+                    new_val = e.replace('\\', '/')
+                    new_val = os.path.join(self.sync_dir,
+                                           os.path.normpath(new_val))
+                    new_list.append(new_val)
+                new_config[k] = new_list
+            elif isinstance(v, str):
+                v = v.replace('\\', '/')
+                new_config[k] = os.path.join(self.sync_dir,
+                                             os.path.normpath(v))
+            else:
+                new_config[k] = v
+        return new_config
 
     def check_for_instructions(self):
         for fname in ls(self.instruction_dir):
@@ -175,7 +218,7 @@ class Trainer():
             self.msg_dir = self.train_config['message_dir']
             model_dir = self.train_config['model_dir']
             classes = self.train_config['classes']
-            self.train_config = add_config_shape(self.train_config)
+            self.train_config = self.add_config_shape(self.train_config)
 
             model_paths = model_utils.get_latest_model_paths(model_dir, 1)
             if model_paths:
@@ -239,7 +282,8 @@ class Trainer():
             torch.set_grad_enabled(False)
             loader = DataLoader(dataset, self.batch_size * 2, shuffle=True,
                                 collate_fn=data_utils.collate_fn,
-                                num_workers=16, drop_last=False, pin_memory=True)
+                                num_workers=min(multiprocessing.cpu_count(), 12),
+                                drop_last=False, pin_memory=True)
         elif mode == 'train':
             dataset = RPDataset(self.train_config['train_annot_dirs'],
                                 self.train_config['train_seg_dirs'],
@@ -254,7 +298,7 @@ class Trainer():
             torch.set_grad_enabled(True)
             loader = DataLoader(dataset, self.batch_size, shuffle=False,
                                 collate_fn=data_utils.collate_fn,
-                                num_workers=16,
+                                num_workers=min(multiprocessing.cpu_count(), 12),
                                 drop_last=False, pin_memory=True)
             model.train()
         else:
@@ -469,7 +513,8 @@ class Trainer():
         in_dir = segment_config['dataset_dir']
         seg_dir = segment_config['seg_dir']
 
-        segment_config = add_config_shape(segment_config)
+        segment_config = self.add_config_shape(segment_config)
+        
         classes = segment_config['classes']
         if "file_names" in segment_config:
             fnames = segment_config['file_names']
@@ -503,7 +548,6 @@ class Trainer():
                               in_d=segment_config['in_d'],
                               out_d=segment_config['out_d'],
                               classes=classes,
-                              sync_save=len(fnames) == 1,
                               overwrite=overwrite)
 
         duration = time.time() - start
@@ -546,16 +590,34 @@ class Trainer():
         return prev_m
 
     def segment_patch(self, segment_config):
+        raise Exception('feature disabled')
         patch_seg.segment_patch(segment_config)
+        
+    def get_in_w_and_out_w_for_image(self, im, in_w, out_w):
+        """ the input image may be smaller than the default 
+            patch size, so find a patch size where the output patch
+            size will fit inside the image """
+
+        im_depth, im_height, im_width = im.shape
+
+        if out_w < im_width and out_w < im_height:
+            return in_w, out_w
+        
+        for valid_in_w, valid_out_w in model_utils.get_in_w_out_w_pairs():
+            if valid_out_w < im_width and valid_out_w < im_height and valid_out_w < out_w:
+                return valid_in_w, valid_out_w
+
+        raise Exception('cannot find patch size small enough for image with shape' + str(im.shape))
 
     def segment_file(self, in_dir, seg_dir, fname, model_paths,
-                     in_w, out_w, in_d, out_d, classes, sync_save, overwrite=False):
+                     in_w, out_w, in_d, out_d, classes, overwrite=False):
 
         # segmentations are always saved as .nii.gz
         out_paths = []
         if len(classes) > 1:
             for c in classes:
-                out_paths.append(os.path.join(seg_dir, c, fname))
+                out_fname = fname.replace('.nrrd', '.nii.gz') # output to nii.gz regardless of input format.
+                out_paths.append(os.path.join(seg_dir, c, out_fname))
         else:
             # segment to nifty as they don't get loaded repeatedly in training.
             out_paths = [os.path.join(seg_dir, fname)]
@@ -582,23 +644,23 @@ class Trainer():
             return
         seg_start = time.time()
         print('segment image, input shape = ', im.shape, datetime.now())
+
+        seg_in_w, seg_out_w = self.get_in_w_and_out_w_for_image(im, in_w, out_w) 
         segmented = ensemble_segment_3d(model_paths, im, fname, self.batch_size,
-                                        in_w, out_w, in_d, out_d, classes)
+                                        seg_in_w, seg_out_w, in_d, out_d, classes)
+
         print(f'ensemble segment {fname}, dur', round(time.time() - seg_start, 2))
         
         for seg, outpath in zip(segmented, out_paths):
+            # if the output folder doesn't exist then create it (class specific directory)
+            out_dir = os.path.split(outpath)[0]
+            if not os.path.exists(out_dir):
+                print('making directory', out_dir)
+                os.makedirs(out_dir)
+            
             # catch warnings as low contrast is ok here.
             with warnings.catch_warnings():
                 # create a version with alpha channel
                 warnings.simplefilter("ignore")
-                if sync_save:
-                    # other wise do sync because we don't want to delete the segment
-                    # instruction too early.
-                    outpath = outpath.replace('.nrrd', '.nii.gz')
-                    save_then_move(outpath, seg)
-                else:
-                    # TODO find a cleaner way to do this.
-                    # if more than one file then optimize speed over stability.
-                    x = threading.Thread(target=save_then_move,
-                                         args=(outpath, segmented))
-                    x.start()
+                outpath = outpath.replace('.nrrd', '.nii.gz')
+                save(outpath, seg)

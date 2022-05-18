@@ -30,7 +30,9 @@ def add_network_menu(window, menu_bar):
     segment_action = QtWidgets.QAction(QtGui.QIcon(""), "Segment full image", window)
     segment_action.setShortcut("Alt+S")
     network_menu.addAction(segment_action)
-    segment_action.triggered.connect(partial(segment_full_image, window, True))
+    def seg_im(window):
+        segment_full_image(window)
+    segment_action.triggered.connect(partial(seg_im, window))
 
 
     def show_segment_folder():
