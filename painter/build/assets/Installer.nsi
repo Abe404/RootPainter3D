@@ -20,7 +20,7 @@
 ; !define MUI_ICON "..\${APP_NAME}\Icon.ico"
 ; !define MUI_UNICON "..\${APP_NAME}\Icon.ico"
 
-!define VERSION "0.0.2.0"
+!define VERSION "0.0.5.0"
 !define APP_NAME "RootPainter3D"
 !getdllversion "..\${APP_NAME}\${APP_NAME}.exe" ver
 
