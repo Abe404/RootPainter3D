@@ -46,7 +46,7 @@ def fake_cnn(tiles_for_gpu):
 def get_in_w_out_w_pairs():
     # matching pairs of input/output sizes for specific unet used
     # 36 to 228 in incrememnts of 16 (sorted large to small)
-    in_w_list = sorted([36 + (x*16) for x in range(15)], reverse=True)
+    in_w_list = sorted([36 + (x*16) for x in range(20)], reverse=True)
     
     # output always 34 less than input
     out_w_list = [x - 34 for x in in_w_list]
