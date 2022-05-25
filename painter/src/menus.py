@@ -146,6 +146,54 @@ def add_help_menu(self,  menu_bar):
     shortcut_btn = QtWidgets.QAction(QtGui.QIcon('missing.png'), 'Keyboard Shortcuts', self)
     shortcut_btn.triggered.connect(self.show_shortcut_window)
     help_menu.addAction(shortcut_btn)
+    
+
+def add_extras_menu(main_window, menu_bar, project_open=False):
+    extras_menu = menu_bar.addMenu('Extras')
+
+    if project_open:
+        extend_dataset_btn = QtWidgets.QAction(QtGui.QIcon('missing.png'), 'Extend dataset', self)
+        def update_dataset_after_check():
+            was_extended, file_names = check_extend_dataset(main_window,
+                                                            main_window.dataset_dir,
+                                                            main_window.image_fnames,
+                                                            main_window.proj_file_path)
+            if was_extended:
+                main_window.image_fnames = file_names
+                main_window.nav.all_fnames = file_names
+                main_window.nav.update_nav_label()
+        extend_dataset_btn.triggered.connect(update_dataset_after_check)
+        extras_menu.addAction(extend_dataset_btn)
+
+
+def check_extend_dataset(main_window, dataset_dir, prev_fnames, proj_file_path):
+
+    all_image_names = [f for f in os.listdir(dataset_dir) if is_image(f)]
+
+    new_image_names = [f for f in all_image_names if f not in prev_fnames]
+
+    button_reply = QtWidgets.QMessageBox.question(main_window,
+        'Confirm',
+        f"There are {len(new_image_names)} new images in the dataset."
+        " Are you sure you want to extend the project to include these new images?",
+        QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, 
+        QtWidgets.QMessageBox.No)
+
+    if button_reply == QtWidgets.QMessageBox.Yes:
+        # shuffle the new file names
+        shuffle(new_image_names)
+        # load the project json for reading and writing
+        settings = json.load(open(proj_file_path, 'r'))
+        # read the file_names
+        all_file_names = settings['file_names'] + new_image_names
+        settings['file_names'] = all_file_names
+
+        # Add the new_files to the list
+        # then save the json again
+        json.dump(settings, open(proj_file_path, 'w'), indent=4)
+        return True, all_file_names
+    else:
+        return False, all_image_names
 
 
 def add_view_menu(window, im_viewer, menu_bar):
