@@ -15,7 +15,6 @@ hidden_imports = loadtxt("./painter/requirements.txt", comments="#", delimiter="
 hidden_imports = [x.lower() for x in hidden_imports]
 
 # copy dependencies - to get icons
-shutil.rmtree("./tmp_dependencies/")
 shutil.copytree("./painter/", "./tmp_dependencies/painter/")
 
 a = Analysis(['./trainer/main.py'],
