@@ -17,7 +17,7 @@ hidden_imports = [x.lower() for x in hidden_imports]
 # copy dependencies - to get icons
 shutil.copytree("./painter/", "./tmp_dependencies/painter/")
 
-a = Analysis(['./trainer/main.py'],
+a = Analysis(['./painter/src/main.py'],
              pathex=['.'],
              binaries=[],
              datas=[],
