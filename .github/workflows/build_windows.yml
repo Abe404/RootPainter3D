@@ -32,7 +32,7 @@ jobs:
 
     - name: Make installer
       run: |
-        makensis.exe Raidionics.nsi
+        makensis.exe RootPainter3D.nsi
         cp -r RootPainter3D-0.0.1-win.exe dist/RootPainter3D-0.0.1-win.exe
 
     - name: Upload package
