@@ -31,10 +31,15 @@ jobs:
 
     - name: Make installer
       run: |
-        mkdir -p painter/ubuntu_setup/usr/local/bin
-        cp -r dist/RootPainter3D painter/ubuntu_setup/usr/local/bin
-        dpkg-deb --build --root-owner-group painter/ubuntu_setup
-        cp -r ubuntu_setup.deb dist/RootPainter3D-0.0.1-ubuntu.deb
+        cd painter/
+        mkdir -p ubuntu_setup/usr/local/bin
+        ls -la
+        cp -r ../dist/RootPainter3D ubuntu_setup/usr/local/bin
+        ls -la
+        dpkg-deb --build --root-owner-group ubuntu_setup
+        ls -la
+        cp -r ubuntu_setup.deb ../dist/RootPainter3D-0.0.1-ubuntu.deb
+        ls -la
 
     - name: Upload package
       uses: actions/upload-artifact@v2
