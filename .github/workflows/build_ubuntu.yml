@@ -1,4 +1,4 @@
-name: Build Windows
+name: Build Ubuntu
 
 on:
   push:
@@ -10,7 +10,7 @@ on:
 
 jobs:
   build:
-    runs-on: windows-2019
+    runs-on: ubuntu-20.04
 
     steps:
     - uses: actions/checkout@v1
@@ -31,8 +31,10 @@ jobs:
 
     - name: Make installer
       run: |
-        makensis.exe RootPainter3D.nsi
-        cp -r RootPainter3D-0.0.1-win.exe dist/RootPainter3D-0.0.1-win.exe
+        mkdir -p painter/ubuntu_setup/usr/local/bin
+        cp -r dist/RootPainter3D painter/ubuntu_setup/usr/local/bin
+        dpkg-deb --build --root-owner-group painter/ubuntu_setup
+        cp -r ubuntu_setup.deb dist/RootPainter3D-0.0.1-ubuntu.deb
 
     - name: Upload package
       uses: actions/upload-artifact@v2
