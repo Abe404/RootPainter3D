@@ -11,7 +11,7 @@ import shutil
 block_cipher = None
 
 # fix hidden imports
-hidden_imports = loadtxt("requirements.txt", comments="#", delimiter=",", unpack=False, dtype=str)
+hidden_imports = loadtxt("./painter/requirements.txt", comments="#", delimiter=",", unpack=False, dtype=str)
 hidden_imports = [x.lower() for x in hidden_imports]
 
 # copy dependencies - to get icons
