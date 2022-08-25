@@ -1,3 +1,20 @@
+#Spec file describing how to build executable for Ubuntu and Windows
+
+#Copyright (C) 2019, 2020 Abraham George Smith
+
+#This program is free software: you can redistribute it and/or modify
+#it under the terms of the GNU General Public License as published by
+#the Free Software Foundation, either version 3 of the License, or
+#(at your option) any later version.
+
+#This program is distributed in the hope that it will be useful,
+#but WITHOUT ANY WARRANTY; without even the implied warranty of
+#MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#GNU General Public License for more details.
+
+#You should have received a copy of the GNU General Public License
+#along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 # -*- mode: python ; coding: utf-8 -*-
 
 # necessary for MacOS
@@ -22,7 +39,7 @@ a = Analysis(['./painter/src/main.py'],
              binaries=[],
              datas=[],
              hiddenimports=hidden_imports,
-             hookspath=["./hooks/"],
+             hookspath=["./painter/hooks/"],
              runtime_hooks=[],
              excludes=[],
              win_no_prefer_redirects=False,
