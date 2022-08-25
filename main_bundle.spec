@@ -57,3 +57,17 @@ coll = COLLECT(exe,
                upx_exclude=[],
                name='RootPainter3D'
 )
+app = BUNDLE(coll,
+             name='RootPainter3D.app',
+             icon="./tmp_dependencies/painter/icons/Icon.ico",
+             bundle_identifier=None,
+             info_plist={
+                'CFBundleDisplayName': 'RootPainter',
+                'CFBundleExecutable': 'RootPainter',
+                'CFBundleIdentifier': 'RootPainter',
+                'CFBundleInfoDictionaryVersion': '6.0',
+                'CFBundleName': 'RootPainter',
+                'CFBundlePackageType': 'APPL',
+                'LSBackgroundOnly': 'false',
+            },
+)
