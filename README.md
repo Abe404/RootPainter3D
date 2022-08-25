@@ -95,3 +95,16 @@ python src/main.py
 To interactively train a model and annotate images, you will need to add a set of compressed NIfTI images (.nii.gz) to a folder in the datasets folder and then create a project using the client that references this dataset.
 
 For more details, see [the published article](http://doi.org/10.1002/mp.15353).
+
+
+
+
+## Contribution Guidelines
+
+* Contibutions are welcome
+* They should be made via pull requests
+* The GPL header should be clearly present at the top of any new files. For an example see: https://github.com/Abe404/RootPainter3D/blob/master/trainer/metrics.py
+* The copyright header should include the current year and yourself or 'Anonymous Contributor' if you wish to remain somewhat anonymous to future readers of the code.
+
+
+When we have tests, they should pass.
