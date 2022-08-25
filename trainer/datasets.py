@@ -27,6 +27,7 @@ from torch.utils.data import Dataset
 
 from im_utils import load_train_image_and_annot
 import im_utils
+from file_utils import get_without_extension
 
 def rnd():
     """ Give higher than random chance to select the edges """
@@ -178,9 +179,8 @@ class RPDataset(Dataset):
 
         fname, (tile_x, tile_y, tile_z), _, _ = tile_ref
         image_path = os.path.join(self.dataset_dir, fname)
-        # image could have nrrd extension
-        if not os.path.isfile(image_path):
-            image_path = image_path.replace('.nii.gz', '.nrrd')  # @TODO: How to handle this with .nii files?
+        image_path = get_without_ext(image_path)
+        image_path = glob.glob(image_path_part + '.*')[0]
         image = im_utils.load_with_retry(im_utils.load_image, image_path)
         #  needs to be swapped to channels first and rotated etc
         # to be consistent with everything else.

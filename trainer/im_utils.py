@@ -31,6 +31,7 @@ from file_utils import ls
 import nrrd
 from pathlib import Path
 import traceback
+from file_utils import get_without_ext
 
 def is_image(fname):
     """ extensions that have been tested with so far """
@@ -133,7 +134,7 @@ def load_image_and_annot_for_seg(dataset_dir, train_annot_dirs, fname):
 
         # it's possible the image has a different extenstion
         # so use glob to get it
-        fname_no_ext = fname.replace('.nii.gz', '').replace('.nii', '').replace('.nrrd', '')
+        fname_no_ext = get_without_ext(fname)
         image_path_part = os.path.join(dataset_dir, fname_no_ext)
         image_path = glob.glob(image_path_part + '.*')[0]
         image = load_image(image_path)
@@ -220,7 +221,7 @@ def load_train_image_and_annot(dataset_dir, train_seg_dirs, train_annot_dirs):
 
         # it's possible the image has a different extenstion
         # so use glob to get it
-        fname_no_ext = fname.replace('.nii.gz', '').replace('.nii', '').replace('.nrrd', '')
+        fname_no_ext = get_without_ext(fname)
         image_path_part = os.path.join(dataset_dir, fname_no_ext)
         image_path = glob.glob(image_path_part + '.*')[0]
         image = load_image(image_path)
@@ -407,7 +408,7 @@ def save_then_move(out_path, seg):
     fname = os.path.basename(out_path)
     token = str(time.time()) # add token to avoid resaving over files wiith the same name
     temp_path = os.path.join('/tmp', token + fname)
-    if out_path.endswith('.nii') or out_path.endswith('.nii.gz'):
+    if out_path.endswith('.nii.gz'):
         img = nib.Nifti1Image(seg, np.eye(4))
         img.to_filename(temp_path)
     elif out_path.endswith('.npy'):
@@ -432,9 +433,6 @@ def load_image(image_path):
     elif image_path.endswith('.nrrd'):
         image, _ = nrrd.read(image_path)
     elif image_path.endswith('.nii') or image_path.endswith('.nii.gz'):
-        # We don't currently use them during training but it's useful to be
-        # able to load nifty files directory to give the user
-        # more convenient segmentation options.
         image = nib.load(image_path)
         image = np.array(image.dataobj)
     return image

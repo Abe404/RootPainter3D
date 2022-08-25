@@ -45,6 +45,7 @@ from nav import NavWidget
 from file_utils import penultimate_fname_with_segmentation
 from file_utils import get_annot_path
 from file_utils import maybe_save_annotation_3d
+from file_utils import set_ext
 from instructions import send_instruction
 from contrast_slider import ContrastSlider
 import im_utils
@@ -348,7 +349,7 @@ class RootPainter(QtWidgets.QMainWindow):
     def get_seg_path(self, fname=None):
         if fname is None:
             fname = self.fname
-        seg_fname = fname.replace('.nrrd', '.nii.gz')  # @TODO: How to handle this with .nii files?
+        seg_fname = set_ext(fname, '.nii.gz')
         # just seg path for current class.
         if hasattr(self, 'classes') and len(self.classes) > 1:
             return os.path.join(self.seg_dir,
@@ -360,7 +361,8 @@ class RootPainter(QtWidgets.QMainWindow):
     def get_train_seg_path(self, fname=None):
         if fname is None:
             fname = self.fname
-        seg_fname = fname.replace('.nrrd', '.nii.gz')  # @TODO: How to handle this with .nii files?
+        seg_fname = set_ext(fname, '.nii.gz')
+
         if hasattr(self, 'classes') and len(self.classes) > 1:
             return os.path.join(self.proj_location,
                                 'train_segmentations',

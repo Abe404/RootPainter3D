@@ -17,6 +17,14 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import os
 import time
 
+
+def get_without_ext(fpath):
+    possible_extensions = ['.nrrd', '.nii.gz', '.nii']
+    for possible_extension in possible_extensions:
+        if fpath.lower().endswith(possible_extension):
+            without_ext = fpath[:len(fpath) - len(possible_extension)]
+            return without_ext
+    
 def ls(dir_path):
     """
     list directory with
