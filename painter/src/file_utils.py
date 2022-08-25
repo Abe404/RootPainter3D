@@ -25,6 +25,24 @@ from skimage.io import imread
 import nibabel as nib
 import im_utils
 
+
+def set_ext(fname, ext):
+    """ change fname so that it's extention is ext.
+       
+        If you are wondering why I don't use os.path.splitext,
+        it's because it doesn't handle extensions with . in them
+        i.e .nii.gz
+    """
+    possible_extensions = ['.nrrd', '.nii.gz', '.nii']
+    for possible_extension in possible_extensions:
+        if fname.lower().endswith(possible_extension):
+            # get the basename without the extension.
+            base_fname = fname[:len(fname) - len(possible_extension)]
+            return base_fname + ext
+
+    # fall back to assuming no . in the extension.
+    return os.path.splitext(fname)[0] + ext
+
 def penultimate_fname_with_segmentation(fnames, seg_dir):
     """
     Go through fnames and return the last one with a segmentation
