@@ -46,7 +46,7 @@ def is_image(fname):
 def load_image(image_path):
     if image_path.endswith('.npy'):
         return np.load(image_path, mmap_mode='c')
-    elif image_path.endswith('.nii.gz'):
+    elif image_path.endswith('.nii') or image_path.endswith('.nii.gz'):
         image = nib.load(image_path)
         image = np.array(image.dataobj)
         image = np.rot90(image, k=3)

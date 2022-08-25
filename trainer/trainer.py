@@ -619,7 +619,7 @@ class Trainer():
         out_paths = []
         if len(classes) > 1:
             for c in classes:
-                out_fname = fname.replace('.nrrd', '.nii.gz') # output to nii.gz regardless of input format.
+                out_fname = fname.replace('.nii', '.nii.gz').replace('.nrrd', '.nii.gz') # output to nii.gz regardless of input format.
                 out_paths.append(os.path.join(seg_dir, c, out_fname))
         else:
             # segment to nifty as they don't get loaded repeatedly in training.
@@ -665,5 +665,5 @@ class Trainer():
             with warnings.catch_warnings():
                 # create a version with alpha channel
                 warnings.simplefilter("ignore")
-                outpath = outpath.replace('.nrrd', '.nii.gz')
+                outpath = outpath.replace('.nii', '.nii.gz').replace('.nrrd', '.nii.gz')
                 save(outpath, seg)

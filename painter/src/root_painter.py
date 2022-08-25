@@ -348,7 +348,7 @@ class RootPainter(QtWidgets.QMainWindow):
     def get_seg_path(self, fname=None):
         if fname is None:
             fname = self.fname
-        seg_fname = fname.replace('.nrrd', '.nii.gz')
+        seg_fname = fname.replace('.nrrd', '.nii.gz')  # @TODO: How to handle this with .nii files?
         # just seg path for current class.
         if hasattr(self, 'classes') and len(self.classes) > 1:
             return os.path.join(self.seg_dir,
@@ -360,7 +360,7 @@ class RootPainter(QtWidgets.QMainWindow):
     def get_train_seg_path(self, fname=None):
         if fname is None:
             fname = self.fname
-        seg_fname = fname.replace('.nrrd', '.nii.gz')
+        seg_fname = fname.replace('.nrrd', '.nii.gz')  # @TODO: How to handle this with .nii files?
         if hasattr(self, 'classes') and len(self.classes) > 1:
             return os.path.join(self.proj_location,
                                 'train_segmentations',
