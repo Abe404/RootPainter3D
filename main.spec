@@ -1,6 +1,6 @@
 #Spec file describing how to build executable for Ubuntu and Windows
 
-#Copyright (C) 2019, 2020 Abraham George Smith
+#Copyright (C) 2022 André Pedersen
 
 #This program is free software: you can redistribute it and/or modify
 #it under the terms of the GNU General Public License as published by
