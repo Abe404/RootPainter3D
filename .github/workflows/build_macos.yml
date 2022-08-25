@@ -31,12 +31,6 @@ jobs:
 
     - name: Make installer
       run: |
-        cd painter/
-        mkdir -p ubuntu_setup/usr/local/bin
-        cp -r ../dist/RootPainter3D ubuntu_setup/usr/local/bin
-        dpkg-deb --build --root-owner-group ubuntu_setup
-        cp -r ubuntu_setup.deb ../dist/RootPainter3D-0.0.1-ubuntu.deb
-
         git clone https://github.com/andreped/quickpkg.git
         quickpkg/quickpkg dist/RootPainter3D.app --output RootPainter3D-0.0.1-macOS.pkg
         cp -r RootPainter3D-0.0.1-macOS.pkg dist/RootPainter3D-0.0.1-macOS.pkg
