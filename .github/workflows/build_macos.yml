@@ -27,7 +27,7 @@ jobs:
         pip install -r painter/requirements.txt
 
     - name: Build software
-      run: pyinstaller --noconfirm --clean main.spec
+      run: pyinstaller --noconfirm --clean main_bundle.spec
 
     - name: Make installer
       run: |
