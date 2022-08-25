@@ -92,6 +92,6 @@ pip install -r requirements.txt
 python src/main.py
 ```
 
-To interactively train a model and annotate images, you will need to add a set of compressed NIfTI images (.nii.gz) to a folder in the datasets folder and then create a project using the client that references this dataset.
+To interactively train a model and annotate images, you will need to add a set of compressed NIfTI images (.nii or .nii.gz) to a folder in the datasets folder and then create a project using the client that references this dataset.
 
 For more details, see [the published article](http://doi.org/10.1002/mp.15353).
