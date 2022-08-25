@@ -133,7 +133,7 @@ def load_image_and_annot_for_seg(dataset_dir, train_annot_dirs, fname):
 
         # it's possible the image has a different extenstion
         # so use glob to get it
-        fname_no_ext = fname.replace('.nii', '').replace('.nii.gz', '').replace('.nrrd', '')
+        fname_no_ext = fname.replace('.nii.gz', '').replace('.nii', '').replace('.nrrd', '')
         image_path_part = os.path.join(dataset_dir, fname_no_ext)
         image_path = glob.glob(image_path_part + '.*')[0]
         image = load_image(image_path)
@@ -220,7 +220,7 @@ def load_train_image_and_annot(dataset_dir, train_seg_dirs, train_annot_dirs):
 
         # it's possible the image has a different extenstion
         # so use glob to get it
-        fname_no_ext = fname.replace('.nii', '').replace('.nii.gz', '').replace('.nrrd', '')
+        fname_no_ext = fname.replace('.nii.gz', '').replace('.nii', '').replace('.nrrd', '')
         image_path_part = os.path.join(dataset_dir, fname_no_ext)
         image_path = glob.glob(image_path_part + '.*')[0]
         image = load_image(image_path)
