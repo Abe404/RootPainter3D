@@ -65,7 +65,7 @@ def penultimate_fname_with_segmentation(fnames, seg_dir):
         seg_fnames += os.listdir(seg_dir)
 
     for fname in fnames:
-        base_fname =  fname.replace('.nrrd', '.nii.gz')
+        base_fname = fname.replace('.nii', '.nii.gz').replace('.nrrd', '.nii.gz')
         
         if base_fname in seg_fnames:
             if last_fname is not None:
@@ -80,7 +80,7 @@ def get_annot_path(fname, train_dir, val_dir):
     train or val annot dirs.
     Otherwise return None
     """
-    fname = fname.replace('.nrrd', '.nii.gz')
+    fname = fname.replace('.nii', '.nii.gz').replace('.nrrd', '.nii.gz')
     train_path = os.path.join(train_dir, fname)
     val_path = os.path.join(val_dir, fname)
     if os.path.isfile(train_path):
@@ -104,7 +104,7 @@ def get_new_annot_target_dir(train_annot_dir, val_annot_dir):
     if num_train_annots == 0 and num_val_annots == 0:
         # save in train directory first 
         return train_annot_dir
-    # otherwise aim to get at least one annotation in train and validation.
+    # otherwise aim to get at least one annotation in train and validation.  @TODO: Strange NBSP encoded message between 'train' and 'and' in PyCharm
     if num_train_annots == 0 and num_val_annots > 0:
         return train_annot_dir
     if num_train_annots > 0 and num_val_annots == 0:
