@@ -62,7 +62,7 @@ exe = EXE(pyz,
           strip=False,
           upx=True,
           console=True,
-          icon="./tmp_dependencies/painter/icons/Icon.ico"
+          # icon="./tmp_dependencies/painter/icons/Icon.ico"
 )
 coll = COLLECT(exe,
                a.binaries,
