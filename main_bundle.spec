@@ -61,7 +61,7 @@ exe = EXE(pyz,
           bootloader_ignore_signals=False,
           strip=False,
           upx=True,
-          console=True,
+          console=False,
           # icon="./tmp_dependencies/painter/icons/Icon.ico"
 )
 coll = COLLECT(exe,
