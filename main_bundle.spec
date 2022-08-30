@@ -76,9 +76,10 @@ coll = COLLECT(exe,
 )
 app = BUNDLE(coll,
              name='RootPainter3D.app',
-             icon="./tmp_dependencies/painter/icons/Icon.ico",
+             icon="./tmp_dependencies/painter/icons/Icon.icns",
              bundle_identifier=None,
              info_plist={
+                'NSRequiresAquaSystemAppearance': 'true',
                 'CFBundleDisplayName': 'RootPainter',
                 'CFBundleExecutable': 'RootPainter',
                 'CFBundleIdentifier': 'RootPainter',
