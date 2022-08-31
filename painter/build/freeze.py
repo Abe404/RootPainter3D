@@ -9,7 +9,7 @@ from settings import Settings
 
 def run_pyinstaller(settings, extra_args=[]):
     app_name = settings.get("app_name")
-    target_dir = os.path.abspath("target")
+    target_dir = os.path.abspath("dist")
     # Use abspath to convert from unix path for windows.
     main_module = os.path.abspath(settings.get("main_module"))
 
@@ -69,7 +69,7 @@ def freeze_windows(settings):
     check_has_cpp_dlls()
     check_has_ucrt_dlls()
 
-    target_dir = os.path.abspath("target")
+    target_dir = os.path.abspath("dist")
     app_name = settings.get("app_name")
     freeze_dir = os.path.join(target_dir, app_name)
     icon_file = os.path.join(os.path.abspath("icons"), "Icon.ico")
