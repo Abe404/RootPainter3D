@@ -31,19 +31,19 @@ def fix_app():
     
     # If you are using Mac, then you will have the following folder after
     # running the fbs freeze command
-    # ./target/RootPainter.app
-    is_mac = os.path.isdir('./target/RootPainter3D.app')
-    is_linux = os.path.exists('./target/RootPainter3D/RootPainter3D')
+    # ./dist/RootPainter.app
+    is_mac = os.path.isdir('./dist/RootPainter3D.app')
+    is_linux = os.path.exists('./dist/RootPainter3D/RootPainter3D')
     
     # or the following folder on windows
-    is_windows = os.path.exists('target\RootPainter3D\RootPainter3D.exe')
+    is_windows = os.path.exists('dist\RootPainter3D\RootPainter3D.exe')
    
     print('is_windows', is_windows)
     print('is_mac', is_mac)
     print('is_linux', is_linux)
 
     # If you try to run RootPainter on the command line like so:
-    # ./target/RootPainter.app/Contents/MacOS/RootPainter 
+    # ./dist/RootPainter.app/Contents/MacOS/RootPainter 
     # Then you may receive the following error:
     # File "skimage/feature/orb_cy.pyx", line 12, in init skimage.feature.orb_cy
     # ModuleNotFoundError: No module named 'skimage.feature._orb_descriptor_positions'
@@ -55,13 +55,13 @@ def fix_app():
     assert os.path.isdir(env_dir), f'Could not find env folder {env_dir}'
     if is_mac:
         site_packages_dir = os.path.join(env_dir, 'lib/python3.10/site-packages')
-        build_dir = './target/RootPainter3D.app/Contents/MacOS/'
+        build_dir = './dist/RootPainter3D.app/Contents/MacOS/'
     elif is_windows:
         site_packages_dir = os.path.join(env_dir, 'Lib', 'site-packages')
-        build_dir = './target/RootPainter3D'
+        build_dir = './dist/RootPainter3D'
     elif is_linux:
         site_packages_dir = os.path.join(env_dir, 'lib/python3.10/site-packages')
-        build_dir = './target/RootPainter3D'
+        build_dir = './dist/RootPainter3D'
 
 
     # Copy missing orb files
