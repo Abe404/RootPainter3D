@@ -23,16 +23,14 @@ os.environ['LC_CTYPE'] = "en_US.UTF-8"
 os.environ['LANG'] = "en_US.UTF-8"
 
 from numpy import loadtxt
+import numpy as np
 import shutil
 
 block_cipher = None
 
 # fix hidden imports
 hidden_imports = loadtxt("./painter/requirements.txt", comments="#", delimiter=",", unpack=False, dtype=str)
-
-for i in ['pywt._extensions._cwt', 'skimage.io._plugins.pil_plugin', 'pkg_resources.py2_warn']:
-    hidden_imports.append(i)
-
+hidden_imports = np.append(hidden_imports, ['pywt._extensions._cwt', 'skimage.io._plugins.pil_plugin', 'pkg_resources.py2_warn'])
 hidden_imports = [x.lower() for x in hidden_imports]
 
 # copy dependencies - to get icons
