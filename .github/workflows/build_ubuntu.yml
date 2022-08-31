@@ -55,5 +55,5 @@ jobs:
       uses: actions/upload-artifact@v2
       with:
         name: Package
-        path: ${{github.workspace}}/dist/RootPainter3D-*
+        path: ${{github.workspace}}/painter/dist/RootPainter3D-*
         if-no-files-found: error
