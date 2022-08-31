@@ -102,7 +102,8 @@ For more details, see [the published article](http://doi.org/10.1002/mp.15353).
 ## Contribution Guidelines
 
 * Contibutions are welcome
-* They should be made via pull requests
+* It's required to read the two published RootPainter papers first, to understand what the system does and how it works. I suggest starting with https://nph.onlinelibrary.wiley.com/doi/full/10.1111/nph.18387 and then moving onto https://arxiv.org/abs/2106.11942
+* Contributions should be made via pull requests
 * The GPL header should be clearly present at the top of any new files. For an example see: https://github.com/Abe404/RootPainter3D/blob/master/trainer/metrics.py
 * The copyright header should include the current year and yourself or 'Anonymous Contributor' if you wish to remain somewhat anonymous to future readers of the code.
 
