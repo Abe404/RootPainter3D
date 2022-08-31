@@ -41,7 +41,7 @@ jobs:
         pip install -r painter/requirements.txt
 
     - name: Build software
-      run: pyinstaller --noconfirm --clean main.spec
+      run: cd painter; python build/freeze.py #pyinstaller --noconfirm --clean main.spec
 
     - name: Make installer
       run: |
