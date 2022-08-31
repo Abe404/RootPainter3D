@@ -29,7 +29,9 @@ block_cipher = None
 
 # fix hidden imports
 hidden_imports = loadtxt("./painter/requirements.txt", comments="#", delimiter=",", unpack=False, dtype=str)
-hidden_imports += ['pywt._extensions._cwt', 'skimage.io._plugins.pil_plugin', 'pkg_resources.py2_warn']
+
+hidden_imports = hidden_imports + ['pywt._extensions._cwt', 'skimage.io._plugins.pil_plugin', 'pkg_resources.py2_warn']
+
 hidden_imports = [x.lower() for x in hidden_imports]
 
 # copy dependencies - to get icons
