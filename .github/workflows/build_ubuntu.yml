@@ -47,9 +47,9 @@ jobs:
       run: |
         cd painter/
         mkdir -p ubuntu_setup/usr/local/bin
-        cp -r ../dist/RootPainter3D ubuntu_setup/usr/local/bin
+        cp -r target/RootPainter3D ubuntu_setup/usr/local/bin
         dpkg-deb --build --root-owner-group ubuntu_setup
-        cp -r ubuntu_setup.deb ../dist/RootPainter3D-0.0.1-ubuntu.deb
+        cp -r ubuntu_setup.deb target/RootPainter3D-0.0.1-ubuntu.deb
 
     - name: Upload package
       uses: actions/upload-artifact@v2
