@@ -61,6 +61,7 @@ def load_image(image_path):
         image = image[::-1, :, ::-1]
     else:
         raise Exception(f"Unhandled file ending {image_path}")
+    image = image.astype(np.int)
     return image
 
 
