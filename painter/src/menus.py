@@ -152,7 +152,7 @@ def add_extras_menu(main_window, menu_bar, project_open=False):
     extras_menu = menu_bar.addMenu('Extras')
 
     if project_open:
-        extend_dataset_btn = QtWidgets.QAction(QtGui.QIcon('missing.png'), 'Extend dataset', self)
+        extend_dataset_btn = QtWidgets.QAction(QtGui.QIcon('missing.png'), 'Extend dataset', main_window)
         def update_dataset_after_check():
             was_extended, file_names = check_extend_dataset(main_window,
                                                             main_window.dataset_dir,
