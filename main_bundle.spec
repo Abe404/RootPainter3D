@@ -29,6 +29,7 @@ block_cipher = None
 
 # fix hidden imports
 hidden_imports = loadtxt("./painter/requirements.txt", comments="#", delimiter=",", unpack=False, dtype=str)
+hidden_imports = np.append(hidden_imports, ['pywt._extensions._cwt', 'skimage.io._plugins.pil_plugin', 'pkg_resources.py2_warn'])
 hidden_imports = [x.lower() for x in hidden_imports]
 
 # copy dependencies - to get icons
@@ -74,18 +75,20 @@ coll = COLLECT(exe,
                upx_exclude=[],
                name='RootPainter3D'
 )
+
 app = BUNDLE(coll,
              name='RootPainter3D.app',
              icon="./tmp_dependencies/painter/icons/Icon.icns",
              bundle_identifier=None,
              info_plist={
                 'NSRequiresAquaSystemAppearance': 'true',
-                'CFBundleDisplayName': 'RootPainter',
-                'CFBundleExecutable': 'RootPainter',
-                'CFBundleIdentifier': 'RootPainter',
+                'CFBundleDisplayName': 'RootPainter3D',
+                'CFBundleExecutable': 'RootPainter3D',
+                'CFBundleIdentifier': 'RootPainter3D',
                 'CFBundleInfoDictionaryVersion': '6.0',
-                'CFBundleName': 'RootPainter',
+                'CFBundleName': 'RootPainter3D',
+                'CFBundleVersion': '0.0.1',
                 'CFBundlePackageType': 'APPL',
                 'LSBackgroundOnly': 'false',
-            },
+            }
 )
