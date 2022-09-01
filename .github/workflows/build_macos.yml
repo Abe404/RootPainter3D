@@ -50,7 +50,7 @@ jobs:
     - name: Make installer
       run: |
         cd painter
-        create-dmg --no-internet-enable --hdiutil-verbose --volname RootPainter3D \
+        create-dmg --no-internet-enable --hdiutil-verbose --volname dist/RootPainter3D \
                    --app-drop-link 170 10 --icon dist/RootPainter3D.app "0" "10" \
                    dist/RootPainter3D.dmg dist/RootPainter3D.app
         cp -r dist/RootPainter3D.dmg dist/RootPainter3D-0.0.1-macOS.dmg
