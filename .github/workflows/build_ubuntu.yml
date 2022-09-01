@@ -44,7 +44,6 @@ jobs:
         pip install -r requirements.txt
 
     - name: Build software
-
       run: cd painter; source env/bin/activate; python build/freeze.py; python install_fixes.py #pyinstaller --noconfirm --clean main.spec
 
     - name: Make installer
