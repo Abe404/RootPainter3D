@@ -54,7 +54,7 @@ def fix_app():
     env_dir = './env'
     assert os.path.isdir(env_dir), f'Could not find env folder {env_dir}'
     if is_mac:
-        site_packages_dir = os.path.join(env_dir, 'lib/python3.10/site-packages')
+        site_packages_dir = os.path.join(env_dir, 'lib/python3.9/site-packages')
         build_dir = './dist/RootPainter3D.app/Contents/MacOS/'
     elif is_windows:
         site_packages_dir = os.path.join(env_dir, 'Lib', 'site-packages')

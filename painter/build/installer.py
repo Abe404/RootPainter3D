@@ -74,7 +74,7 @@ def create_installer_mac(settings):
 
     app_name = settings.get("app_name")
     dmg_name = f"{app_name}.dmg"
-    target_dir = os.path.abspath("target")
+    target_dir = os.path.abspath("dist")
     dest = os.path.join(target_dir, dmg_name)
     icon_filename = f"{app_name}.app"
     freeze_dir = os.path.join(target_dir, icon_filename)
