@@ -40,19 +40,24 @@ jobs:
       run: |
         cd painter
         python -m pip install --upgrade pip
+        python -m venv env
+        source env/bin/activate
         pip install pyinstaller==5.3
         pip install -r requirements.txt
         brew install create-dmg
 
     - name: Build software
-      run: pyinstaller --noconfirm --clean main_bundle.spec
+      run: |
+        cd painter
+        source env/bin/activate
+        python build/freeze.py
+        python install_fixes.py
 
     - name: Make installer
       run: |
         cd painter
-        create-dmg --no-internet-enable --hdiutil-verbose --volname RootPainter3D \
-                   --app-drop-link 170 10 --icon RootPainter3D.app 0 10 \
-                   dist/RootPainter3D.dmg dist/RootPainter3D.app
+        source env/bin/activate
+        python build/installer.py
         cp -r dist/RootPainter3D.dmg dist/RootPainter3D-0.0.1-macOS.dmg
 
     - name: Upload package
