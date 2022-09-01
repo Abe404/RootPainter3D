@@ -36,14 +36,7 @@ jobs:
 
 
     - name: Install dependencies
-      run: |
-        cd painter
-        python -m pip install --upgrade pip
-        python -m venv env
-        source env/bin/activate
-        pip install pyinstaller==5.3
-        pip install -r requirements.txt
-        brew install create-dmg
+        cd painter; python -m pip install --upgrade pip; python -m venv env; source env/bin/activate; pip install pyinstaller==5.3; pip install -r requirements.txt; brew install create-dmg
 
     - name: Build software
       run: cd painter; source env/bin/activate; python build/freeze.py; python install_fixes.py
