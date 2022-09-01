@@ -23,6 +23,7 @@ os.environ['LC_CTYPE'] = "en_US.UTF-8"
 os.environ['LANG'] = "en_US.UTF-8"
 
 from numpy import loadtxt
+import numpy as np
 import shutil
 
 block_cipher = None
