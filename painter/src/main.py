@@ -24,6 +24,14 @@ import traceback
 from PyQt5 import QtWidgets
 from root_painter import RootPainter
 
+# macOS relevant
+os.environ['LC_CTYPE'] = "en_US.UTF-8"
+os.environ['LANG'] = "en_US.UTF-8"
+
+# macOS Big Sur related: https://stackoverflow.com/questions/64818879/is-there-any-solution-regarding-to-pyqt-library-doesnt-work-in-mac-os-big-sur/64856281
+os.environ['QT_MAC_WANTS_LAYER'] = '1'
+
+
 def init_root_painter():
     app = QtWidgets.QApplication(sys.argv)
     settings_path = os.path.join(Path.home(), 'root_painter_settings.json')
