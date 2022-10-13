@@ -60,7 +60,7 @@ def add_edit_menu(window, im_viewer, menu_bar, skip_fill=True):
 
     # Save annotation
     save_annotation_action = QtWidgets.QAction(QtGui.QIcon(""), "Save annotation", window)
-    save_annotation_action.setShortcut("Ctrl+Shift+Z")
+    save_annotation_action.setShortcut("Ctrl+Shift+S")
     edit_menu.addAction(save_annotation_action)
     save_annotation_action.triggered.connect(im_viewer.parent.save_annotation)
 
