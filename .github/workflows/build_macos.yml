@@ -1,4 +1,6 @@
 # Copyright (C) 2022 André Pedersen
+# Copyright (C) 2022 Abraham George Smith
+
 
 #This program is free software: you can redistribute it and/or modify
 #it under the terms of the GNU General Public License as published by
@@ -29,30 +31,33 @@ jobs:
 
     steps:
     - uses: actions/checkout@v1
-    - name: Set up Python 3.7
+    - name: Set up Python '3.9.5'
       uses: actions/setup-python@v2
       with:
-        python-version: 3.7
+        python-version: '3.9.5'
 
     - name: Install dependencies
       run: |
+        cd painter
         python -m pip install --upgrade pip
-        pip install pyinstaller==5.0
-        pip install torch six tensorboard
-        pip install -r painter/requirements.txt
+        pip install pyinstaller==5.3
+        pip install -r requirements.txt
+        brew install create-dmg
 
     - name: Build software
       run: pyinstaller --noconfirm --clean main_bundle.spec
 
     - name: Make installer
       run: |
-        git clone https://github.com/andreped/quickpkg.git
-        quickpkg/quickpkg dist/RootPainter3D.app --output RootPainter3D-0.0.1-macOS.pkg
-        cp -r RootPainter3D-0.0.1-macOS.pkg dist/RootPainter3D-0.0.1-macOS.pkg
+        cd painter
+        create-dmg --no-internet-enable --hdiutil-verbose --volname dist/RootPainter3D \
+                   --app-drop-link 170 10 --icon dist/RootPainter3D.app "0" "10" \
+                   dist/RootPainter3D.dmg dist/RootPainter3D.app
+        cp -r dist/RootPainter3D.dmg dist/RootPainter3D-0.0.1-macOS.dmg
 
     - name: Upload package
       uses: actions/upload-artifact@v2
       with:
         name: Package
-        path: ${{github.workspace}}/dist/RootPainter3D-*
+        path: ${{github.workspace}}/painter/dist/RootPainter3D-*
         if-no-files-found: error

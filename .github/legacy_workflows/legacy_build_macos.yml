@@ -1,4 +1,6 @@
 # Copyright (C) 2022 André Pedersen
+# Copyright (C) 2022 Abraham George Smith
+
 
 #This program is free software: you can redistribute it and/or modify
 #it under the terms of the GNU General Public License as published by
@@ -13,7 +15,7 @@
 #You should have received a copy of the GNU General Public License
 #along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-name: Build Ubuntu
+name: Build macOS
 
 on:
   push:
@@ -25,14 +27,14 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: macos-10.15
 
     steps:
     - uses: actions/checkout@v1
-    - name: Set up Python '3.10'
+    - name: Set up Python '3.9.5'
       uses: actions/setup-python@v2
       with:
-        python-version: '3.10'
+        python-version: '3.9.5'
 
     - name: Install dependencies
       run: |
@@ -42,17 +44,21 @@ jobs:
         source env/bin/activate
         pip install pyinstaller==5.3
         pip install -r requirements.txt
+        brew install create-dmg
 
     - name: Build software
-      run: cd painter; source env/bin/activate; python build/freeze.py; python install_fixes.py #pyinstaller --noconfirm --clean main.spec
+      run: |
+        cd painter
+        source env/bin/activate
+        python build/freeze.py
+        python install_fixes.py
 
     - name: Make installer
       run: |
-        cd painter/
-        mkdir -p ubuntu_setup/usr/local/bin
-        cp -r dist/RootPainter3D ubuntu_setup/usr/local/bin
-        dpkg-deb --build --root-owner-group ubuntu_setup
-        cp -r ubuntu_setup.deb dist/RootPainter3D-0.0.1-ubuntu.deb
+        cd painter
+        source env/bin/activate
+        python build/installer.py
+        cp -r dist/RootPainter3D.dmg dist/RootPainter3D-0.0.1-macOS.dmg
 
     - name: Upload package
       uses: actions/upload-artifact@v2
