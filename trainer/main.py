@@ -52,8 +52,8 @@ if __name__ == '__main__':
     if settings and 'auto_complete' in settings and settings['auto_complete']:
         ip = settings['server_ip']
         port = settings['server_port']
-        trainer = Trainer(sync_dir, ip, port, max_workers=args.max_workers)
+        trainer = Trainer(sync_dir, ip, port, max_workers=args.maxworkers)
     else:
-        trainer = Trainer(sync_dir, max_workers=args.max_workers)
+        trainer = Trainer(sync_dir, max_workers=args.maxworkers)
 
     trainer.main_loop()
