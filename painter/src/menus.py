@@ -6,6 +6,7 @@ from PyQt5 import QtCore
 from PyQt5.QtCore import Qt
 from segment_folder import SegmentFolderWidget
 from segment import segment_full_image
+from convert_seg import ConvertSegWidget, convert_seg_to_annot
 
 def add_network_menu(window, menu_bar):
     """ Not in use right now as training happens automatically when the 
@@ -150,6 +151,20 @@ def add_help_menu(self,  menu_bar):
 
 def add_extras_menu(main_window, menu_bar, project_open=False):
     extras_menu = menu_bar.addMenu('Extras')
+
+
+    def show_conv_to_annot():
+        """ show window to convert segmentations
+            to annotations"""
+        main_window.convert_to_annot_widget = ConvertSegWidget(
+            convert_seg_to_annot, 'annotations')
+        main_window.convert_to_annot_widget.show()
+
+    conv_to_annot_btn = QtWidgets.QAction(QtGui.QIcon('missing.png'),
+                            'Convert segmentations to annotations',
+                             main_window)
+    conv_to_annot_btn.triggered.connect(show_conv_to_annot)
+    extras_menu.addAction(conv_to_annot_btn)
 
     if project_open:
         extend_dataset_btn = QtWidgets.QAction(QtGui.QIcon('missing.png'), 'Extend dataset', main_window)
