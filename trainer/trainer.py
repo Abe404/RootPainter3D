@@ -79,7 +79,8 @@ class Trainer():
         self.annot_mtimes = []
         self.msg_dir = None
         self.epochs_without_progress = 0
-        self.training_restart = False
+        self.restarts_enabled = False
+        self.training_restart = False # is training current in a restart period
         self.restart_best_val_dice = 0
         
         self.in_w = None
@@ -485,7 +486,8 @@ class Trainer():
             self.log(message)
             self.training = False
             self.write_message(message)
-            self.restart_training()
+            if self.restarts_enabled:
+                self.restart_training()
     
     def restart_training(self):
         print('Restarting training from scratch')
