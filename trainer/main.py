@@ -30,6 +30,11 @@ if __name__ == '__main__':
     parser.add_argument('--syncdir',
                         help=('location of directory where data is'
                               ' synced between the client and server'))
+    parser.add_argument('--maxworkers',
+                    type=int,
+                    default=12,
+                    help=('maximum number of workers used for the dataloader'))
+
     settings_path = os.path.join(Path.home(), 'root_painter_settings.json')
    
     settings = None
@@ -47,8 +52,8 @@ if __name__ == '__main__':
     if settings and 'auto_complete' in settings and settings['auto_complete']:
         ip = settings['server_ip']
         port = settings['server_port']
-        trainer = Trainer(sync_dir, ip, port)
+        trainer = Trainer(sync_dir, ip, port, max_workers=args.maxworkers)
     else:
-        trainer = Trainer(sync_dir)
+        trainer = Trainer(sync_dir, max_workers=args.maxworkers)
 
     trainer.main_loop()

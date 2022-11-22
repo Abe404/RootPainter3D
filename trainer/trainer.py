@@ -55,7 +55,7 @@ from file_utils import ls
 
 class Trainer():
 
-    def __init__(self, sync_dir, ip=None, port=None):
+    def __init__(self, sync_dir, ip=None, port=None, max_workers=12):
         self.sync_dir = sync_dir
         self.ip = ip
         self.port = port
@@ -70,6 +70,9 @@ class Trainer():
         self.model = None
         self.first_loop = True
         self.batch_size = 4 
+        self.num_workers = min(multiprocessing.cpu_count(), max_workers)
+        print(self.num_workers, 'workers will be assigned for data loaders')
+
         self.optimizer = None
         self.val_tile_refs = []
         # used to check for updates
@@ -282,7 +285,7 @@ class Trainer():
             torch.set_grad_enabled(False)
             loader = DataLoader(dataset, self.batch_size * 2, shuffle=True,
                                 collate_fn=data_utils.collate_fn,
-                                num_workers=min(multiprocessing.cpu_count(), 12),
+                                num_workers=self.num_workers,
                                 drop_last=False, pin_memory=True)
         elif mode == 'train':
             dataset = RPDataset(self.train_config['train_annot_dirs'],
@@ -298,7 +301,7 @@ class Trainer():
             torch.set_grad_enabled(True)
             loader = DataLoader(dataset, self.batch_size, shuffle=False,
                                 collate_fn=data_utils.collate_fn,
-                                num_workers=min(multiprocessing.cpu_count(), 12),
+                                num_workers=self.num_workers,
                                 drop_last=False, pin_memory=True)
             model.train()
         else:
