@@ -114,8 +114,8 @@ class SliceNav(QtWidgets.QWidget):
 
     def down_slice(self):
         self.slice_idx = self.slice_idx - 1
-        if self.slice_idx < 1:
-            self.slice_idx = 1
+        if self.slice_idx < 0:
+            self.slice_idx = 0
         self.slider.setValue(self.slice_idx)
         self.update_text()
         self.debounce.start()
