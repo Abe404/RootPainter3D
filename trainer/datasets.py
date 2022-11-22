@@ -35,7 +35,8 @@ def rnd():
 
 class RPDataset(Dataset):
     def __init__(self, annot_dirs, train_seg_dirs, dataset_dir, in_w, out_w,
-                 in_d, out_d, mode, tile_refs=None, length=None):
+                 in_d, out_d, mode, tile_refs=None,
+                 use_seg_in_training=True, length=None):
         """
         in_w and out_w are the tile size in pixels
 
@@ -61,6 +62,7 @@ class RPDataset(Dataset):
         self.tile_refs = tile_refs
         # other wise length will return the number of items
         self.length = length
+        self.use_seg = use_seg_in_training
 
     def __len__(self):
         if self.mode == 'val':
@@ -140,7 +142,8 @@ class RPDataset(Dataset):
 
         (image, annots, segs, classes, fname) = load_train_image_and_annot(self.dataset_dir,
                                                                            self.train_seg_dirs,
-                                                                           self.annot_dirs)
+                                                                           self.annot_dirs,
+                                                                           self.use_seg)
         annot_tiles, seg_tiles, im_tile = self.get_random_tile_3d(annots, segs, image, fname)
 
         im_tile = img_as_float32(im_tile)

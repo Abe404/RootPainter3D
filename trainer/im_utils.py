@@ -153,7 +153,7 @@ def load_image_and_annot_for_seg(dataset_dir, train_annot_dirs, fname):
 
 
 
-def load_train_image_and_annot(dataset_dir, train_seg_dirs, train_annot_dirs):
+def load_train_image_and_annot(dataset_dir, train_seg_dirs, train_annot_dirs, use_seg):
     """
     returns
         image (np.array) - image data
@@ -210,7 +210,7 @@ def load_train_image_and_annot(dataset_dir, train_seg_dirs, train_annot_dirs):
             annots.append(annot)
 
             seg_path = os.path.join(seg_dir, fname)
-            if os.path.isfile(seg_path):
+            if use_seg and os.path.isfile(seg_path):
                 seg = load_image(seg_path)
                 seg = np.pad(seg, ((17,17), (17,17), (17, 17)), mode='constant')
             else:

@@ -85,6 +85,9 @@ class Trainer():
         self.in_w = None
         self.out_w = None
 
+
+        self.use_seg_in_training = False
+
         # approx 30 minutes
         self.max_epochs_without_progress = 60
         # These can be trigged by data sent from client
@@ -297,6 +300,7 @@ class Trainer():
                                 self.train_config['out_d'],
                                 'train',
                                 val_tile_refs,
+                                self.use_seg_in_training,
                                 length=length)
             torch.set_grad_enabled(True)
             loader = DataLoader(dataset, self.batch_size, shuffle=False,
@@ -316,7 +320,6 @@ class Trainer():
         loss_sum = 0
         for step, (batch_im_tiles, batch_fg_tiles,
                    batch_bg_tiles, batch_seg_tiles, batch_classes) in enumerate(loader):
-
             self.check_for_instructions()
             batch_im_tiles = torch.from_numpy(np.array(batch_im_tiles)).cuda()
             self.optimizer.zero_grad()
@@ -350,6 +353,7 @@ class Trainer():
 
             outputs = model(model_input)
 
+           
             (batch_loss, batch_tps, batch_tns,
              batch_fps, batch_fns) = get_batch_loss(
                  outputs, batch_fg_tiles, batch_bg_tiles, batch_seg_tiles,
