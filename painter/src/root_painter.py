@@ -804,4 +804,5 @@ class RootPainter(QtWidgets.QMainWindow):
                 else:
                     # otherwise if it was saved to validation then start training
                     # as we now believe there is training and validation data.
-                    self.start_training()
+                    pass
+                    #self.start_training()
