@@ -125,6 +125,7 @@ class RootPainter(QtWidgets.QMainWindow):
         return self.proj_location / 'annotations' / 'val'
 
     def open_project(self, proj_file_path):
+        self.proj_file_path = proj_file_path # required for the extend dataset functionality.
         # extract json
         with open(proj_file_path, 'r') as json_file:
             settings = json.load(json_file)

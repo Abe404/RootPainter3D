@@ -1,4 +1,7 @@
 from functools import partial
+import os
+import random
+import json
 
 from PyQt5 import QtWidgets
 from PyQt5 import QtGui
@@ -8,6 +11,7 @@ from segment_folder import SegmentFolderWidget
 from segment import segment_full_image
 from convert_seg import ConvertSegWidget, convert_seg_to_annot
 from random_split import RandomSplitWidget
+import im_utils
 
 def add_network_menu(window, menu_bar):
     """ Not in use right now as training happens automatically when the 
@@ -194,7 +198,7 @@ def add_extras_menu(main_window, menu_bar, project_open=False):
 
 def check_extend_dataset(main_window, dataset_dir, prev_fnames, proj_file_path):
 
-    all_image_names = [f for f in os.listdir(dataset_dir) if is_image(f)]
+    all_image_names = [f for f in os.listdir(dataset_dir) if im_utils.is_image(f)]
 
     new_image_names = [f for f in all_image_names if f not in prev_fnames]
 
@@ -207,7 +211,7 @@ def check_extend_dataset(main_window, dataset_dir, prev_fnames, proj_file_path):
 
     if button_reply == QtWidgets.QMessageBox.Yes:
         # shuffle the new file names
-        shuffle(new_image_names)
+        random.shuffle(new_image_names)
         # load the project json for reading and writing
         settings = json.load(open(proj_file_path, 'r'))
         # read the file_names
