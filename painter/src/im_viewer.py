@@ -392,7 +392,8 @@ class ImViewer(QtWidgets.QWidget):
                                            self.mode)
             self.seg_pixmap = im_utils.seg_slice_to_pixmap(seg_slice)
             self.scene.seg_pixmap = self.seg_pixmap
-
+            # update outline as this depends on segmentation.
+            self.update_outline()
         else:
             # otherwise use blank
             self.seg_pixmap = QtGui.QPixmap(self.im_width, self.im_height)
