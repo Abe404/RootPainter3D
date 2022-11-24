@@ -10,6 +10,7 @@ from PyQt5.QtCore import Qt
 from segment_folder import SegmentFolderWidget
 from segment import segment_full_image
 from convert_seg import ConvertSegWidget, convert_seg_to_annot
+from extract_image_props import ExtractSegImagePropsWidget
 from random_split import RandomSplitWidget
 import im_utils
 
@@ -323,3 +324,17 @@ def add_view_menu(window, im_viewer, menu_bar):
     view_menu.addAction(zoom_out_btn)
 
     return view_menu
+
+def add_measurements_menu(window, menu_bar):
+    measurements_menu = menu_bar.addMenu('Measurements')
+
+    seg_image_props_btn = QtWidgets.QAction(QtGui.QIcon('missing.png'),
+                                         'Extract segmentation image properties', window)
+    def show_extract_seg_image_props():
+        window.extract_seg_image_props_widget = ExtractSegImagePropsWidget()
+        window.extract_seg_image_props_widget.show()
+    seg_image_props_btn.triggered.connect(show_extract_seg_image_props)
+    measurements_menu.addAction(seg_image_props_btn)
+    
+
+

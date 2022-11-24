@@ -447,8 +447,10 @@ class RootPainter(QtWidgets.QMainWindow):
         self.project_menu.addAction(self.create_project_action)
         self.create_project_action.triggered.connect(self.show_create_project_widget)
 
+
         menus.add_help_menu(self, menu_bar)
         menus.add_extras_menu(self, menu_bar)
+        menus.add_measurements_menu(self, menu_bar)
 
         # Add project btns to open window (so it shows something useful)
         project_btn_widget = QtWidgets.QWidget()
@@ -730,12 +732,16 @@ class RootPainter(QtWidgets.QMainWindow):
         view_menu = menus.add_view_menu(self, self.axial_viewer, self.menu_bar)
         self.add_contrast_setting_options(view_menu)
 
+
         menus.add_network_menu(self, self.menu_bar)
+
+
         menus.add_windows_menu(self)
         if len(self.classes) > 1:
             menus.add_class_menu(self, self.menu_bar)
         menus.add_help_menu(self, self.menu_bar)
         menus.add_extras_menu(self, menu_bar, project_open=True)
+        menus.add_measurements_menu(self, menu_bar)
 
 
     def add_contrast_setting_options(self, view_menu):
