@@ -21,6 +21,7 @@ from PyQt5 import QtWidgets
 from PyQt5 import QtCore
 from progress_widget import BaseProgressWidget
 import im_utils
+import numpy as np
 
 
 class Thread(QtCore.QThread):
@@ -40,7 +41,8 @@ class Thread(QtCore.QThread):
         # if the file already exists then delete it.
         if os.path.isfile(self.csv_path):
             os.remove(self.csv_path)
-
+    
+        all_props = []
         with open(self.csv_path, 'w+')  as csvfile:
             writer = csv.writer(csvfile, delimiter=',',
                                 quotechar='|', quoting=csv.QUOTE_MINIMAL)
@@ -50,7 +52,28 @@ class Thread(QtCore.QThread):
                 self.progress_change.emit(i+1, len(seg_fnames))
                 # headers allow the output options to be detected.
                 props = self.extractor(self.segment_dir, fname, self.headers)
+                all_props.append(props)
                 writer.writerow(props)
+
+        # write a summary file with .summary on the end.
+        with open(os.path.splitext(self.csv_path)[0] + '.summary.csv', 'w+')  as csvfile:
+            writer = csv.writer(csvfile, delimiter=',',
+                                quotechar='|', quoting=csv.QUOTE_MINIMAL)
+            summary_headers = []
+            results = []
+            for i, h in enumerate(self.headers):
+                if h != 'fname':
+                    summary_headers.append(f'{h}_mean')
+                    results.append(np.mean([p[i] for p in all_props]))
+                    summary_headers.append(f'{h}_min')
+                    results.append(np.min([p[i] for p in all_props]))
+                    summary_headers.append(f'{h}_max')
+                    results.append(np.max([p[i] for p in all_props]))
+                    summary_headers.append(f'{h}_std')
+                    results.append(np.std([p[i] for p in all_props]))
+            # Write the column headers
+            writer.writerow(summary_headers)
+            writer.writerow(results)
             self.done.emit()
 
 
