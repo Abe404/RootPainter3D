@@ -11,6 +11,7 @@ from segment_folder import SegmentFolderWidget
 from segment import segment_full_image
 from convert_seg import ConvertSegWidget, convert_seg_to_annot
 from extract_image_props import ExtractSegImagePropsWidget
+from compute_metrics import ExtractSegMetricsWidget
 from random_split import RandomSplitWidget
 import im_utils
 
@@ -46,6 +47,7 @@ def add_network_menu(window, menu_bar):
                                                          window.instruction_dir,
                                                          window.classes)
         window.segment_folder_widget.show()
+
     segment_folder_btn.triggered.connect(show_segment_folder)
     network_menu.addAction(segment_folder_btn)
 
@@ -180,6 +182,8 @@ def add_extras_menu(main_window, menu_bar, project_open=False):
                              main_window)
     random_split_btn.triggered.connect(show_random_split)
     extras_menu.addAction(random_split_btn)
+
+
 
 
     if project_open:
@@ -337,4 +341,10 @@ def add_measurements_menu(window, menu_bar):
     measurements_menu.addAction(seg_image_props_btn)
     
 
+    def show_compute_metrics():
+        window.extract_seg_metrics_widget = ExtractSegMetricsWidget()
+        window.extract_seg_metrics_widget.show()
 
+    compute_metrics_btn = QtWidgets.QAction(QtGui.QIcon('missing.png'), 'Compute metrics', window)
+    compute_metrics_btn.triggered.connect(show_compute_metrics)
+    measurements_menu.addAction(compute_metrics_btn)
