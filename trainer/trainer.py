@@ -658,7 +658,7 @@ class Trainer():
         print('segment image, input shape = ', im.shape, datetime.now())
 
         seg_in_w, seg_out_w = self.get_in_w_and_out_w_for_image(im, in_w, out_w) 
-        segmented = ensemble_segment_3d(model_paths, im, fname, self.batch_size,
+        segmented = ensemble_segment_3d(model_paths, im, self.batch_size,
                                         seg_in_w, seg_out_w, in_d, out_d, classes)
 
         print(f'ensemble segment {fname}, dur', round(time.time() - seg_start, 2))
