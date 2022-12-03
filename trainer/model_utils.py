@@ -191,6 +191,7 @@ def save_if_better(model_dir, cur_model, prev_model_path, cur_dice, prev_dice):
         return True
     return False
 
+
 def save_model(model_dir, cur_model, prev_model_path):
     prev_model_fname = os.path.basename(prev_model_path)
     prev_model_num = int(prev_model_fname.split('_')[0])
@@ -202,7 +203,7 @@ def save_model(model_dir, cur_model, prev_model_path):
     torch.save(cur_model.state_dict(), model_path)
 
 
-def ensemble_segment_3d(model_paths, image, fname, batch_size, in_w, out_w, in_d,
+def ensemble_segment_3d(model_paths, image, batch_size, in_w, out_w, in_d,
                         out_d, classes):
     """ Average predictions from each model specified in model_paths """
     t = time.time()
