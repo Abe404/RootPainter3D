@@ -203,7 +203,7 @@ def save_model(model_dir, cur_model, prev_model_path):
     torch.save(cur_model.state_dict(), model_path)
 
 
-def ensemble_segment_3d(model_paths, image, batch_size, in_w, out_w, in_d,
+def pad_then_segment_3d(model_paths, image, batch_size, in_w, out_w, in_d,
                         out_d, classes):
     """ Average predictions from each model specified in model_paths """
     t = time.time()
