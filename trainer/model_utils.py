@@ -203,12 +203,16 @@ def save_model(model_dir, cur_model, prev_model_path):
     torch.save(cur_model.state_dict(), model_path)
 
 
-def pad_then_segment_3d(model_paths, image, batch_size, in_w, out_w, in_d,
-                        out_d, classes):
+def load_model_then_segment_3d(model_paths, image, batch_size,
+                               in_w, out_w, in_d, out_d, classes):
+    cnn = load_model(model_paths[0], classes)
+    return pad_then_segment_3d(cnn, image, batch_size,
+                               in_w, out_w, in_d, out_d)
+
+def pad_then_segment_3d(cnn, image, batch_size, in_w, out_w, in_d, out_d):
     """ Average predictions from each model specified in model_paths """
     t = time.time()
     input_image_shape = image.shape
-    cnn = load_model(model_paths[0], classes)
     in_patch_shape = (in_d, in_w, in_w)
     out_patch_shape = (out_d, out_w, out_w)
 
@@ -216,13 +220,13 @@ def pad_then_segment_3d(model_paths, image, batch_size, in_w, out_w, in_d,
     height_diff = in_patch_shape[1] - out_patch_shape[1]
     width_diff = in_patch_shape[2] - out_patch_shape[2]
 
-    print('input image shape (before pad)= ', image.shape)
+    print('input image shape (before pad) = ', image.shape)
     # pad so seg will be size of input image
     image = im_utils.pad_3d(image, width_diff//2, depth_diff//2,
                             mode='reflect', constant_values=0)
 
     # segment returns a series of prediction maps. one for each class.
-    print('input image shape (after pad)= ', image.shape)
+    print('input image shape (after pad) = ', image.shape)
     pred_maps = segment_3d(cnn, image, batch_size, in_patch_shape, out_patch_shape)
 
     print('pred maps[0].shape = ', pred_maps[0].shape)

@@ -39,7 +39,7 @@ from instructions import fix_config_paths
 
 from datasets import RPDataset
 from metrics import get_metrics, get_metrics_str, get_metric_csv_row
-from model_utils import pad_then_segment_3d
+from model_utils import load_model_then_segment_3d
 from model_utils import create_first_model_with_random_weights
 from model_utils import random_model
 import model_utils
@@ -658,8 +658,8 @@ class Trainer():
         print('segment image, input shape = ', im.shape, datetime.now())
 
         seg_in_w, seg_out_w = self.get_in_w_and_out_w_for_image(im, in_w, out_w) 
-        segmented = pad_then_segment_3d(model_paths, im, self.batch_size,
-                                        seg_in_w, seg_out_w, in_d, out_d, classes)
+        segmented = load_model_then_segment_3d(model_paths, im, self.batch_size,
+                                               seg_in_w, seg_out_w, in_d, out_d, classes)
 
         print(f'segment {fname}, dur', round(time.time() - seg_start, 2))
         
