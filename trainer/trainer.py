@@ -278,13 +278,14 @@ class Trainer():
 
         if mode == 'val':
             dataset = RPDataset(self.train_config['val_annot_dirs'],
-                                None,
+                                None, # train_seg_dirs
                                 self.train_config['dataset_dir'],
+                                # only specifying w and d as h is always same as w
                                 self.train_config['in_w'],
                                 self.train_config['out_w'],
                                 self.train_config['in_d'],
                                 self.train_config['out_d'],
-                                'val',
+                                'val', # FIXME: mode should be an enum.
                                 val_tile_refs)
             torch.set_grad_enabled(False)
             loader = DataLoader(dataset, self.batch_size * 2, shuffle=True,
@@ -319,8 +320,12 @@ class Trainer():
         tns = []
         fns = []
         loss_sum = 0
+        # FIXME: use the term patch or tile but not both.
+        #        probably use the term patch as it better relates to 3D
         for step, (batch_im_tiles, batch_fg_tiles,
-                   batch_bg_tiles, batch_seg_tiles, batch_classes) in enumerate(loader):
+                   batch_bg_tiles, batch_ignore_masks,
+                   batch_seg_tiles, batch_classes) in enumerate(loader):
+
             self.check_for_instructions()
             batch_im_tiles = torch.from_numpy(np.array(batch_im_tiles)).cuda()
             self.optimizer.zero_grad()
@@ -357,8 +362,8 @@ class Trainer():
            
             (batch_loss, batch_tps, batch_tns,
              batch_fps, batch_fns) = get_batch_loss(
-                 outputs, batch_fg_tiles, batch_bg_tiles, batch_seg_tiles,
-                 #outputs, batch_fg_tiles, batch_bg_tiles,
+                 outputs, batch_fg_tiles, batch_bg_tiles, 
+                 batch_ignore_masks, batch_seg_tiles,
                  batch_classes, self.train_config['classes'],
                  compute_loss=(mode=='train'))
 
@@ -434,6 +439,12 @@ class Trainer():
             save_model(model_dir, self.model, prev_path)
             was_saved = True
         else:
+
+            print('val tile refs', self.val_tile_refs)
+
+            for v in self.val_tile_refs:
+                print('cord:', v[1], 'sum = ', np.sum(v[3]))
+
             # for current model get errors for all tiles in the validation set.
             epoch_result = self.one_epoch(copy.deepcopy(self.model), 'val', self.val_tile_refs)
             if not epoch_result:
@@ -442,7 +453,12 @@ class Trainer():
                 # to proceed with validation.
                 return 
             (tps, fps, tns, fns) = epoch_result
-        
+            print('epoch result')
+            print('tps', np.sum(tps))
+            print('fps', np.sum(fps))
+            print('tns', np.sum(tns))
+            print('fns', np.sum(fns))
+            print('total voxels (tps + fps + tns + fns) = ', np.sum(tps+fps+tns+fns))
             cur_m = get_metrics(np.sum(tps), np.sum(fps), np.sum(tns), np.sum(fns))
             self.log_metrics('cur_val', cur_m)
 

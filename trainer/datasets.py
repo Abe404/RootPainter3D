@@ -153,6 +153,10 @@ class RPDataset(Dataset):
         # need list of foregrounds and masks for all tiles.
         foregrounds = []
         backgrounds = []
+        # ignore_masks prevent coordinates from being added to the metrics computation twice.
+        # They tell us which region of the image prediction has already been stored in the metrics
+        # and thus should not be added to the metrics again.
+        ignore_masks = [] 
         for annot_tile in annot_tiles:
             #annot tile shape is  (2, 18, 194, 194)
             foreground = np.array(annot_tile)[1]
@@ -163,23 +167,29 @@ class RPDataset(Dataset):
             background = background.astype(np.int64)
             background = torch.from_numpy(background)
             backgrounds.append(background)
+            ignore_masks.append(np.zeros(background.shape))
 
         im_tile = im_tile.astype(np.float32)
         
         # add dimension for input channel
         im_tile = np.expand_dims(im_tile, axis=0)
         assert len(backgrounds) == len(seg_tiles)
-        return im_tile, foregrounds, backgrounds, seg_tiles, classes
+        return im_tile, foregrounds, backgrounds, ignore_masks, seg_tiles, classes
        
     def get_val_item(self, tile_ref):
         return self.get_tile_from_ref_3d(tile_ref)
 
     def get_tile_from_ref_3d(self, tile_ref):
-        """ return image tile, annotation tile and mask
-            for a given file name ans location specified
-            in x,y,z relative to the annotation """
+        """ return image tile, annotation tile and ignore mask
+            for a given file name and location specified
+            in x,y,z relative to the full image annotation """
 
-        fname, (tile_x, tile_y, tile_z), _, _ = tile_ref
+
+        # TODO: One concern is that we could end up with a lot of these tile_refs. 
+        #       is adding the ignore_mask going to introduce significant memory usage?
+        #       please investigate.
+
+        fname, (tile_x, tile_y, tile_z), ignore_mask, _, _ = tile_ref
         image_path = os.path.join(self.dataset_dir, fname)
         # image could have nrrd extension
         if not os.path.isfile(image_path):
@@ -235,7 +245,7 @@ class RPDataset(Dataset):
  
         assert im_tile.shape == (self.in_d, self.in_w, self.in_w), (
             f" shape is {im_tile.shape}")
-        
+        ignore_masks = [] 
         for annot_tile in annot_tiles:
             foreground = np.array(annot_tile)[1]
             background = np.array(annot_tile)[0]
@@ -245,10 +255,17 @@ class RPDataset(Dataset):
             background = background.astype(np.int64)
             background = torch.from_numpy(background)
             backgrounds.append(background)
+            ignore_masks.append(ignore_mask)
+            print('ignore mask shape = ', ignore_mask.shape)
+            print('bg shape = ', background.shape)
+            print('ignore mask shape = ', ignore_mask.reshape(-1).shape)
+            print('bg shape = ', background.reshape(-1).shape)
+
 
         im_tile = img_as_float32(im_tile)
         im_tile = im_utils.normalize_tile(im_tile)
         im_tile = im_tile.astype(np.float32)
         im_tile = np.expand_dims(im_tile, axis=0)
         segs = [None] * len(backgrounds)
-        return im_tile, foregrounds, backgrounds, segs, classes
+        
+        return im_tile, foregrounds, backgrounds, ignore_masks, segs, classes

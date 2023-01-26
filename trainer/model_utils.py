@@ -35,14 +35,17 @@ cached_model_path = None
 use_fake_cnn = False
 
 def fake_cnn(tiles_for_gpu):
+    raise Exception("no longer consistent with real cnn")
     """ Useful debug function for checking tile layout etc """
     output = []
     for t in tiles_for_gpu:
         v = t[0, 17:-17, 17:-17, 17:-17].data.cpu().numpy()
         v_mean = np.mean(v)
         output.append((v > v_mean).astype(np.int8))
-    return np.array(output)
- 
+    return torch.tensor(np.array(output))
+
+
+
 def get_in_w_out_w_pairs():
     # matching pairs of input/output sizes for specific unet used
     # 36 to 228 in incrememnts of 16 (sorted large to small)
@@ -76,7 +79,7 @@ def allocate_net(in_w, out_w, num_classes):
             batch_classes.append([f'c_{c}' for c in range(num_classes)])
         (batch_loss, _, _,
          _, _) = get_batch_loss(
-             outputs, batch_fg_tiles, batch_bg_tiles,
+             outputs, batch_fg_tiles, batch_bg_tiles, None,
              [[None for c in range(num_classes)] for t in batch_fg_tiles], # segmentation excluded from loss for now.
              batch_classes,
              [f'c_{c}' for c in range(num_classes)],
@@ -322,8 +325,10 @@ def segment_3d(cnn, image, batch_size, in_tile_shape, out_tile_shape, auto_compl
         if auto_complete_enabled:
             # add channels for annotation if auto_complete enabled
             tiles_for_gpu = F.pad(tiles_for_gpu, (0, 0, 0, 0, 0, 0, 0, 2), 'constant', 0)
+
         # tiles shape after padding torch.Size([4, 3, 52, 228, 228])
         outputs = cnn(tiles_for_gpu).detach().cpu()
+
         # bg channel index for each class in network output.
         class_idxs = [x * 2 for x in range(outputs.shape[1] // 2)]
         

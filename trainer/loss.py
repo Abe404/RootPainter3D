@@ -49,7 +49,7 @@ def combined_loss(predictions, labels):
     return 0.3 * cross_entropy(predictions, labels)
 
 
-def get_batch_loss(outputs, batch_fg_tiles, batch_bg_tiles, batch_seg_tiles,
+def get_batch_loss(outputs, batch_fg_tiles, batch_bg_tiles, batch_ignore_masks, batch_seg_tiles,
                    batch_classes, project_classes,
                    compute_loss):
     """
@@ -65,10 +65,8 @@ def get_batch_loss(outputs, batch_fg_tiles, batch_bg_tiles, batch_seg_tiles,
             tns - true negatives for batch
             fps - false positives for batch
             fns - false negatives for batch
-            defined_total - number of pixels with annotation defined.
     """
 
-    defined_total = 0
     class_losses = [] # loss for each class
 
     instance_tps = [0 for _ in range(outputs.shape[0])]
@@ -102,11 +100,18 @@ def get_batch_loss(outputs, batch_fg_tiles, batch_bg_tiles, batch_seg_tiles,
                     # foregorund and background channels
                     fg_tile = batch_fg_tiles[im_idx][i][17:-17,17:-17,17:-17]
                     bg_tile = batch_bg_tiles[im_idx][i][17:-17,17:-17,17:-17]
-                    mask = fg_tile + bg_tile
-                    class_idx = project_classes.index(classname) * 2 # posiion in output.
-                    class_output = outputs[im_idx][class_idx:class_idx+2]
-    
+                    if batch_ignore_masks is not None:
+                        ignore_mask = batch_ignore_masks[im_idx][i] # some regions are ignored, as they overlap with other patches
+                    else:
+                        ignore_mask = np.zeros(bg_tile.shape) # dont ignore anything unless mask is specified.
 
+                    mask = fg_tile + bg_tile # all locations where annotation is defined in the annotation masks
+                    class_idx = project_classes.index(classname) * 2 # posiion in output.
+
+                    # FIXME have single channel output for each class
+                    # Right now there is two output channels per class, 
+                    # with one for bg and one for fg
+                    class_output = outputs[im_idx][class_idx:class_idx+2] 
 
                     mask = mask.cuda()
                     fg_tile = fg_tile.cuda()
@@ -116,20 +121,28 @@ def get_batch_loss(outputs, batch_fg_tiles, batch_bg_tiles, batch_seg_tiles,
                     softmaxed = softmax(class_output, 0)
                     fg_prob = softmaxed[1]
 
-
                     assert fg_prob.shape == mask.shape, (
                         f"fg_prob shape {fg_prob.shape} and mask shape {mask.shape}"
                         f"should be equal")
-                    fg_prob = fg_prob * mask
-                    class_pred = fg_prob > 0.5   
+
+                    # ignore (set to 0) any regions of the predicted where annotation is not defined
+                    fg_prob = fg_prob * mask 
+                    class_pred = fg_prob > 0.5
                     class_pred = class_pred[mask > 0]
                     fg = fg_tile[mask > 0]
-                    
-                    instance_tps[im_idx] += torch.sum((fg == 1) * (class_pred == 1)).cpu().numpy()
-                    instance_tns[im_idx] += torch.sum((fg == 0) * (class_pred == 0)).cpu().numpy()
-                    instance_fps[im_idx] += torch.sum((fg == 0) * (class_pred == 1)).cpu().numpy()
-                    instance_fns[im_idx] += torch.sum((fg == 1) * (class_pred == 0)).cpu().numpy()
 
+                    if ignore_mask is not None:
+                        print('ignore mask shape in loss', ignore_mask.shape)
+                        ignore_mask = torch.tensor(ignore_mask.reshape(-1)).cuda()
+                    else:
+                        ignore_mask = torch.zeros(fg.shape).cuda()
+                    print('ignore mask and fg shape should match')
+                    print('ignore mask shape = ', ignore_mask.shape)
+                    print('fp shape = ', fg.shape)
+                    instance_tps[im_idx] += torch.sum((fg == 1) * (class_pred == 1) * (ignore_mask == 0)).cpu().numpy()
+                    instance_tns[im_idx] += torch.sum((fg == 0) * (class_pred == 0) * (ignore_mask == 0)).cpu().numpy()
+                    instance_fps[im_idx] += torch.sum((fg == 0) * (class_pred == 1) * (ignore_mask == 0)).cpu().numpy()
+                    instance_fns[im_idx] += torch.sum((fg == 1) * (class_pred == 0) * (ignore_mask == 0)).cpu().numpy()
                     masks.append(mask)
                     fg_tiles.append(fg_tile)
                     class_outputs.append(class_output)
@@ -153,7 +166,6 @@ def get_batch_loss(outputs, batch_fg_tiles, batch_bg_tiles, batch_seg_tiles,
             class_outputs = torch.stack(class_outputs)
                         
             if len(seg_class_outputs):
-
                 seg_class_outputs = torch.stack(seg_class_outputs)
                 seg_class_outputs_softmaxed = softmax(seg_class_outputs, 1)
                 seg_foreground_probs = seg_class_outputs_softmaxed[:, 1]

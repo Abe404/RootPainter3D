@@ -260,6 +260,7 @@ def get_val_tile_refs(annot_dirs, prev_tile_refs, out_shape):
         Each element of tile_refs is a list that includes:
             * image file name (string) - for loading the image from disk during validation
             * coord (x int, y int) - for addressing the location within the padded image
+            * ignore_mask (regions to ignore because they overlap with another patch)
             * annot_mtime (int)
                 The image annotation may get updated by the user at any time.
                 We can use the mtime to check for this.
@@ -303,7 +304,7 @@ def get_val_tile_refs(annot_dirs, prev_tile_refs, out_shape):
     for annot_dir, annot_fname in zip(all_dirs, all_annot_fnames):
         # get existing coord refs for this image
         prev_refs = [r for r in prev_tile_refs if r[0] == annot_fname]
-        prev_mtimes = [r[2] for r in prev_tile_refs if r[0] == annot_fname]
+        prev_mtimes = [r[3] for r in prev_tile_refs if r[0] == annot_fname]
         need_new_refs = False
         # if no refs for this image then check again
         if not prev_refs:
@@ -335,7 +336,7 @@ def get_val_tile_refs_for_annot_3d(annot_dir, annot_fname, out_shape):
     """
     Each element of tile_refs is a list that includes:
         * image file name (string) - for loading the image from disk during validation
-        * coord (x int, y int) - for addressing the location within the padded image
+        * coord (x int, y int, z int) - for addressing the location within the padded image
         * annot_mtime (int)
         * cached performance for this tile with previous (current best) model.
           Initialized to None but otherwise [tp, fp, tn, fn]
@@ -347,15 +348,25 @@ def get_val_tile_refs_for_annot_3d(annot_dir, annot_fname, out_shape):
     new_file_refs = []
     annot_shape = annot.shape[1:]
     coords = get_coords_3d(annot_shape, out_tile_shape=out_shape)
-
     mtime = os.path.getmtime(annot_path)
+
+    # which regions to ignore because they already exist in another patch
+    full_ignore_mask = np.zeros(list(annot.shape)[1:]) 
+
     for (x, y, z) in coords:
         annot_tile = annot[:, z:z+out_shape[0], y:y+out_shape[1], x:x+out_shape[2]]
+        ignore_mask = np.array(full_ignore_mask[z:z+out_shape[0],
+                                                y:y+out_shape[1],
+                                                x:x+out_shape[2]])
+
         # we only want to validate on annotation tiles
         # which have annotation information.
         if np.any(annot_tile):
             # fname, [x, y, z], mtime, prev model metrics i.e [tp, tn, fp, fn] or None
-            new_file_refs.append([annot_fname, [x, y, z], mtime, None])
+            new_file_refs.append([annot_fname, [x, y, z], ignore_mask, mtime, None])
+            # this region should get ignored in future tiles from this image.
+            full_ignore_mask[z:z+out_shape[0], y:y+out_shape[1], x:x+out_shape[2]] = 1
+
     return new_file_refs
 
 
