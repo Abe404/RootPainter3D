@@ -116,7 +116,7 @@ class Trainer():
                     train_epoch_length = max(64, 2 * len(self.val_tile_refs))
                 else:
                     train_epoch_length = 128
-                epoch_result = self.one_epoch(self.model, 'train', length=train_epoch_length)
+                epoch_result = self.train_epoch(self.model, length=train_epoch_length)
                 if epoch_result:
                     (tps, fps, tns, fns) = epoch_result
                     train_m = get_metrics(np.sum(tps), np.sum(fps), np.sum(tns), np.sum(fns))
@@ -441,7 +441,7 @@ class Trainer():
                 print('cord:', v[1], 'sum = ', np.sum(v[3]))
 
             # for current model get errors for all tiles in the validation set.
-            epoch_result = self.one_epoch(copy.deepcopy(self.model), 'val', self.val_tile_refs)
+            epoch_result = self.val_epoch(copy.deepcopy(self.model), self.val_tile_refs)
             if not epoch_result:
                 # if we didn't get anything back then it means the
                 # dataset did not contain any annotations so no need
@@ -595,7 +595,7 @@ class Trainer():
         # then compute the errors for these tile refs
         if refs_to_compute:
             
-            (tps, fps, tns, fns) = self.one_epoch(prev_model, 'val', refs_to_compute)
+            (tps, fps, tns, fns) = self.val_epoch(prev_model, refs_to_compute)
             assert len(tps) == len(fps) == len(tns) == len(fns) == len(refs_to_compute)
 
             # now go through and assign the errors to the appropriate tile refs.
