@@ -365,3 +365,15 @@ def segment_3d(cnn, image, batch_size, in_tile_shape, out_tile_shape, auto_compl
         class_pred_maps.append(reconstructed)
 
     return class_pred_maps
+
+
+def validation_step(im_patches, fg_patches, bg_patches,
+                    batch_classes, project_classes):
+    outputs = model(im_patches)
+    (loss, tps, tns,
+     fps, fns) = get_batch_loss(
+         outputs, fg_patches, bg_patches, 
+         ignore_masks, seg_patches,
+         batch_classes, project_classes,
+         compute_loss=False)
+     return tps, fps, tns, fns

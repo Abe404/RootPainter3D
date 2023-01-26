@@ -46,8 +46,7 @@ import model_utils
 from model_utils import save_if_better, save_model
 from metrics import metrics_from_val_tile_refs
 import data_utils
-#import patch_seg
-
+from patch_seg import handle_patch_update_in_epoch_step
 from im_utils import is_image, load_image, save_then_move, save
 import im_utils
 from file_utils import ls
@@ -111,7 +110,7 @@ class Trainer():
             if self.training:
                 # can take a while so checks for
                 # new instructions are also made inside
-                self.val_tile_refs = self.get_new_val_tiles_refs()
+                self.val_tile_refs = self.get_new_val_patches_refs()
                 if self.val_tile_refs:
                     # selected as it leads to training taking around 5x validation time
                     train_epoch_length = max(64, 2 * len(self.val_tile_refs))
@@ -266,7 +265,52 @@ class Trainer():
                 found_train_annot = True
         return found_train_annot 
 
-    def one_epoch(self, model, mode='train', val_tile_refs=None, length=None):
+
+    def val_epoch(self, model, val_tile_refs):
+        dataset = RPDataset(self.train_config['val_annot_dirs'],
+                            None, # train_seg_dirs
+                            self.train_config['dataset_dir'],
+                            # only specifying w and d as h is always same as w
+                            self.train_config['in_w'],
+                            self.train_config['out_w'],
+                            self.train_config['in_d'],
+                            self.train_config['out_d'],
+                            'val', # FIXME: mode should be an enum.
+                            val_tile_refs)
+        loader = DataLoader(dataset, self.batch_size * 2, shuffle=True,
+                            collate_fn=data_utils.collate_fn,
+                            num_workers=self.num_workers,
+                            drop_last=False, pin_memory=True)
+        tps = []
+        fps = []
+        tns = []
+        fns = []
+        loss_sum = 0
+        for step, (batch_im_patches, batch_fg_patches,
+                   batch_bg_patches, batch_ignore_masks,
+                   batch_seg_patches, batch_classes) in enumerate(loader):
+            self.check_for_instructions()
+            batch_im_patches = torch.from_numpy(np.array(batch_im_patches)).cuda()
+            if self.patch_update_enabled:
+                batch_im_patches = handle_patch_update_in_epoch_step(batch_im_patches, mode='val')
+            (batch_tps, batch_fps,
+             batch_tns, batch_fns) = validation_step(
+                batch_im_patches, batch_fg_patches,
+                batch_bg_patches, batch_classes, self.train_config['classes'])
+            tps += batch_tps
+            fps += batch_fps
+            tns += batch_tns
+            fns += batch_fns
+            self.check_for_instructions() # could update training parameter
+            if not self.training: # in this context we consider validation part of training.
+                return # a way to stop validation quickly if user specifies
+        duration = round(time.time() - epoch_start, 3)
+        print(f'Validation epoch duration', duration,
+               'time per instance', round((time.time() - epoch_start) / len(tps), 3))
+        return [tps, fps, tns, fns]
+
+
+    def train_epoch(self, model, length=None):
         if not self.train_annotation_exists():
             # no training until data ready
             return False
@@ -276,45 +320,25 @@ class Trainer():
             self.write_message('Training started')
             self.log('Starting Training')
 
-        if mode == 'val':
-            dataset = RPDataset(self.train_config['val_annot_dirs'],
-                                None, # train_seg_dirs
-                                self.train_config['dataset_dir'],
-                                # only specifying w and d as h is always same as w
-                                self.train_config['in_w'],
-                                self.train_config['out_w'],
-                                self.train_config['in_d'],
-                                self.train_config['out_d'],
-                                'val', # FIXME: mode should be an enum.
-                                val_tile_refs)
-            torch.set_grad_enabled(False)
-            loader = DataLoader(dataset, self.batch_size * 2, shuffle=True,
-                                collate_fn=data_utils.collate_fn,
-                                num_workers=self.num_workers,
-                                drop_last=False, pin_memory=True)
-        elif mode == 'train':
-            dataset = RPDataset(self.train_config['train_annot_dirs'],
-                                self.train_config['train_seg_dirs'],
-                                self.train_config['dataset_dir'],
-                                self.train_config['in_w'],
-                                self.train_config['out_w'],
-                                self.train_config['in_d'],
-                                self.train_config['out_d'],
-                                'train',
-                                val_tile_refs,
-                                self.use_seg_in_training,
-                                length=length)
-            torch.set_grad_enabled(True)
-            loader = DataLoader(dataset, self.batch_size, shuffle=False,
-                                collate_fn=data_utils.collate_fn,
-                                num_workers=self.num_workers,
-                                drop_last=False, pin_memory=True)
-            model.train()
-        else:
-            raise Exception(f"Invalid mode: {mode}")
-
+        torch.set_grad_enabled(False)
+        dataset = RPDataset(self.train_config['train_annot_dirs'],
+                            self.train_config['train_seg_dirs'],
+                            self.train_config['dataset_dir'],
+                            self.train_config['in_w'],
+                            self.train_config['out_w'],
+                            self.train_config['in_d'],
+                            self.train_config['out_d'],
+                            'train',
+                            val_tile_refs,
+                            self.use_seg_in_training,
+                            length=length)
+        torch.set_grad_enabled(True)
+        loader = DataLoader(dataset, self.batch_size, shuffle=False,
+                            collate_fn=data_utils.collate_fn,
+                            num_workers=self.num_workers,
+                            drop_last=False, pin_memory=True)
+        model.train()
         epoch_start = time.time()
-
         tps = []
         fps = []
         tns = []
@@ -322,48 +346,22 @@ class Trainer():
         loss_sum = 0
         # FIXME: use the term patch or tile but not both.
         #        probably use the term patch as it better relates to 3D
-        for step, (batch_im_tiles, batch_fg_tiles,
-                   batch_bg_tiles, batch_ignore_masks,
-                   batch_seg_tiles, batch_classes) in enumerate(loader):
+        for step, (batch_im_patches, batch_fg_patches,
+                   batch_bg_patches, batch_ignore_masks,
+                   batch_seg_patches, batch_classes) in enumerate(loader):
 
             self.check_for_instructions()
-            batch_im_tiles = torch.from_numpy(np.array(batch_im_tiles)).cuda()
+            batch_im_patches = torch.from_numpy(np.array(batch_im_patches)).cuda()
             self.optimizer.zero_grad()
-        
-            # padd channels to allow annotation input (or not)
-            # l,r, l,r, but from end to start    w  w  h  h  d  d, c, c, b, b
+            
             if self.patch_update_enabled:
-                model_input = F.pad(batch_im_tiles, (0, 0, 0, 0, 0, 0, 0, 2), 'constant', 0)
-            else:
-                model_input = batch_im_tiles
-    
-            # model_input[:, 0] is the input image
-            # model_input[:, 1] is fg
-            # model_input[:, 2] is bg
-            if self.patch_update_enabled and mode == 'train':
-                for i, (fg_tiles, bg_tiles) in enumerate(zip(batch_fg_tiles, batch_bg_tiles)):
-                    # if it's trianing then with 50% chance 
-                    # add the annotations to the model input
-                    # Validation should not have access to the annotations.
-                    if random.random() > 0.5:
-                        # go through fg tiles and bg_tiles for each batch item
-                        # in this case we know there is always 1 bg and 1 fg tile.
-                        # at random add the annotation slice
-                        for slice_idx in range(fg_tiles[0].shape[0]):
-                            if torch.any(fg_tiles[0][slice_idx]) or torch.any(bg_tiles[0][slice_idx]):
-                                # each slice with annotation is included with 50 percent probability.
-                                # This allows the network to learn how to use the annotation to improve predictions
-                                if random.random() > 0.5: 
-                                    model_input[i, 1, slice_idx] = fg_tiles[0][slice_idx]
-                                    model_input[i, 2, slice_idx] = bg_tiles[0][slice_idx]
+                batch_im_patches = handle_patch_update_in_epoch_step(batch_im_patches, 'train')
 
             outputs = model(model_input)
-
-           
             (batch_loss, batch_tps, batch_tns,
              batch_fps, batch_fns) = get_batch_loss(
-                 outputs, batch_fg_tiles, batch_bg_tiles, 
-                 batch_ignore_masks, batch_seg_tiles,
+                 outputs, batch_fg_patches, batch_bg_patches, 
+                 batch_ignore_masks, batch_seg_patches,
                  batch_classes, self.train_config['classes'],
                  compute_loss=(mode=='train'))
 
@@ -372,16 +370,14 @@ class Trainer():
             tns += batch_tns
             fns += batch_fns
 
-            if mode == 'train':
-                loss_sum += batch_loss.item() # float
-                batch_loss.backward()
-                self.optimizer.step()
+            loss_sum += batch_loss.item() # float
+            batch_loss.backward()
+            self.optimizer.step()
 
-            if mode == 'train':
-                sys.stdout.write(f"{mode} {(step+1) * self.batch_size}/"
-                                 f"{len(loader.dataset)} "
-                                 f" loss={round(batch_loss.item(), 3)} \r")
-                sys.stdout.flush()
+            sys.stdout.write(f"{mode} {(step+1) * self.batch_size}/"
+                             f"{len(loader.dataset)} "
+                             f" loss={round(batch_loss.item(), 3)} \r")
+            sys.stdout.flush()
 
             self.check_for_instructions() # could update training parameter
             if not self.training: # in this context we consider validation part of training.
@@ -390,7 +386,6 @@ class Trainer():
         duration = round(time.time() - epoch_start, 3)
         print(f'{mode} epoch duration', duration,
               'time per instance', round((time.time() - epoch_start) / len(tps), 3))
-
         return [tps, fps, tns, fns]
 
     def assign_metrics_to_refs(self, tps, fps, tns, fns):

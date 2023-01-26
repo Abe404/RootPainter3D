@@ -27,7 +27,6 @@ from pathlib import Path
 import threading
 
 
-
 import rp_annot as rpa
 from skimage import img_as_float32
 import numpy as np
@@ -190,3 +189,39 @@ def segment_patch(segment_config, annot_patch, conn):
     conn.sendall(compressed)
     conn.sendall(b'end')
     print('time to segment patch and transfer', time.time() - start)
+
+
+
+
+def handle_patch_update_in_epoch_step(batch_im_patches, mode):
+    assert mode in ['train', 'val'], f'unexptected mode {mode}'
+    # padd channels to allow annotation input (or not)
+    # l,r, l,r, but from end to start    w  w  h  h  d  d, c, c, b, b
+    model_input = F.pad(batch_im_patches, (0, 0, 0, 0, 0, 0, 0, 2), 'constant', 0)
+
+    # model_input[:, 0] is the input image
+    # model_input[:, 1] is fg
+    # model_input[:, 2] is bg
+    if mode == 'train':
+        for i, (fg_patches, bg_patches) in enumerate(zip(batch_fg_patches, batch_bg_patches)):
+            # if it's trianing then with 50% chance 
+            # add the annotations to the model input
+            # Validation should not have access to the annotations.
+            if random.random() > 0.5:
+                # go through fg patches and bg_patches for each batch item
+                # in this case we know there is always 1 bg and 1 fg tile.
+                # at random add the annotation slice
+                for slice_idx in range(fg_patches[0].shape[0]):
+                    if torch.any(fg_patches[0][slice_idx]) or torch.any(bg_patches[0][slice_idx]):
+                        # each slice with annotation is included with 50 percent probability.
+                        # This allows the network to learn how to use the annotation to improve predictions
+                        if random.random() > 0.5: 
+                            model_input[i, 1, slice_idx] = fg_patches[0][slice_idx]
+                            model_input[i, 2, slice_idx] = bg_tiles[0][slice_idx]
+    return model_input
+
+
+
+
+
+

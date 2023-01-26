@@ -36,10 +36,7 @@ def test_segmentation_001():
     print('pred maps[0].shape = ', pred_maps[0].shape)
 
 
-
-def test_validation():
-    # implement a very simple validation function.
-    # it will go through all images in the validation set and get their dice.
-    pass 
+def test_validation_computes_returns_metrics_accurately(): 
+    pass
 
 
