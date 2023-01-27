@@ -21,6 +21,12 @@ class PatchRef:
     """
     mtime: int # when was the corresponding annotation modified
 
+    # ignore_mask (regions to ignore because they overlap with another patch)
+    # numpy array saying which voxels should be ignored when computing metrics
+    # because these voxels exist in another overlapping patch.
+    ignore_mask: np.ndarray 
+ 
+
     # These metrics are the cached performance for this patch 
     # with previous (current best) model.
     # Initialized to None but otherwise [tp, fp, tn, fn]
@@ -31,11 +37,7 @@ class PatchRef:
     # FIXME: Could ignore_mask be a list of coordinates describing a cuboid rather than 
     #        a likely memory intensive exaustive list of voxels?
  
-    # ignore_mask (regions to ignore because they overlap with another patch)
-    # numpy array saying which voxels should be ignored when computing metrics
-    # because these voxels exist in another overlapping patch.
-    ignore_mask: np.ndarray 
- 
+
     def has_metrics(self):
         return self.fp is not None
  
