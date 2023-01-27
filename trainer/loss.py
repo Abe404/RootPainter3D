@@ -49,7 +49,8 @@ def combined_loss(predictions, labels):
     return 0.3 * cross_entropy(predictions, labels)
 
 
-def get_batch_loss(outputs, batch_fg_tiles, batch_bg_tiles, batch_ignore_masks, batch_seg_tiles,
+def get_batch_loss(outputs, batch_fg_tiles, batch_bg_tiles,
+                   batch_ignore_masks, batch_seg_tiles,
                    batch_classes, project_classes,
                    compute_loss):
     """
@@ -115,7 +116,7 @@ def get_batch_loss(outputs, batch_fg_tiles, batch_bg_tiles, batch_ignore_masks, 
 
                     mask = mask.cuda()
                     fg_tile = fg_tile.cuda()
-
+                    
                     # I want to get tps, tns, fps and fns 
                     # from fg_tile, mask, class_outputs
                     softmaxed = softmax(class_output, 0)
@@ -132,22 +133,24 @@ def get_batch_loss(outputs, batch_fg_tiles, batch_bg_tiles, batch_ignore_masks, 
                     fg = fg_tile[mask > 0]
 
                     if ignore_mask is not None:
-                        print('ignore mask shape in loss', ignore_mask.shape)
                         ignore_mask = torch.tensor(ignore_mask.reshape(-1)).cuda()
                     else:
                         ignore_mask = torch.zeros(fg.shape).cuda()
-                    print('ignore mask and fg shape should match')
-                    print('ignore mask shape = ', ignore_mask.shape)
-                    print('fp shape = ', fg.shape)
-                    instance_tps[im_idx] += torch.sum((fg == 1) * (class_pred == 1) * (ignore_mask == 0)).cpu().numpy()
-                    instance_tns[im_idx] += torch.sum((fg == 0) * (class_pred == 0) * (ignore_mask == 0)).cpu().numpy()
-                    instance_fps[im_idx] += torch.sum((fg == 0) * (class_pred == 1) * (ignore_mask == 0)).cpu().numpy()
-                    instance_fns[im_idx] += torch.sum((fg == 1) * (class_pred == 0) * (ignore_mask == 0)).cpu().numpy()
+#                     instance_tps[im_idx] += torch.sum((fg == 1) * (class_pred == 1) * (ignore_mask == 0)).cpu().numpy()
+#                     instance_tns[im_idx] += torch.sum((fg == 0) * (class_pred == 0) * (ignore_mask == 0)).cpu().numpy()
+#                     instance_fps[im_idx] += torch.sum((fg == 0) * (class_pred == 1) * (ignore_mask == 0)).cpu().numpy()
+#                     instance_fns[im_idx] += torch.sum((fg == 1) * (class_pred == 0) * (ignore_mask == 0)).cpu().numpy()
+                    instance_tps[im_idx] += torch.sum((fg == 1) * (class_pred == 1)).cpu().numpy()
+                    instance_tns[im_idx] += torch.sum((fg == 0) * (class_pred == 0)).cpu().numpy()
+                    instance_fps[im_idx] += torch.sum((fg == 0) * (class_pred == 1)).cpu().numpy()
+                    instance_fns[im_idx] += torch.sum((fg == 1) * (class_pred == 0)).cpu().numpy()
                     masks.append(mask)
+
                     fg_tiles.append(fg_tile)
                     class_outputs.append(class_output)
-
-                    seg_tile = batch_seg_tiles[im_idx][i]
+                    seg_tile = None
+                    if batch_seg_tiles is not None:
+                        seg_tile = batch_seg_tiles[im_idx][i]
                     if seg_tile is not None:
                         seg_tile = torch.from_numpy(seg_tile[17:-17,17:-17,17:-17]).cuda()
                         # for this purpose we ensure segmentation never disagrees with annotation.
