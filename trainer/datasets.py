@@ -188,8 +188,8 @@ class RPDataset(Dataset):
         # TODO: One concern is that we could end up with a lot of these tile_refs. 
         #       is adding the ignore_mask going to introduce significant memory usage?
         #       please investigate.
-
-        fname, (tile_x, tile_y, tile_z), ignore_mask, _, _ = tile_ref
+        
+        fname, (tile_x, tile_y, tile_z), _, _, ignore_mask = tile_ref
         image_path = os.path.join(self.dataset_dir, fname)
         # image could have nrrd extension
         if not os.path.isfile(image_path):
