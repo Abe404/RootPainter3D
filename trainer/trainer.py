@@ -331,7 +331,7 @@ class Trainer():
                             self.train_config['in_d'],
                             self.train_config['out_d'],
                             'train',
-                            val_tile_refs,
+                            None,
                             self.use_seg_in_training,
                             length=length)
         torch.set_grad_enabled(True)
