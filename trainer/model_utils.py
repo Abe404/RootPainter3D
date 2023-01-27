@@ -50,7 +50,6 @@ def get_in_w_out_w_pairs():
     # matching pairs of input/output sizes for specific unet used
     # 36 to 228 in incrememnts of 16 (sorted large to small)
     in_w_list = sorted([36 + (x*16) for x in range(20)], reverse=True)
-    
     # output always 34 less than input
     out_w_list = [x - 34 for x in in_w_list]
     return list(zip(in_w_list, out_w_list))
@@ -367,13 +366,16 @@ def segment_3d(cnn, image, batch_size, in_tile_shape, out_tile_shape, auto_compl
     return class_pred_maps
 
 
-def validation_step(im_patches, fg_patches, bg_patches,
-                    batch_classes, project_classes):
-    outputs = model(im_patches)
-    (loss, tps, tns,
-     fps, fns) = get_batch_loss(
-         outputs, fg_patches, bg_patches, 
-         ignore_masks, seg_patches,
-         batch_classes, project_classes,
-         compute_loss=False)
-     return tps, fps, tns, fns
+def add_config_shape(config, in_w, out_w):
+    new_config = copy.deepcopy(config)
+    num_classes = len(config['classes'])
+    if in_w is None:
+        in_w, out_w = get_in_w_out_w_for_memory(num_classes)
+        print('found input width of', in_w, 'and output width of', out_w)
+    new_config['in_w'] = in_w
+    new_config['out_w'] = out_w
+    new_config['in_d'] = 52
+    new_config['out_d'] = 18
+    return new_config
+
+
