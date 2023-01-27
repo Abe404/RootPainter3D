@@ -40,6 +40,7 @@ from instructions import fix_config_paths
 from datasets import RPDataset
 from metrics import get_metrics, get_metrics_str, get_metric_csv_row
 from model_utils import load_model_then_segment_3d
+from model_utils import add_config_shape
 from model_utils import create_first_model_with_random_weights
 from model_utils import random_model
 import model_utils
