@@ -256,6 +256,10 @@ class Trainer():
 
 
     def val_epoch(self, model, val_tile_refs):
+        """
+        Compute the metrics (tps, fps, tns, fns) for a given
+            model, annotation directory and dataset (image directory).
+        """
         dataset = RPDataset(self.train_config['val_annot_dirs'],
                             None, # train_seg_dirs
                             self.train_config['dataset_dir'],
