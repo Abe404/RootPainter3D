@@ -132,21 +132,6 @@ class Trainer():
                 self.first_loop = True
                 time.sleep(1.0)
 
-    def add_config_shape(self, config):
-        new_config = copy.deepcopy(config)
-        num_classes = len(config['classes'])
-        if self.in_w is None:
-            in_w, out_w = model_utils.get_in_w_out_w_for_memory(num_classes)
-            self.in_w = in_w
-            self.out_w = out_w
-            print('found input width of', in_w, 'and output width of', out_w)
-        new_config['in_w'] = self.in_w
-        new_config['out_w'] = self.out_w
-        new_config['in_d'] = 52
-        new_config['out_d'] = 18
-        return new_config
-
-
     def fix_config_paths(self, old_config):
         """ get paths relative to local machine """
         new_config = {}
@@ -226,7 +211,9 @@ class Trainer():
             self.msg_dir = self.train_config['message_dir']
             model_dir = self.train_config['model_dir']
             classes = self.train_config['classes']
-            self.train_config = self.add_config_shape(self.train_config)
+            self.train_config = add_config_shape(self.train_config, self.in_w, self.out_w)
+            self.in_w = self.train_config['in_w']
+            self.out_w = self.train_config['out_w']
 
             model_paths = model_utils.get_latest_model_paths(model_dir, 1)
             if model_paths:
