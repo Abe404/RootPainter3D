@@ -39,7 +39,7 @@ class PatchRef:
     def has_metrics(self):
         return self.fp is not None
  
-    def is_same_region_as(self, other: PatchRef):
+    def is_same_region_as(self, other):
         return (self.annot_fname == other.annot_fname and 
                 self.x == other.x and
                 self.y == other.y and
@@ -49,7 +49,7 @@ class PatchRef:
         # used for debugging from time to time.
         return f"tp:{self.tp}, tn:{self.tn} fp:{self.fp}, fn:{self.fn}"
  
-    def assign_metrics(tp:int, fp:int, tn:int, fn:int):
+    def assign_metrics(self, tp:int, fp:int, tn:int, fn:int):
         self.tp = tp
         self.fp = fp
         self.tn = tn

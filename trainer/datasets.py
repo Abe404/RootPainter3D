@@ -189,7 +189,7 @@ class RPDataset(Dataset):
         #       please investigate.
         
 
-        image_path = os.path.join(self.dataset_dir, fname)
+        image_path = os.path.join(self.dataset_dir, patch_ref.annot_fname)
         # image could have nrrd extension
         if not os.path.isfile(image_path):
             image_path = image_path.replace('.nii.gz', '.nrrd')
@@ -211,7 +211,7 @@ class RPDataset(Dataset):
         annot_patches = []
 
         for annot_dir in self.annot_dirs:
-            annot_path = os.path.join(annot_dir, fname)
+            annot_path = os.path.join(annot_dir, patch_ref.annot_fname)
 
             annot = im_utils.load_with_retry(im_utils.load_image, annot_path)
             classes.append(Path(annot_dir).parts[-2])
@@ -246,10 +246,10 @@ class RPDataset(Dataset):
             background = background.astype(np.int64)
             background = torch.from_numpy(background)
             backgrounds.append(background)
-            ignore_masks.append(ignore_mask)
-            print('ignore mask shape = ', ignore_mask.shape)
+            ignore_masks.append(patch_ref.ignore_mask)
+            print('ignore mask shape = ', patch_ref.ignore_mask.shape)
             print('bg shape = ', background.shape)
-            print('ignore mask shape = ', ignore_mask.reshape(-1).shape)
+            print('ignore mask shape = ', patch_ref.ignore_mask.reshape(-1).shape)
             print('bg shape = ', background.reshape(-1).shape)
 
 

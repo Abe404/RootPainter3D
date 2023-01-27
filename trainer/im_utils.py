@@ -294,7 +294,7 @@ def get_val_patch_refs(annot_dirs, prev_patch_refs, out_shape):
     for annot_dir, annot_fname in zip(all_dirs, all_annot_fnames):
         # get existing coord refs for this image
         prev_refs = [r for r in prev_patch_refs if r.annot_fname == annot_fname]
-        prev_mtimes = [r.mtime for r in pref_refs]
+        prev_mtimes = [r.mtime for r in prev_refs]
         need_new_refs = False
         # if no refs for this image then check again
         if not prev_refs:
