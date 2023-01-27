@@ -33,7 +33,7 @@ import numpy as np
 from torch.nn.functional import softmax
 from instructions import fix_config_paths
 
-from startup import add_config_shape
+from model_utils import add_config_shape
 import im_utils
 from model_utils import load_model, get_latest_model_paths
 from scp_utils import scp_transfer
