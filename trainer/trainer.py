@@ -376,7 +376,7 @@ class Trainer():
             batch_loss.backward()
             self.optimizer.step()
 
-            sys.stdout.write(f"{mode} {(step+1) * self.batch_size}/"
+            sys.stdout.write(f"Training: {(step+1) * self.batch_size}/"
                              f"{len(loader.dataset)} "
                              f" loss={round(batch_loss.item(), 3)} \r")
             sys.stdout.flush()
@@ -386,7 +386,7 @@ class Trainer():
                 return
 
         duration = round(time.time() - epoch_start, 3)
-        print(f'{mode} epoch duration', duration,
+        print(f'Training epoch duration', duration,
               'time per instance', round((time.time() - epoch_start) / len(tps), 3))
         return [tps, fps, tns, fns]
 
@@ -396,7 +396,7 @@ class Trainer():
             # go through the val tile refs to find the equivalent tile ref
             self.val_tile_refs[i][3] = [tp, fp, tn, fn]
 
-    def get_new_val_tiles_refs(self):
+    def get_new_val_patches_refs(self):
         return im_utils.get_val_tile_refs(self.train_config['val_annot_dirs'],
                                           copy.deepcopy(self.val_tile_refs),
                                           out_shape=(self.train_config['out_d'],
@@ -426,7 +426,7 @@ class Trainer():
         model_dir = self.train_config['model_dir']
         prev_model, prev_path = model_utils.get_prev_model(model_dir,
                                                            self.train_config['classes'])
-        self.val_tile_refs = self.get_new_val_tiles_refs()
+        self.val_tile_refs = self.get_new_val_patches_refs()
 
         if not self.val_tile_refs:
             # if we don't yet have any validation data
@@ -437,12 +437,11 @@ class Trainer():
             was_saved = True
         else:
 
-            print('val tile refs', self.val_tile_refs)
 
             for v in self.val_tile_refs:
                 print('cord:', v[1], 'sum = ', np.sum(v[3]))
 
-            # for current model get errors for all tiles in the validation set.
+            # for current model get errors for all patches in the validation set.
             epoch_result = self.val_epoch(copy.deepcopy(self.model), self.val_tile_refs)
             if not epoch_result:
                 # if we didn't get anything back then it means the
@@ -538,7 +537,9 @@ class Trainer():
         in_dir = segment_config['dataset_dir']
         seg_dir = segment_config['seg_dir']
 
-        segment_config = self.add_config_shape(segment_config)
+        segment_config = add_config_shape(segment_config, self.in_w, self.out_w)
+        self.in_w = segment_config['in_w']
+        self.out_w = segment_config['out_w']
         
         classes = segment_config['classes']
         if "file_names" in segment_config:
@@ -580,7 +581,7 @@ class Trainer():
 
 
     def get_prev_model_metrics(self, prev_model, use_cache=True):
-        # for previous model get errors for all tiles which do not yet have metrics
+        # for previous model get errors for all patches which do not yet have metrics
         refs_to_compute = []
 
         if use_cache:
@@ -616,7 +617,7 @@ class Trainer():
 
     def segment_patch(self, segment_config):
         raise Exception('feature disabled')
-        patch_seg.segment_patch(segment_config)
+        # patch_seg.segment_patch(segment_config)
         
     def get_in_w_and_out_w_for_image(self, im, in_w, out_w):
         """ the input image may be smaller than the default 
