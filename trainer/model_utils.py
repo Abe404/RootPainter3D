@@ -34,11 +34,11 @@ cached_model = None
 cached_model_path = None
 use_fake_cnn = False
 
-def fake_cnn(tiles_for_gpu):
+def fake_cnn(patches_for_gpu):
     raise Exception("no longer consistent with real cnn")
-    """ Useful debug function for checking tile layout etc """
+    """ Useful debug function for checking patch layout etc """
     output = []
-    for t in tiles_for_gpu:
+    for t in patches_for_gpu:
         v = t[0, 17:-17, 17:-17, 17:-17].data.cpu().numpy()
         v_mean = np.mean(v)
         output.append((v > v_mean).astype(np.int8))
@@ -69,25 +69,25 @@ def allocate_net(in_w, out_w, num_classes):
         input_data = np.zeros((4, channels, 52, in_w, in_w))
         optimizer.zero_grad()
         outputs = net(torch.from_numpy(input_data).cuda().float())
-        batch_fg_tiles = torch.ones(4, num_classes, 52, in_w, in_w).long().cuda()
-        batch_bg_tiles = torch.zeros(4, num_classes, 52, in_w, in_w).long().cuda()
-        batch_fg_tiles[:, 0, 0] = 0
-        batch_bg_tiles[:, 0, 0] = 1
+        batch_fg_patches = torch.ones(4, num_classes, 52, in_w, in_w).long().cuda()
+        batch_bg_patches = torch.zeros(4, num_classes, 52, in_w, in_w).long().cuda()
+        batch_fg_patches[:, 0, 0] = 0
+        batch_bg_patches[:, 0, 0] = 1
         batch_classes = []
         for _ in range(4):
             batch_classes.append([f'c_{c}' for c in range(num_classes)])
         (batch_loss, _, _,
          _, _) = get_batch_loss(
-             outputs, batch_fg_tiles, batch_bg_tiles, None,
-             [[None for c in range(num_classes)] for t in batch_fg_tiles], # segmentation excluded from loss for now.
+             outputs, batch_fg_patches, batch_bg_patches, None,
+             [[None for c in range(num_classes)] for t in batch_fg_patches], # segmentation excluded from loss for now.
              batch_classes,
              [f'c_{c}' for c in range(num_classes)],
              compute_loss=True)
         batch_loss.backward()
         optimizer.step()
         del batch_loss
-        del batch_fg_tiles
-        del batch_bg_tiles
+        del batch_fg_patches
+        del batch_bg_patches
         del outputs
         del input_data
 
@@ -240,15 +240,15 @@ def pad_then_segment_3d(cnn, image, batch_size, in_w, out_w, in_d, out_d):
     return pred_maps
 
 
-def segment_3d(cnn, image, batch_size, in_tile_shape, out_tile_shape, auto_complete_enabled=False):
+def segment_3d(cnn, image, batch_size, in_patch_shape, out_patch_shape, auto_complete_enabled=False):
     """
-    in_tile_shape and out_tile_shape are (depth, height, width)
+    in_patch_shape and out_patch_shape are (depth, height, width)
     """
     # Return prediction for each pixel in the image
     # The cnn will give a the output as channels where
     # each channel corresponds to a specific class 'probability'
     # don't need channel dimension
-    # make sure the width, height and depth is at least as big as the tile.
+    # make sure the width, height and depth is at least as big as the patch.
     assert len(image.shape) == 3, str(image.shape)
 
     original_shape = image.shape
@@ -259,17 +259,17 @@ def segment_3d(cnn, image, batch_size, in_tile_shape, out_tile_shape, auto_compl
     patch_pad_y = 0
     patch_pad_x = 0
 
-    if image.shape[0] < in_tile_shape[0]:
+    if image.shape[0] < in_patch_shape[0]:
         padded_for_patch = True
-        patch_pad_z = in_tile_shape[0] - image.shape[0]
+        patch_pad_z = in_patch_shape[0] - image.shape[0]
 
-    if image.shape[1] < in_tile_shape[1]:
+    if image.shape[1] < in_patch_shape[1]:
         padded_for_patch = True
-        patch_pad_y = in_tile_shape[1] - image.shape[1]
+        patch_pad_y = in_patch_shape[1] - image.shape[1]
 
-    if image.shape[2] < in_tile_shape[2]:
+    if image.shape[2] < in_patch_shape[2]:
         padded_for_patch = True
-        patch_pad_x = in_tile_shape[2] - image.shape[2]
+        patch_pad_x = in_patch_shape[2] - image.shape[2]
 
     if padded_for_patch:
         padded_image = np.zeros((
@@ -280,46 +280,46 @@ def segment_3d(cnn, image, batch_size, in_tile_shape, out_tile_shape, auto_compl
         padded_image[:image.shape[0], :image.shape[1], :image.shape[2]] = image
         image = padded_image  
 
-    depth_diff = in_tile_shape[0] - out_tile_shape[0]
-    width_diff = in_tile_shape[1] - out_tile_shape[1]
+    depth_diff = in_patch_shape[0] - out_patch_shape[0]
+    width_diff = in_patch_shape[1] - out_patch_shape[1]
     
     out_im_shape = (image.shape[0] - depth_diff,
                     image.shape[1] - width_diff,
                     image.shape[2] - width_diff)
 
-    coords = im_utils.get_coords_3d(out_im_shape, out_tile_shape)
+    coords = im_utils.get_coords_3d(out_im_shape, out_patch_shape)
     coord_idx = 0
-    class_output_tiles = None # list of tiles for each class
+    class_output_patches = None # list of patches for each class
 
     while coord_idx < len(coords):
-        tiles_to_process = []
+        patches_to_process = []
         coords_to_process = []
         for _ in range(batch_size):
             if coord_idx < len(coords):
                 coord = coords[coord_idx]
                 x_coord, y_coord, z_coord = coord
-                tile = image[z_coord:z_coord+in_tile_shape[0],
-                             y_coord:y_coord+in_tile_shape[1],
-                             x_coord:x_coord+in_tile_shape[2]]
+                patch = image[z_coord:z_coord+in_patch_shape[0],
+                             y_coord:y_coord+in_patch_shape[1],
+                             x_coord:x_coord+in_patch_shape[2]]
 
                 # need to add channel dimension for GPU processing.
-                tile = np.expand_dims(tile, axis=0)
+                patch = np.expand_dims(patch, axis=0)
                 
-                assert tile.shape[1] == in_tile_shape[0], str(tile.shape)
-                assert tile.shape[2] == in_tile_shape[1], str(tile.shape)
-                assert tile.shape[3] == in_tile_shape[2], str(tile.shape)
+                assert patch.shape[1] == in_patch_shape[0], str(patch.shape)
+                assert patch.shape[2] == in_patch_shape[1], str(patch.shape)
+                assert patch.shape[3] == in_patch_shape[2], str(patch.shape)
 
-                tile = img_as_float32(tile)
-                tile = im_utils.normalize_tile(tile)
-                tile = img_as_float32(tile)
+                patch = img_as_float32(patch)
+                patch = im_utils.normalize_patch(patch)
+                patch = img_as_float32(patch)
                 coord_idx += 1
-                tiles_to_process.append(tile) # need channel dimension
+                patches_to_process.append(patch) # need channel dimension
                 coords_to_process.append(coord)
 
-        tiles_to_process = np.array(tiles_to_process)
-        tiles_for_gpu = torch.from_numpy(tiles_to_process)
+        patches_to_process = np.array(patches_to_process)
+        patches_for_gpu = torch.from_numpy(patches_to_process)
 
-        tiles_for_gpu = tiles_for_gpu.cuda().float()
+        patches_for_gpu = patches_for_gpu.cuda().float()
         # TODO: consider use of detach. 
         # I might want to move to cpu later to speed up the next few operations.
         # I added .detach().cpu() to prevent a memory error.
@@ -327,16 +327,16 @@ def segment_3d(cnn, image, batch_size, in_tile_shape, out_tile_shape, auto_compl
         # l,r, l,r, but from end to start     w  w  h  h  d  d, c, c, b, b
         if auto_complete_enabled:
             # add channels for annotation if auto_complete enabled
-            tiles_for_gpu = F.pad(tiles_for_gpu, (0, 0, 0, 0, 0, 0, 0, 2), 'constant', 0)
+            patches_for_gpu = F.pad(patches_for_gpu, (0, 0, 0, 0, 0, 0, 0, 2), 'constant', 0)
 
-        # tiles shape after padding torch.Size([4, 3, 52, 228, 228])
-        outputs = cnn(tiles_for_gpu).detach().cpu()
+        # patches shape after padding torch.Size([4, 3, 52, 228, 228])
+        outputs = cnn(patches_for_gpu).detach().cpu()
 
         # bg channel index for each class in network output.
         class_idxs = [x * 2 for x in range(outputs.shape[1] // 2)]
         
-        if class_output_tiles is None:
-            class_output_tiles = [[] for _ in class_idxs]
+        if class_output_patches is None:
+            class_output_patches = [[] for _ in class_idxs]
 
         for i, class_idx in enumerate(class_idxs):
             class_output = outputs[:, class_idx:class_idx+2]
@@ -346,13 +346,13 @@ def segment_3d(cnn, image, batch_size, in_tile_shape, out_tile_shape, auto_compl
             predicted = foreground_probs > 0.5
             predicted = predicted.int()
             pred_np = predicted.data.cpu().numpy()
-            for out_tile in pred_np:
-                class_output_tiles[i].append(out_tile)
+            for out_patch in pred_np:
+                class_output_patches[i].append(out_patch)
 
     class_pred_maps = []
-    for i, output_tiles in enumerate(class_output_tiles):
+    for i, output_patches in enumerate(class_output_patches):
         # reconstruct for each class
-        reconstructed = im_utils.reconstruct_from_tiles(output_tiles,
+        reconstructed = im_utils.reconstruct_from_patches(output_patches,
                                                         coords, out_im_shape)
         if padded_for_patch:
             # go back to the original shape before padding.

@@ -45,7 +45,7 @@ from model_utils import create_first_model_with_random_weights
 from model_utils import random_model
 import model_utils
 from model_utils import save_if_better, save_model
-from metrics import metrics_from_val_tile_refs
+from metrics import metrics_from_val_patch_refs
 import data_utils
 from patch_seg import handle_patch_update_in_epoch_step
 from im_utils import is_image, load_image, save_then_move, save
@@ -74,7 +74,7 @@ class Trainer():
         print(self.num_workers, 'workers will be assigned for data loaders')
 
         self.optimizer = None
-        self.val_tile_refs = []
+        self.val_patch_refs = []
         # used to check for updates
         self.annot_mtimes = []
         self.msg_dir = None
@@ -112,10 +112,10 @@ class Trainer():
             if self.training:
                 # can take a while so checks for
                 # new instructions are also made inside
-                self.val_tile_refs = self.get_new_val_patches_refs()
-                if self.val_tile_refs:
+                self.val_patch_refs = self.get_new_val_patches_refs()
+                if self.val_patch_refs:
                     # selected as it leads to training taking around 5x validation time
-                    train_epoch_length = max(64, 2 * len(self.val_tile_refs))
+                    train_epoch_length = max(64, 2 * len(self.val_patch_refs))
                 else:
                     train_epoch_length = 128
                 epoch_result = self.train_epoch(self.model, length=train_epoch_length)
@@ -206,7 +206,7 @@ class Trainer():
             else:
                 self.train_config['classes'] = classes
 
-            self.val_tile_refs = [] # dont want to cache these between projects
+            self.val_patch_refs = [] # dont want to cache these between projects
             self.epochs_without_progress = 0
             self.msg_dir = self.train_config['message_dir']
             model_dir = self.train_config['model_dir']
@@ -255,7 +255,7 @@ class Trainer():
         return found_train_annot 
 
 
-    def val_epoch(self, model, val_tile_refs):
+    def val_epoch(self, model, val_patch_refs):
         """
         Compute the metrics (tps, fps, tns, fns) for a given
             model, annotation directory and dataset (image directory).
@@ -269,7 +269,7 @@ class Trainer():
                             self.train_config['in_d'],
                             self.train_config['out_d'],
                             'val', # FIXME: mode should be an enum.
-                            val_tile_refs)
+                            val_patch_refs)
         loader = DataLoader(dataset, self.batch_size * 2, shuffle=True,
                             collate_fn=data_utils.collate_fn,
                             num_workers=self.num_workers,
@@ -346,8 +346,6 @@ class Trainer():
         tns = []
         fns = []
         loss_sum = 0
-        # FIXME: use the term patch or tile but not both.
-        #        probably use the term patch as it better relates to 3D
         for step, (batch_im_patches, batch_fg_patches,
                    batch_bg_patches, batch_ignore_masks,
                    batch_seg_patches, batch_classes) in enumerate(loader):
@@ -392,17 +390,17 @@ class Trainer():
         return [tps, fps, tns, fns]
 
     def assign_metrics_to_refs(self, tps, fps, tns, fns):
-        # now go through and assign the errors to the appropriate tile refs.
+        # now go through and assign the errors to the appropriate patch refs.
         for i, (tp, fp, tn, fn) in enumerate(zip(tps, fps, tns, fns)):
-            # go through the val tile refs to find the equivalent tile ref
-            self.val_tile_refs[i][3] = [tp, fp, tn, fn]
+            # go through the val patch refs to find the equivalent patch ref
+            self.val_patch_refs[i].assign_metrics(tp=tp, fp=fp, tn=tn, fn=fn)
 
     def get_new_val_patches_refs(self):
-        return im_utils.get_val_tile_refs(self.train_config['val_annot_dirs'],
-                                          copy.deepcopy(self.val_tile_refs),
-                                          out_shape=(self.train_config['out_d'],
-                                                     self.train_config['out_w'],
-                                                     self.train_config['out_w']))
+        return im_utils.get_val_patch_refs(self.train_config['val_annot_dirs'],
+                                           copy.deepcopy(self.val_patch_refs),
+                                           out_shape=(self.train_config['out_d'],
+                                                      self.train_config['out_w'],
+                                                      self.train_config['out_w']))
 
     def log_metrics(self, name, metrics):
         fname = datetime.today().strftime('%Y-%m-%d')
@@ -427,9 +425,9 @@ class Trainer():
         model_dir = self.train_config['model_dir']
         prev_model, prev_path = model_utils.get_prev_model(model_dir,
                                                            self.train_config['classes'])
-        self.val_tile_refs = self.get_new_val_patches_refs()
+        self.val_patch_refs = self.get_new_val_patches_refs()
 
-        if not self.val_tile_refs:
+        if not self.val_patch_refs:
             # if we don't yet have any validation data
             # but we are training then just save the model
             # Assuming we will get better than random weights
@@ -437,13 +435,8 @@ class Trainer():
             save_model(model_dir, self.model, prev_path)
             was_saved = True
         else:
-
-
-            for v in self.val_tile_refs:
-                print('cord:', v[1], 'sum = ', np.sum(v[3]))
-
             # for current model get errors for all patches in the validation set.
-            epoch_result = self.val_epoch(copy.deepcopy(self.model), self.val_tile_refs)
+            epoch_result = self.val_epoch(copy.deepcopy(self.model), self.val_patch_refs)
             if not epoch_result:
                 # if we didn't get anything back then it means the
                 # dataset did not contain any annotations so no need
@@ -508,7 +501,7 @@ class Trainer():
         self.log('Restarting training from scratch')
         self.training_restart = True
         self.restart_best_val_dice = 0 # need to beat this or restart will stop after 60 epochs
-        self.val_tile_refs = [] # dont want to cache these
+        self.val_patch_refs = [] # dont want to cache these
         self.epochs_without_progress = 0
         self.model = random_model(self.train_config['classes'])
         self.optimizer = torch.optim.SGD(self.model.parameters(), lr=0.01,
@@ -586,34 +579,36 @@ class Trainer():
         refs_to_compute = []
 
         if use_cache:
-            # for each val tile
-            for t in self.val_tile_refs:
-                if t[3] is None:
-                    refs_to_compute.append(t)
+            for ref in self.val_patch_refs:
+                if not ref.has_metrics():
+                    refs_to_compute.append(ref)
         else:
-            refs_to_compute = self.val_tile_refs
+            refs_to_compute = self.val_patch_refs
 
         print('computing prev model metrics for ', len(refs_to_compute),
-              'out of', len(self.val_tile_refs))
+              'out of', len(self.val_patch_refs))
         # if it is missing metrics then add it to refs_to_compute
-        # then compute the errors for these tile refs
+        # then compute the errors for these patch refs
         if refs_to_compute:
             
             (tps, fps, tns, fns) = self.val_epoch(prev_model, refs_to_compute)
             assert len(tps) == len(fps) == len(tns) == len(fns) == len(refs_to_compute)
 
-            # now go through and assign the errors to the appropriate tile refs.
+            # now go through and assign the errors to the appropriate patch refs.
             for tp, fp, tn, fn, computed_ref in zip(tps, fps, tns, fns, refs_to_compute):
-                # go through the val tile refs to find the equivalent tile ref
-                for i, ref in enumerate(self.val_tile_refs):
-                    if ref[0] == computed_ref[0] and ref[1] == computed_ref[1]:
+                # go through the val patch refs to find the equivalent patch ref
+                for i, ref in enumerate(self.val_patch_refs):
+                    if ref.is_same_region_as(computed_ref):
                         if use_cache:
-                            assert self.val_tile_refs[i][3] is None, self.val_tile_refs[i][3]
-                            assert ref[3] is None
-                        ref[3] = [tp, fp, tn, fn]
-                        assert self.val_tile_refs[i][3] is not None
+                            # it was already found that this ref needed computing
+                            # confirm that it is indeed missing metrics
+                            assert not self.val_patch_refs[i].has_metrics(), (
+                                self.val_patch_refs[i].metrics_str())
+                            assert not ref.has_metrics()
+                        ref.assign_metrics(tp=tp, fp=fp, tn=tn, fn=fn)
+                        assert self.val_patch_refs[i].has_metrics()
 
-        prev_m = metrics_from_val_tile_refs(self.val_tile_refs)
+        prev_m = metrics_from_val_patch_refs(self.val_patch_refs)
         return prev_m
 
     def segment_patch(self, segment_config):

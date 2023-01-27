@@ -147,8 +147,8 @@ def segment_patch(segment_config, annot_patch, conn):
                      y_start+pad_y:y_end+pad_y,
                      x_start+pad_y:x_end+pad_x]
 
-    # now normalise the tile (as this is done for all input to the network
-    im_patch = im_utils.normalize_tile(img_as_float32(im_patch))
+    # now normalise the patch (as this is done for all input to the network
+    im_patch = im_utils.normalize_patch(img_as_float32(im_patch))
     model_input = torch.cuda.FloatTensor(1, 3, im_patch.shape[0], im_patch.shape[1], im_patch.shape[2])
     model_input[0, 0] = torch.from_numpy(im_patch.astype(np.float32)).cuda()
 
@@ -178,8 +178,8 @@ def segment_patch(segment_config, annot_patch, conn):
         predicted = foreground_probs > 0.5
         predicted = predicted.type(torch.cuda.ByteTensor)
         pred_np = predicted.data.detach().cpu().numpy()
-        for out_tile in pred_np:
-            class_output_patches[i].append(out_tile)
+        for out_patch in pred_np:
+            class_output_patches[i].append(out_patch)
     # For now only the first class will be segmented 
     seg = class_output_patches[0][0]
     # send segmented region to client
@@ -209,7 +209,7 @@ def handle_patch_update_in_epoch_step(batch_im_patches, mode):
             # Validation should not have access to the annotations.
             if random.random() > 0.5:
                 # go through fg patches and bg_patches for each batch item
-                # in this case we know there is always 1 bg and 1 fg tile.
+                # in this case we know there is always 1 bg and 1 fg patch.
                 # at random add the annotation slice
                 for slice_idx in range(fg_patches[0].shape[0]):
                     if torch.any(fg_patches[0][slice_idx]) or torch.any(bg_patches[0][slice_idx]):
@@ -217,7 +217,7 @@ def handle_patch_update_in_epoch_step(batch_im_patches, mode):
                         # This allows the network to learn how to use the annotation to improve predictions
                         if random.random() > 0.5: 
                             model_input[i, 1, slice_idx] = fg_patches[0][slice_idx]
-                            model_input[i, 2, slice_idx] = bg_tiles[0][slice_idx]
+                            model_input[i, 2, slice_idx] = bg_patches[0][slice_idx]
     return model_input
 
 

@@ -79,12 +79,12 @@ def get_metrics(tp:int, fp:int, tn:int, fn:int) -> dict:
 
 
 
-def metrics_from_val_tile_refs(val_tile_refs):
+def metrics_from_val_patch_refs(val_patch_refs):
     tps = 0 
     fps = 0 
     tns = 0
     fns = 0
-    for ref in val_tile_refs:
+    for ref in val_patch_refs:
         assert ref[3] is not None, ref
         (tp, fp, tn, fn) = ref[3]
         tps += tp
