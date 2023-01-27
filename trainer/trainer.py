@@ -279,17 +279,26 @@ class Trainer():
         tns = []
         fns = []
         loss_sum = 0
+
+        epoch_start = time.time()
         for step, (batch_im_patches, batch_fg_patches,
                    batch_bg_patches, batch_ignore_masks,
                    batch_seg_patches, batch_classes) in enumerate(loader):
+
+
             self.check_for_instructions()
             batch_im_patches = torch.from_numpy(np.array(batch_im_patches)).cuda()
             if self.patch_update_enabled:
                 batch_im_patches = handle_patch_update_in_epoch_step(batch_im_patches, mode='val')
-            (batch_tps, batch_fps,
-             batch_tns, batch_fns) = validation_step(
-                batch_im_patches, batch_fg_patches,
-                batch_bg_patches, batch_classes, self.train_config['classes'])
+
+            outputs = model(batch_im_patches)
+            (_, batch_tps, batch_fps,
+             batch_tns, batch_fns) = get_batch_loss(
+                outputs, batch_fg_patches,
+                batch_bg_patches, batch_ignore_masks, None,
+                batch_classes, self.train_config['classes'],
+                compute_loss=False)
+
             tps += batch_tps
             fps += batch_fps
             tns += batch_tns
