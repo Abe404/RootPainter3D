@@ -304,7 +304,7 @@ def get_val_tile_refs(annot_dirs, prev_tile_refs, out_shape):
     for annot_dir, annot_fname in zip(all_dirs, all_annot_fnames):
         # get existing coord refs for this image
         prev_refs = [r for r in prev_tile_refs if r[0] == annot_fname]
-        prev_mtimes = [r[3] for r in prev_tile_refs if r[0] == annot_fname]
+        prev_mtimes = [r[2] for r in prev_tile_refs if r[0] == annot_fname]
         need_new_refs = False
         # if no refs for this image then check again
         if not prev_refs:
@@ -363,7 +363,7 @@ def get_val_tile_refs_for_annot_3d(annot_dir, annot_fname, out_shape):
         # which have annotation information.
         if np.any(annot_tile):
             # fname, [x, y, z], mtime, prev model metrics i.e [tp, tn, fp, fn] or None
-            new_file_refs.append([annot_fname, [x, y, z], ignore_mask, mtime, None])
+            new_file_refs.append([annot_fname, [x, y, z], mtime, None, ignore_mask])
             # this region should get ignored in future tiles from this image.
             full_ignore_mask[z:z+out_shape[0], y:y+out_shape[1], x:x+out_shape[2]] = 1
 
