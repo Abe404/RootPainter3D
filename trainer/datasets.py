@@ -247,11 +247,6 @@ class RPDataset(Dataset):
             background = torch.from_numpy(background)
             backgrounds.append(background)
             ignore_masks.append(patch_ref.ignore_mask)
-            print('ignore mask shape = ', patch_ref.ignore_mask.shape)
-            print('bg shape = ', background.shape)
-            print('ignore mask shape = ', patch_ref.ignore_mask.reshape(-1).shape)
-            print('bg shape = ', background.reshape(-1).shape)
-
 
         im_patch = img_as_float32(im_patch)
         im_patch = im_utils.normalize_patch(im_patch)
