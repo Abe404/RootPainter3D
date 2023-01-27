@@ -101,9 +101,10 @@ class Trainer():
         print('Started main loop. Checking for instructions in',
               self.instruction_dir)
         if self.patch_update_enabled:
-            print('start patch seg server')
-            patch_seg.start_server(self.sync_dir, self.ip, self.port) # direct socket connection
-            print('after start server')
+            raise Exception('implementation temporarily removed')
+            # print('start patch seg server')
+            # patch_seg.start_server(self.sync_dir, self.ip, self.port) # direct socket connection
+            # print('after start server')
 
         self.running = True
         while self.running:
