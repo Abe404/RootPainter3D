@@ -85,10 +85,9 @@ def metrics_from_val_patch_refs(val_patch_refs):
     tns = 0
     fns = 0
     for ref in val_patch_refs:
-        assert ref[3] is not None, ref
-        (tp, fp, tn, fn) = ref[3]
-        tps += tp
-        fps += fp
-        tns += tn
-        fns += fn
+        assert ref.has_metrics(), ref
+        tps += ref.tp
+        fps += ref.fp
+        tns += ref.tn
+        fns += ref.fn
     return get_metrics(tps, fps, tns, fns)
