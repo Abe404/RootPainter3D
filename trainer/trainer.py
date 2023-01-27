@@ -359,13 +359,14 @@ class Trainer():
             if self.patch_update_enabled:
                 batch_im_patches = handle_patch_update_in_epoch_step(batch_im_patches, 'train')
 
-            outputs = model(model_input)
+            outputs = model(batch_im_patches)
+
             (batch_loss, batch_tps, batch_tns,
              batch_fps, batch_fns) = get_batch_loss(
                  outputs, batch_fg_patches, batch_bg_patches, 
                  batch_ignore_masks, batch_seg_patches,
                  batch_classes, self.train_config['classes'],
-                 compute_loss=(mode=='train'))
+                 compute_loss=True)
 
             tps += batch_tps
             fps += batch_fps
