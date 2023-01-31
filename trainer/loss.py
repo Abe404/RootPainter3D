@@ -97,6 +97,10 @@ def get_batch_loss(outputs, batch_fg_patches, batch_bg_patches,
                 
                 # if the classname is the class we are interested in
                 if classname == unique_class:
+                    
+                    # FIXME: where does this 17 come from? It's connected to the specific
+                    # network so perhaps we should
+                    # load it from some properties/setting from the network class / file?
 
                     # foregorund and background channels
                     fg_patch = batch_fg_patches[im_idx][i][17:-17,17:-17,17:-17]
