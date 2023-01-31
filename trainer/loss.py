@@ -49,6 +49,9 @@ def combined_loss(predictions, labels):
     return 0.3 * cross_entropy(predictions, labels)
 
 
+
+# FIXME too much going on in this function. Split the metrics computation into another function.
+# And avoid for loops where possible.
 def get_batch_loss(outputs, batch_fg_patches, batch_bg_patches,
                    batch_ignore_masks, batch_seg_patches,
                    batch_classes, project_classes,
