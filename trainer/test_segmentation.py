@@ -54,7 +54,7 @@ def test_batch_loss_handles_overlapping_patches():
     batch_size = 2
 
     # selected arbitrarily, with depth slightly bigger than 1 patch
-    image_depth = 18+7
+    image_depth = 18+3
     image_height = 258
     image_width = 258
 
@@ -92,9 +92,31 @@ def test_batch_loss_handles_overlapping_patches():
     network_output[:, 0] = np.ones((batch_out_depth, batch_out_width, batch_out_width))
 
     network_output = torch.tensor(network_output).cuda()
-   
-    # will implement later to get test to pass
-    ignore_masks = None 
+    
+    # ignore masks define which regions should be ignore for each instance in the batch
+    ignore_masks = []
+    # first instance can have nothing ignore.
+    ignore_masks.append(np.zeros((batch_out_depth, batch_out_width, batch_out_width)))
+    # second instance has overlap with the first instance, so some should
+    # be 'ignored' i.e not computed in the metrics computation.
+    ignore_mask2 = np.zeros((batch_out_depth, batch_out_width, batch_out_width))
+
+    # first 18 slices of the depth should be ignored
+    # as we know from the defined image shape and batch shapes
+    # that these will be overlapping.
+    
+    # image_depth = 21
+    # batch_depth = 18
+    # So that means after the first patch we have information for 18 out of 21 slices
+    # that means we use the second patch to get the remaining information 
+    # which is 21-18 slices (as we have information for the 18).
+    # That means the second patch should only give us information for 21-18=3 slices.
+    # so we should ignore all of the second patch except for 3 slices
+    # as the second patch is 18 slices, we want to ignore 18-3 = 15 slices.
+    # giving us just the last 3 slices to get information for all 21 slices.
+    ignore_mask2[0:15] = 1 
+
+    ignore_masks.append(ignore_mask2)
 
     # Compute expected metrics (tps, tns, fps, fns) given
     # the output and annotation
@@ -111,7 +133,6 @@ def test_batch_loss_handles_overlapping_patches():
     # for each instance in batch, have list of classes present for that instance.
     batch_classes = batch_size * [['structure_of_interest']]
     
-
     (loss, tps, tns, fps, fns) = get_batch_loss(
          network_output, fg_patches, bg_patches, 
          ignore_masks, seg_patches,

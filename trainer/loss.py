@@ -118,7 +118,7 @@ def get_batch_loss(outputs, batch_fg_patches, batch_bg_patches,
                     bg_patch = batch_bg_patches[im_idx][i][17:-17,17:-17,17:-17]
 
                     if batch_ignore_masks is not None:
-                        ignore_mask = batch_ignore_masks[im_idx][i] # some regions are ignored, as they overlap with other patches
+                        ignore_mask = batch_ignore_masks[im_idx] # some regions are ignored, as they overlap with other patches
                     else:
                         ignore_mask = np.zeros(bg_patch.shape) # dont ignore anything unless mask is specified.
 
