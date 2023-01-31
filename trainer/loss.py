@@ -53,6 +53,11 @@ def get_batch_loss(outputs, batch_fg_patches, batch_bg_patches,
                    batch_ignore_masks, batch_seg_patches,
                    batch_classes, project_classes,
                    compute_loss):
+
+    
+    assert (isinstance(batch_classes, list) and isinstance(batch_classes[0], list)), (
+            f"assert batch_class is a list of lists, batch_classes: {batch_classes}")
+
     """
 
         outputs - predictions from neural network (not softmaxed)
@@ -76,6 +81,9 @@ def get_batch_loss(outputs, batch_fg_patches, batch_bg_patches,
     instance_fns = list(instance_tps)
 
     for unique_class in project_classes:
+
+        # FIXME: Why do we have seperate channels for fg and bg.
+        #        when this could be represented by a single fg channel?
 
         # for each class we need to get a tensor with shape
         # [batch_size, 2 (bg,fg), h, w]
@@ -126,6 +134,7 @@ def get_batch_loss(outputs, batch_fg_patches, batch_bg_patches,
                     softmaxed = softmax(class_output, 0)
                     fg_prob = softmaxed[1]
 
+
                     assert fg_prob.shape == mask.shape, (
                         f"fg_prob shape {fg_prob.shape} and mask shape {mask.shape}"
                         f"should be equal")
@@ -133,6 +142,7 @@ def get_batch_loss(outputs, batch_fg_patches, batch_bg_patches,
                     # ignore (set to 0) any regions of the predicted where annotation is not defined
                     fg_prob = fg_prob * mask 
                     class_pred = fg_prob > 0.5
+
                     class_pred = class_pred[mask > 0]
                     fg = fg_patch[mask > 0]
 
