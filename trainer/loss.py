@@ -147,17 +147,17 @@ def get_batch_loss(outputs, batch_fg_patches, batch_bg_patches,
                     fg_prob = fg_prob * mask 
                     class_pred = fg_prob > 0.5
 
+                    if ignore_mask is not None:
+                        # FIXME consider cost of moving this to GPU
+                        # perhaps just do everything on CPU
+                        ignore_mask = torch.tensor(ignore_mask).cuda()
+                        # ignore things in the ignore mask to avoid duplicate metrics
+                        mask[ignore_mask > 0] = 0 
+                    
                     class_pred = class_pred[mask > 0]
                     fg = fg_patch[mask > 0]
 
-                    if ignore_mask is not None:
-                        ignore_mask = torch.tensor(ignore_mask.reshape(-1)).cuda()
-                    else:
-                        ignore_mask = torch.zeros(fg.shape).cuda()
-#                     instance_tps[im_idx] += torch.sum((fg == 1) * (class_pred == 1) * (ignore_mask == 0)).cpu().numpy()
-#                     instance_tns[im_idx] += torch.sum((fg == 0) * (class_pred == 0) * (ignore_mask == 0)).cpu().numpy()
-#                     instance_fps[im_idx] += torch.sum((fg == 0) * (class_pred == 1) * (ignore_mask == 0)).cpu().numpy()
-#                     instance_fns[im_idx] += torch.sum((fg == 1) * (class_pred == 0) * (ignore_mask == 0)).cpu().numpy()
+                    # compute metrics based on agreement between predictions and labels.
                     instance_tps[im_idx] += torch.sum((fg == 1) * (class_pred == 1)).cpu().numpy()
                     instance_tns[im_idx] += torch.sum((fg == 0) * (class_pred == 0)).cpu().numpy()
                     instance_fps[im_idx] += torch.sum((fg == 0) * (class_pred == 1)).cpu().numpy()
