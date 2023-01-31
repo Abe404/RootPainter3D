@@ -35,6 +35,7 @@ def test_segmentation_001():
     print('pred maps[0].shape = ', pred_maps[0].shape)
 
 
+
 def test_batch_loss_handles_overlapping_patches():
     """ A problem was identified where metrics were returned
         twice for overlapping regions (voxels), leading
@@ -48,46 +49,63 @@ def test_batch_loss_handles_overlapping_patches():
         do not divide evenly by the patch size """
 
     from loss import get_batch_loss
-    batch_size = 4
-    image_shape = (73, 438, 561) # selected arbitrarily
-    batch_shape = 
-    # create fg annotation
-    fg_patches = np.zeros((4, 
-    # TODO: create bg annotation 
-    # TODO: create network outputs 
+    batch_size = 2
 
-    # TODO: compute expected metrics (tps, tns, fps, fns) given
-    #       the output and annotation
+    # selected arbitrarily, with depth slightly bigger than 1 patch
+    image_depth = 18+7
+    image_height = 258
+    image_width = 258
+
+    image_shape = (image_depth, image_height, image_width) 
+
+    batch_out_depth = 18
+    batch_out_width = 258
+    channel_count = 2 # implies single class output.
+    # output size logged from network output.
+    batch_out_shape = (batch_size, channel_count,
+                       batch_out_depth, batch_out_width, batch_out_width) 
+
+    network_padding = 17 # amount that network output is reduced on each side due to padding
+    batch_in_depth = 18 + (network_padding*2)
+    batch_in_width = 258 + (network_padding*2)
+
+    assert image_depth % batch_out_depth > 0, ("check that image depth is "
+        "not a multiple of batch shape, to test overlapping patch metrics computation.")
+
+    # we need to create annotation for the image, to allow computation of metrics
+    fg_patch = np.zeros((batch_out_depth, batch_out_width, batch_out_width))
+    fg_patches = [[fg_patch], [fg_patch]] # for each instance, for each class
+    bg_patch = np.ones((batch_out_depth, batch_out_width, batch_out_width))
+    bg_patches = [[bg_patch], [bg_patch]] # for each instance, for each class
+
+    network_output = np.zeros(batch_out_shape)
+
+    # all 0s for now, will implement later to get test to pass
+    ignore_masks = np.zeros(batch_out_shape) 
+
+    # Compute expected metrics (tps, tns, fps, fns) given
+    # the output and annotation
+
+    # in this simplified case, the output is all 0.
+    # there is also no foreground and all background. 
+    expected_fp = 0
+    expected_fn = 0
+    expected_tn = np.prod(image_shape)
+    expected_tp = 0
 
     seg_patches = None # we are not interested in this functionality right now
     project_classes = ['structure_of_interest']
-    batch_classes = ['structure_of_interest']
-
-
-    """
-    outputs shape torch.Size([4, 2, 18, 258, 258])
-    fg patchs len 1
-    fg patchs [0] len 1
-    fg patch [0][0] shape torch.Size([52, 292, 292])
-    """
+    batch_classes = 2 * ['structure_of_interest'] # class for each instance in batch
 
     (loss, tps, tns, fps, fns) = get_batch_loss(
-         outputs, fg_patches, bg_patches, 
+         network_output, fg_patches, bg_patches, 
          ignore_masks, seg_patches,
          batch_classes, project_classes,
          compute_loss=False)
 
-    # Check that the metrics (tps, tns, fps, fns) returned
-    # correspond to the expected metrics given the:
-    #  - network outputs
-    #  - fg annotation
-    #  - bg annotation
-    assert tps == expected_tps
-    assert fps == expected_fps
-    assert tns == expected_tns
-    assert fns == expected_fns
-
-
-
-
+    assert len(tps) == len(fg_patches) # corresponds to total number of patches/instances
+    assert np.sum(tps) == expected_tp
+    assert np.sum(fps) == expected_fp
+    assert np.sum(tns) == expected_tn
+    assert np.sum(fns) == expected_fn
 
