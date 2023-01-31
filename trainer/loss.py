@@ -116,6 +116,7 @@ def get_batch_loss(outputs, batch_fg_patches, batch_bg_patches,
                     # foregorund and background channels
                     fg_patch = batch_fg_patches[im_idx][i][17:-17,17:-17,17:-17]
                     bg_patch = batch_bg_patches[im_idx][i][17:-17,17:-17,17:-17]
+
                     if batch_ignore_masks is not None:
                         ignore_mask = batch_ignore_masks[im_idx][i] # some regions are ignored, as they overlap with other patches
                     else:

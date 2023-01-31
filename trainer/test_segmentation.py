@@ -14,9 +14,11 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 import numpy as np
+import torch
 
 from trainer import Trainer
 from startup import startup_setup
+
 
 
 def test_segmentation_001():
@@ -73,15 +75,26 @@ def test_batch_loss_handles_overlapping_patches():
         "not a multiple of batch shape, to test overlapping patch metrics computation.")
 
     # we need to create annotation for the image, to allow computation of metrics
-    fg_patch = np.zeros((batch_out_depth, batch_out_width, batch_out_width))
+    fg_patch = np.zeros((batch_in_depth, batch_in_width, batch_in_width))
     fg_patches = [[fg_patch], [fg_patch]] # for each instance, for each class
-    bg_patch = np.ones((batch_out_depth, batch_out_width, batch_out_width))
+    bg_patch = np.ones((batch_in_depth, batch_in_width, batch_in_width))
     bg_patches = [[bg_patch], [bg_patch]] # for each instance, for each class
 
-    network_output = np.zeros(batch_out_shape)
+    # move to torch tensor as tested loss function requires this.
+    # FIXME split apart the tested function so metrics computation is seperate and not on GPU.
+    for i in range(len(fg_patches)):
+        fg_patches[i][0] = torch.tensor(fg_patches[i][0])
+    for i in range(len(bg_patches)):
+        bg_patches[i][0] = torch.tensor(bg_patches[i][0])
 
-    # all 0s for now, will implement later to get test to pass
-    ignore_masks = np.zeros(batch_out_shape) 
+    network_output = np.zeros(batch_out_shape)
+    # network predicts 1 for background.
+    network_output[:, 0] = np.ones((batch_out_depth, batch_out_width, batch_out_width))
+
+    network_output = torch.tensor(network_output).cuda()
+   
+    # will implement later to get test to pass
+    ignore_masks = None 
 
     # Compute expected metrics (tps, tns, fps, fns) given
     # the output and annotation
@@ -95,7 +108,9 @@ def test_batch_loss_handles_overlapping_patches():
 
     seg_patches = None # we are not interested in this functionality right now
     project_classes = ['structure_of_interest']
-    batch_classes = 2 * ['structure_of_interest'] # class for each instance in batch
+    # for each instance in batch, have list of classes present for that instance.
+    batch_classes = batch_size * [['structure_of_interest']]
+    
 
     (loss, tps, tns, fps, fns) = get_batch_loss(
          network_output, fg_patches, bg_patches, 
@@ -104,8 +119,13 @@ def test_batch_loss_handles_overlapping_patches():
          compute_loss=False)
 
     assert len(tps) == len(fg_patches) # corresponds to total number of patches/instances
+
+    assert np.sum(tns) > 0, ('network predicted 0 tns but should predict many tns as '
+                             'everything was background in the output and the '
+                             ' specified annotation')
+
     assert np.sum(tps) == expected_tp
     assert np.sum(fps) == expected_fp
-    assert np.sum(tns) == expected_tn
+    assert np.sum(tns) == expected_tn 
     assert np.sum(fns) == expected_fn
 
