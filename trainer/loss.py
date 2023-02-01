@@ -61,8 +61,16 @@ def get_batch_loss(outputs, batch_fg_patches, batch_bg_patches,
     assert (isinstance(batch_classes, list) and isinstance(batch_classes[0], list)), (
             f"assert batch_class is a list of lists, batch_classes: {batch_classes}")
 
-    """
+    if batch_ignore_masks is not None:
 
+        for i, m in enumerate(batch_ignore_masks):
+            assert isinstance(m, np.ndarray), (
+                    f"masks should be numpy arrays, mask type: {type(m)}")
+            assert (len((m.shape)) == 3), (
+                "ignore masks should have 3 dimensions to match mask"
+                f"mask {i} shape: {m.shape}")
+
+    """
         outputs - predictions from neural network (not softmaxed)
         batch_fg_patches - list of patches, each patch is binary map of foreground annotation
         batch_bg_patches - list of patches, each patch is binary map of background annotation
