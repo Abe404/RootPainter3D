@@ -122,8 +122,8 @@ class RPDataset(Dataset):
                 # ok we have some annotation for this
                 # part of the image so let's return the patch.
                 im_patch = image[z_in:z_in+self.in_d,
-                                y_in:y_in+self.in_w,
-                                x_in:x_in+self.in_w]
+                                 y_in:y_in+self.in_w,
+                                 x_in:x_in+self.in_w]
 
                 return annot_patches, seg_patches, im_patch
             if attempts > warn_after_attempts:
@@ -156,7 +156,7 @@ class RPDataset(Dataset):
         # ignore_masks prevent coordinates from being added to the metrics computation twice.
         # They tell us which region of the image prediction has already been stored in the metrics
         # and thus should not be added to the metrics again.
-        ignore_masks = [] 
+        ignore_mask = None
         for annot_patch in annot_patches:
             #annot patch shape is  (2, 18, 194, 194)
             foreground = np.array(annot_patch)[1]
@@ -167,14 +167,15 @@ class RPDataset(Dataset):
             background = background.astype(np.int64)
             background = torch.from_numpy(background)
             backgrounds.append(background)
-            ignore_masks.append(np.zeros(background.shape))
+            # mask is same for all annotations so just return one.
+            ignore_mask = np.zeros((self.out_d, self.out_w, self.out_w), dtype=np.uint8)
 
         im_patch = im_patch.astype(np.float32)
         
         # add dimension for input channel
         im_patch = np.expand_dims(im_patch, axis=0)
         assert len(backgrounds) == len(seg_patches)
-        return im_patch, foregrounds, backgrounds, ignore_masks, seg_patches, classes
+        return im_patch, foregrounds, backgrounds, ignore_mask, seg_patches, classes
        
     def get_val_item(self, patch_ref):
         return self.get_patch_from_ref_3d(patch_ref)
@@ -209,6 +210,7 @@ class RPDataset(Dataset):
         foregrounds = []
         backgrounds = []
         annot_patches = []
+        ignore_mask = None # ignore mask is a single item for each image.
 
         for annot_dir in self.annot_dirs:
             annot_path = os.path.join(annot_dir, patch_ref.annot_fname)
@@ -236,7 +238,6 @@ class RPDataset(Dataset):
  
         assert im_patch.shape == (self.in_d, self.in_w, self.in_w), (
             f" shape is {im_patch.shape}")
-        ignore_masks = [] 
         for annot_patch in annot_patches:
             foreground = np.array(annot_patch)[1]
             background = np.array(annot_patch)[0]
@@ -246,7 +247,7 @@ class RPDataset(Dataset):
             background = background.astype(np.int64)
             background = torch.from_numpy(background)
             backgrounds.append(background)
-            ignore_masks.append(patch_ref.ignore_mask)
+            ignore_mask = patch_ref.ignore_mask # will be same for each annotation.
 
         im_patch = img_as_float32(im_patch)
         im_patch = im_utils.normalize_patch(im_patch)
@@ -254,4 +255,4 @@ class RPDataset(Dataset):
         im_patch = np.expand_dims(im_patch, axis=0)
         segs = [None] * len(backgrounds)
         
-        return im_patch, foregrounds, backgrounds, ignore_masks, segs, classes
+        return im_patch, foregrounds, backgrounds, ignore_mask, segs, classes
