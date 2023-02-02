@@ -26,13 +26,14 @@ from datetime import datetime
 import time
 from collections import namedtuple
 import numpy as np
+import torch
 
 
 metric_headers = ['seconds', 'time', 'tp', 'fp', 'tn', 'fn', 'precision', 'recall', 'dice']
 
-def compute_metrics_from_binary_masks(seg, gt):
+def metrics_from_binary_masks(seg, gt):
 
-    if torch.istensor(seg):
+    if torch.is_tensor(seg):
         # compute metrics as tensors if variable is a torch tensor
         # as the data may be on the gpu and we may as well make the
         # comparison on the GPU before moving the result to the cpu.
