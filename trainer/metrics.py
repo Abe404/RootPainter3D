@@ -40,7 +40,7 @@ def compute_metrics_from_binary_masks(seg, gt):
             tp=torch.sum((gt == 1) * (seg == 1)).cpu().numpy(),
             tn=torch.sum((gt == 0) * (seg == 0)).cpu().numpy(),
             fp=torch.sum((gt == 0) * (seg == 1)).cpu().numpy(),
-            fn=torch.sum((gt == 1) * (seg == 0)).cpu().numpy(),
+            fn=torch.sum((gt == 1) * (seg == 0)).cpu().numpy()
         )
     elif isinstance(seg, np.ndarray):
         # FIXME: why is this being converted to int? 
