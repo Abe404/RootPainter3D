@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 import numpy as np
+from metrics import Metrics
 
 
 @dataclass
@@ -25,34 +26,18 @@ class PatchRef:
     # numpy array saying which voxels should be ignored when computing metrics
     # because these voxels exist in another overlapping patch.
     ignore_mask: np.ndarray 
- 
-
-    # These metrics are the cached performance for this patch 
-    # with previous (current best) model.
-    # Initialized to None but otherwise [tp, fp, tn, fn]
-    fp: int | None = None # number of false positives for patch
-    tp: int | None = None # number of true positives for patch
-    tn: int | None = None # number of true negatives for patch
-    fn: int | None = None # number of false negatives for patch
     # FIXME: Could ignore_mask be a list of coordinates describing a cuboid rather than 
     #        a likely memory intensive exaustive list of voxels?
  
-
+    # These metrics are the cached performance for this patch 
+    # with previous (current best) model.
+    metrics: Metrics | None = None
+    
     def has_metrics(self):
-        return self.fp is not None
+        return self.metrics is not None
  
     def is_same_region_as(self, other):
         return (self.annot_fname == other.annot_fname and 
                 self.x == other.x and
                 self.y == other.y and
                 self.z == other.z)
- 
-    def metrics_str(self):
-        # used for debugging from time to time.
-        return f"tp:{self.tp}, tn:{self.tn} fp:{self.fp}, fn:{self.fn}"
- 
-    def assign_metrics(self, tp:int, fp:int, tn:int, fn:int):
-        self.tp = tp
-        self.fp = fp
-        self.tn = tn
-        self.fn = fn

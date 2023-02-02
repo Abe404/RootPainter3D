@@ -38,7 +38,6 @@ from loss import get_batch_loss
 from instructions import fix_config_paths
 
 from datasets import RPDataset
-from metrics import get_metrics, get_metrics_str, get_metric_csv_row
 from model_utils import load_model_then_segment_3d
 from model_utils import add_config_shape
 from model_utils import create_first_model_with_random_weights
@@ -117,12 +116,10 @@ class Trainer():
                     train_epoch_length = max(64, 2 * len(self.val_patch_refs))
                 else:
                     train_epoch_length = 128
-                epoch_result = self.train_epoch(self.model, length=train_epoch_length)
-                if epoch_result:
-                    (tps, fps, tns, fns) = epoch_result
-                    train_m = get_metrics(np.sum(tps), np.sum(fps), np.sum(tns), np.sum(fns))
-                    self.log_metrics('train', train_m)
-                    print(get_metrics_str(train_m, to_use=['dice', 'precision', 'recall']))
+                train_metrics = sum(self.train_epoch(self.model, length=train_epoch_length))
+                if train_metrics:
+                    self.log_metrics('train', train_metrics)
+                    print(train_metrics.__str__(to_use=['dice', 'precision', 'recall']))
             if self.training:
                 self.validation()
                 if on_epoch_end:
@@ -256,7 +253,7 @@ class Trainer():
 
     def val_epoch(self, model, val_patch_refs):
         """
-        Compute the metrics (tps, fps, tns, fns) for a given
+        Compute the metrics for a given
             model, annotation directory and dataset (image directory).
         """
         dataset = RPDataset(self.train_config['val_annot_dirs'],
@@ -273,17 +270,13 @@ class Trainer():
                             collate_fn=data_utils.collate_fn,
                             num_workers=self.num_workers,
                             drop_last=False, pin_memory=True)
-        tps = []
-        fps = []
-        tns = []
-        fns = []
         loss_sum = 0
+        epoch_items_metrics = []
 
         epoch_start = time.time()
         for step, (batch_im_patches, batch_fg_patches,
                    batch_bg_patches, batch_ignore_masks,
                    batch_seg_patches, batch_classes) in enumerate(loader):
-
 
             self.check_for_instructions()
             batch_im_patches = torch.from_numpy(np.array(batch_im_patches)).cuda()
@@ -291,24 +284,23 @@ class Trainer():
                 batch_im_patches = handle_patch_update_in_epoch_step(batch_im_patches, mode='val')
 
             outputs = model(batch_im_patches)
-            (_, batch_tps, batch_fps,
-             batch_tns, batch_fns) = get_batch_loss(
+
+            (_, batch_items_metrics) = get_batch_loss(
                 outputs, batch_fg_patches,
                 batch_bg_patches, batch_ignore_masks, None,
                 batch_classes, self.train_config['classes'],
                 compute_loss=False)
 
-            tps += batch_tps
-            fps += batch_fps
-            tns += batch_tns
-            fns += batch_fns
+            epoch_items_metrics += batch_items_metrics
+
             self.check_for_instructions() # could update training parameter
             if not self.training: # in this context we consider validation part of training.
                 return # a way to stop validation quickly if user specifies
         duration = round(time.time() - epoch_start, 3)
         print(f'Validation epoch duration', duration,
-               'time per instance', round((time.time() - epoch_start) / len(tps), 3))
-        return [tps, fps, tns, fns]
+               'time per instance',
+               round((time.time() - epoch_start) / len(epoch_items_metrics), 3))
+        return epoch_items_metrics
 
 
     def train_epoch(self, model, length=None):
@@ -340,10 +332,8 @@ class Trainer():
                             drop_last=False, pin_memory=True)
         model.train()
         epoch_start = time.time()
-        tps = []
-        fps = []
-        tns = []
-        fns = []
+
+        epoch_items_metrics = []  
         loss_sum = 0
         for step, (batch_im_patches, batch_fg_patches,
                    batch_bg_patches, batch_ignore_masks,
@@ -358,18 +348,13 @@ class Trainer():
 
             outputs = model(batch_im_patches)
 
-            (batch_loss, batch_tps, batch_tns,
-             batch_fps, batch_fns) = get_batch_loss(
+            (batch_loss, batch_items_metrics) = get_batch_loss(
                  outputs, batch_fg_patches, batch_bg_patches, 
                  batch_ignore_masks, batch_seg_patches,
                  batch_classes, self.train_config['classes'],
                  compute_loss=True)
 
-            tps += batch_tps
-            fps += batch_fps
-            tns += batch_tns
-            fns += batch_fns
-
+            epoch_items_metrics += batch_items_metrics 
             loss_sum += batch_loss.item() # float
             batch_loss.backward()
             self.optimizer.step()
@@ -385,14 +370,15 @@ class Trainer():
 
         duration = round(time.time() - epoch_start, 3)
         print(f'Training epoch duration', duration,
-              'time per instance', round((time.time() - epoch_start) / len(tps), 3))
-        return [tps, fps, tns, fns]
+              'time per instance',
+              round((time.time() - epoch_start) / len(epoch_items_metrics), 3))
+        return epoch_items_metrics
 
-    def assign_metrics_to_refs(self, tps, fps, tns, fns):
+    def assign_metrics_to_refs(self, metrics_list):
         # now go through and assign the errors to the appropriate patch refs.
-        for i, (tp, fp, tn, fn) in enumerate(zip(tps, fps, tns, fns)):
+        for i, metrics_for_ref in enumerate(metrics_list):
             # go through the val patch refs to find the equivalent patch ref
-            self.val_patch_refs[i].assign_metrics(tp=tp, fp=fp, tn=tn, fn=fn)
+            self.val_patch_refs[i].metrics = metrics_for_ref
 
     def get_new_val_patches_refs(self):
         return im_utils.get_val_patch_refs(self.train_config['val_annot_dirs'],
@@ -411,7 +397,7 @@ class Trainer():
                   'false_negatives,precision,recall,dice',
                   file=open(fpath, 'w+'))
         with open(fpath, 'a+') as log_file:
-            log_file.write(get_metric_csv_row(metrics))
+            log_file.write(metrics.csv_row())
             log_file.flush()
 
     def validation(self):
@@ -424,6 +410,9 @@ class Trainer():
         model_dir = self.train_config['model_dir']
         prev_model, prev_path = model_utils.get_prev_model(model_dir,
                                                            self.train_config['classes'])
+
+        # this could include some of the prevous patches refs 
+        # (if annotation has not changed etc)
         self.val_patch_refs = self.get_new_val_patches_refs()
 
         if not self.val_patch_refs:
@@ -435,32 +424,28 @@ class Trainer():
             was_saved = True
         else:
             # for current model get errors for all patches in the validation set.
-            epoch_result = self.val_epoch(copy.deepcopy(self.model), self.val_patch_refs)
-            if not epoch_result:
+            cur_val_metrics = self.val_epoch(copy.deepcopy(self.model),
+                                             self.val_patch_refs)
+            if not cur_val_metrics:
                 # if we didn't get anything back then it means the
                 # dataset did not contain any annotations so no need
                 # to proceed with validation.
                 return 
-            (tps, fps, tns, fns) = epoch_result
-            print('epoch result')
-            print('tps', np.sum(tps))
-            print('fps', np.sum(fps))
-            print('tns', np.sum(tns))
-            print('fns', np.sum(fns))
-            print('total voxels (tps + fps + tns + fns) = ', np.sum(tps+fps+tns+fns))
-            cur_m = get_metrics(np.sum(tps), np.sum(fps), np.sum(tns), np.sum(fns))
-            self.log_metrics('cur_val', cur_m)
+            self.log_metrics('cur_val', cur_val_metrics)
 
-            prev_m = self.get_prev_model_metrics(prev_model)
+            # uses current val_patch_refs, where computation is required only.
+            prev_val_metrics = self.get_prev_model_metrics(prev_model)
+            self.log_metrics('prev_val', prev_val_metrics)
 
-
-
-            self.log_metrics('prev_val', prev_m)
             was_saved = save_if_better(model_dir, self.model, prev_path,
-                                       cur_m['dice'], prev_m['dice'])
+                                       cur_val_metrics.dice(),
+                                       prev_val_metrics.dice())
             if was_saved:
+                # if it was saved then cur_model will become prev_model so
                 # update the cache to use metrics from current model
-                self.assign_metrics_to_refs(tps, fps, tns, fns)
+                # assign metrics to refs
+                for i, metrics_for_ref in enumerate(cur_val_metrics):
+                    self.val_patch_refs[i].metrics = metrics_for_ref
 
         if was_saved:
             self.epochs_without_progress = 0
@@ -475,10 +460,11 @@ class Trainer():
             # (because this would cause the restart to stop and typical training to resumse)
             # so we keep track of the best dice so far for this specific restart, and extend
             # training if we beat it, i.e set epochs_without_progress to 0
-            if cur_m['dice'] > self.restart_best_val_dice:
+            if cur_val_metrics.dice() > self.restart_best_val_dice:
                 print('local restart dice improvement from',
-                      round(self.restart_best_val_dice, 4), 'to', round(cur_m['dice'], 4))
-                self.restart_best_val_dice = cur_m['dice']
+                      round(self.restart_best_val_dice, 4), 'to',
+                      round(cur_val_metrics.dice(), 4))
+                self.restart_best_val_dice = cur_val_metrics.dice()
                 self.epochs_without_progress = 0
 
         self.reset_progress_if_annots_changed()
@@ -505,6 +491,7 @@ class Trainer():
         self.restart_best_val_dice = 0 # need to beat this or restart will stop after 60 epochs
         self.val_patch_refs = [] # dont want to cache these
         self.epochs_without_progress = 0
+        # FIXME: should train_config be a dataclass?
         self.model = random_model(self.train_config['classes'])
         self.optimizer = torch.optim.SGD(self.model.parameters(), lr=0.01,
                                          momentum=0.99, nesterov=True)
@@ -593,11 +580,11 @@ class Trainer():
         # then compute the errors for these patch refs
         if refs_to_compute:
             
-            (tps, fps, tns, fns) = self.val_epoch(prev_model, refs_to_compute)
-            assert len(tps) == len(fps) == len(tns) == len(fns) == len(refs_to_compute)
+            val_metrics = self.val_epoch(prev_model, refs_to_compute)
+            assert len(val_metrics) == len(refs_to_compute)
 
             # now go through and assign the errors to the appropriate patch refs.
-            for tp, fp, tn, fn, computed_ref in zip(tps, fps, tns, fns, refs_to_compute):
+            for val_metric, computed_ref in zip(val_metrics, refs_to_compute):
                 # go through the val patch refs to find the equivalent patch ref
                 for i, ref in enumerate(self.val_patch_refs):
                     if ref.is_same_region_as(computed_ref):
@@ -605,9 +592,9 @@ class Trainer():
                             # it was already found that this ref needed computing
                             # confirm that it is indeed missing metrics
                             assert not self.val_patch_refs[i].has_metrics(), (
-                                self.val_patch_refs[i].metrics_str())
+                                self.val_patch_refs[i].metrics)
                             assert not ref.has_metrics()
-                        ref.assign_metrics(tp=tp, fp=fp, tn=tn, fn=fn)
+                        ref.metrics = val_metric 
                         assert self.val_patch_refs[i].has_metrics()
 
         prev_m = sum([r.metrics for r in self.val_patch_refs])
