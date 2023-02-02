@@ -29,6 +29,7 @@ import copy
 import random
 import multiprocessing
 
+from metrics import Metrics
 
 import numpy as np
 import torch
@@ -116,7 +117,7 @@ class Trainer():
                     train_epoch_length = max(64, 2 * len(self.val_patch_refs))
                 else:
                     train_epoch_length = 128
-                train_metrics = sum(self.train_epoch(self.model, length=train_epoch_length))
+                train_metrics = Metrics.sum(self.train_epoch(self.model, length=train_epoch_length))
                 if train_metrics:
                     self.log_metrics('train', train_metrics)
                     print(train_metrics.__str__(to_use=['dice', 'precision', 'recall']))
@@ -424,13 +425,15 @@ class Trainer():
             was_saved = True
         else:
             # for current model get errors for all patches in the validation set.
-            cur_val_metrics = self.val_epoch(copy.deepcopy(self.model),
-                                             self.val_patch_refs)
-            if not cur_val_metrics:
+            cur_val_items_metrics = self.val_epoch(copy.deepcopy(self.model),
+                                                   self.val_patch_refs)
+            if not cur_val_items_metrics:
                 # if we didn't get anything back then it means the
                 # dataset did not contain any annotations so no need
                 # to proceed with validation.
                 return 
+
+            cur_val_metrics = Metrics.sum(cur_val_items_metrics)
             self.log_metrics('cur_val', cur_val_metrics)
 
             # uses current val_patch_refs, where computation is required only.
@@ -444,7 +447,7 @@ class Trainer():
                 # if it was saved then cur_model will become prev_model so
                 # update the cache to use metrics from current model
                 # assign metrics to refs
-                for i, metrics_for_ref in enumerate(cur_val_metrics):
+                for i, metrics_for_ref in enumerate(cur_val_items_metrics):
                     self.val_patch_refs[i].metrics = metrics_for_ref
 
         if was_saved:
@@ -597,7 +600,7 @@ class Trainer():
                         ref.metrics = val_metric 
                         assert self.val_patch_refs[i].has_metrics()
 
-        prev_m = sum([r.metrics for r in self.val_patch_refs])
+        prev_m = Metrics.sum([r.metrics for r in self.val_patch_refs])
         return prev_m
 
     def segment_patch(self, segment_config):
