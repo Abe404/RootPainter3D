@@ -139,7 +139,7 @@ def test_batch_loss_handles_overlapping_patches():
 
     assert len(metrics_list) == len(fg_patches) # corresponds to total number of patches/instances
 
-    batch_metrics = np.sum(metrics_list)
+    batch_metrics = Metrics.sum(metrics_list)
     assert batch_metrics.tn > 0, ('network predicted 0 tns '
         'but should predict many tns as everything was background in the '
         'output and the specified annotation')
