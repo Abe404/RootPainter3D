@@ -77,8 +77,7 @@ def allocate_net(in_w, out_w, num_classes):
         batch_classes = []
         for _ in range(4):
             batch_classes.append([f'c_{c}' for c in range(num_classes)])
-        (batch_loss, _, _,
-         _, _) = get_batch_loss(
+        (batch_loss, _) = get_batch_loss(
              outputs, batch_fg_patches, batch_bg_patches, None,
              [[None for c in range(num_classes)] for t in batch_fg_patches], # segmentation excluded from loss for now.
              batch_classes,
