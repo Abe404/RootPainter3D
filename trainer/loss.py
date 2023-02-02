@@ -23,7 +23,7 @@ from torch.nn.functional import cross_entropy
 from torch.nn.functional import l1_loss
 import numpy as np
 
-from metrics import compute_metrics_from_binary_masks
+from metrics import Metrics, metrics_from_binary_masks
 
 def dice_loss(predictions, labels):
     """ based on loss function from V-Net paper """
