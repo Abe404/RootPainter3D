@@ -18,6 +18,7 @@ import torch
 
 from trainer import Trainer
 from startup import startup_setup
+from metrics import Metrics
 
 
 
@@ -123,30 +124,23 @@ def test_batch_loss_handles_overlapping_patches():
 
     # in this simplified case, the output is all 0.
     # there is also no foreground and all background. 
-    expected_fp = 0
-    expected_fn = 0
-    expected_tn = np.prod(image_shape)
-    expected_tp = 0
+    expected_metrics = Metrics(fp=0, fn=0, tn=np.prod(image_shape), tp=0)
 
     seg_patches = None # we are not interested in this functionality right now
     project_classes = ['structure_of_interest']
     # for each instance in batch, have list of classes present for that instance.
     batch_classes = batch_size * [['structure_of_interest']]
     
-    (loss, tps, tns, fps, fns) = get_batch_loss(
+    (loss, metrics_list) = get_batch_loss(
          network_output, fg_patches, bg_patches, 
          ignore_masks, seg_patches,
          batch_classes, project_classes,
          compute_loss=False)
 
-    assert len(tps) == len(fg_patches) # corresponds to total number of patches/instances
+    assert len(metrics_list) == len(fg_patches) # corresponds to total number of patches/instances
 
-    assert np.sum(tns) > 0, ('network predicted 0 tns but should predict many tns as '
-                             'everything was background in the output and the '
-                             ' specified annotation')
-
-    assert np.sum(tps) == expected_tp
-    assert np.sum(fps) == expected_fp
-    assert np.sum(tns) == expected_tn 
-    assert np.sum(fns) == expected_fn
-
+    batch_metrics = np.sum(metrics_list)
+    assert batch_metrics.tn > 0, ('network predicted 0 tns '
+        'but should predict many tns as everything was background in the '
+        'output and the specified annotation')
+    assert batch_metrics == expected_metrics
