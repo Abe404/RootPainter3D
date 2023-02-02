@@ -45,7 +45,6 @@ from model_utils import create_first_model_with_random_weights
 from model_utils import random_model
 import model_utils
 from model_utils import save_if_better, save_model
-from metrics import metrics_from_val_patch_refs
 import data_utils
 from patch_seg import handle_patch_update_in_epoch_step
 from im_utils import is_image, load_image, save_then_move, save
@@ -453,6 +452,9 @@ class Trainer():
             self.log_metrics('cur_val', cur_m)
 
             prev_m = self.get_prev_model_metrics(prev_model)
+
+
+
             self.log_metrics('prev_val', prev_m)
             was_saved = save_if_better(model_dir, self.model, prev_path,
                                        cur_m['dice'], prev_m['dice'])
@@ -608,7 +610,7 @@ class Trainer():
                         ref.assign_metrics(tp=tp, fp=fp, tn=tn, fn=fn)
                         assert self.val_patch_refs[i].has_metrics()
 
-        prev_m = metrics_from_val_patch_refs(self.val_patch_refs)
+        prev_m = sum([r.metrics for r in self.val_patch_refs])
         return prev_m
 
     def segment_patch(self, segment_config):
