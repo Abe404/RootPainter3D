@@ -31,15 +31,29 @@ import numpy as np
 metric_headers = ['seconds', 'time', 'tp', 'fp', 'tn', 'fn', 'precision', 'recall', 'dice']
 
 def compute_metrics_from_binary_masks(seg, gt):
-    gt = gt.reshape(-1).astype(int)
-    seg = seg.reshape(-1).astype(int)
-    assert len(gt) == len(seg)
-    return Metrics(
-        tp=(np.sum((gt == 1) * (gt == 1))),
-        tn=(np.sum((gt == 0) * (gt == 0))),
-        fp=(np.sum((gt == 0) * (seg == 1))),
-        fn=(np.sum((gt == 1) * (seg == 0)))
-    )
+
+    if torch.istensor(seg):
+        # compute metrics as tensors if variable is a torch tensor
+        # as the data may be on the gpu and we may as well make the
+        # comparison on the GPU before moving the result to the cpu.
+        return Metrics(
+            tp=torch.sum((gt == 1) * (seg == 1)).cpu().numpy(),
+            tn=torch.sum((gt == 0) * (seg == 0)).cpu().numpy(),
+            fp=torch.sum((gt == 0) * (seg == 1)).cpu().numpy(),
+            fn=torch.sum((gt == 1) * (seg == 0)).cpu().numpy(),
+        )
+    elif isinstance(seg, np.ndarray):
+        gt = gt.reshape(-1).astype(int)
+        seg = seg.reshape(-1).astype(int)
+        assert len(gt) == len(seg)
+        return Metrics(
+            tp=(np.sum((gt == 1) * (seg == 1))),
+            tn=(np.sum((gt == 0) * (seg == 0))),
+            fp=(np.sum((gt == 0) * (seg == 1))),
+            fn=(np.sum((gt == 1) * (seg == 0)))
+        )
+    else:
+        raise Exception(f'Unhandled type {seg}, {gt}')
 
 
 @dataclass
