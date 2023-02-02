@@ -23,6 +23,7 @@ from torch.nn.functional import cross_entropy
 from torch.nn.functional import l1_loss
 import numpy as np
 
+from metrics import compute_metrics_from_binary_masks
 
 def dice_loss(predictions, labels):
     """ based on loss function from V-Net paper """
@@ -86,11 +87,8 @@ def get_batch_loss(outputs, batch_fg_patches, batch_bg_patches,
     """
 
     class_losses = [] # loss for each class
-
-    instance_tps = [0 for _ in range(outputs.shape[0])]
-    instance_tns = list(instance_tps)
-    instance_fps = list(instance_tps)
-    instance_fns = list(instance_tps)
+    
+    instances_metrics = [Metrics() for _ in range(outputs.shape[0])]
 
     for unique_class in project_classes:
 
@@ -165,17 +163,14 @@ def get_batch_loss(outputs, batch_fg_patches, batch_bg_patches,
                     
                     class_pred = class_pred[mask > 0]
                     fg = fg_patch[mask > 0]
-
                     # compute metrics based on agreement between predictions and labels.
-                    instance_tps[im_idx] += torch.sum((fg == 1) * (class_pred == 1)).cpu().numpy()
-                    instance_tns[im_idx] += torch.sum((fg == 0) * (class_pred == 0)).cpu().numpy()
-                    instance_fps[im_idx] += torch.sum((fg == 0) * (class_pred == 1)).cpu().numpy()
-                    instance_fns[im_idx] += torch.sum((fg == 1) * (class_pred == 0)).cpu().numpy()
+                    instances_metrics[im_idx] += metrics_from_binary_masks(class_pred, fg)
                     masks.append(mask)
 
                     fg_patches.append(fg_patch)
                     class_outputs.append(class_output)
                     seg_patch = None
+
                     if batch_seg_patches is not None:
                         seg_patch = batch_seg_patches[im_idx][i]
                     if seg_patch is not None:
@@ -213,5 +208,10 @@ def get_batch_loss(outputs, batch_fg_patches, batch_bg_patches,
             class_losses.append(class_loss)
 
     if compute_loss:
-        return torch.mean(torch.stack(class_losses)), instance_tps, instance_tns, instance_fps, instance_fns
-    return None, instance_tps, instance_tns, instance_fps, instance_fns
+        return torch.mean(torch.stack(class_losses)), instances_metrics
+    # FIXME: create a metrics object from a metrics class and return here.
+    #        bugs are being caused by just assuming these are in a specific order.
+    return None, instances_metrics
+
+
+
