@@ -43,9 +43,12 @@ def compute_metrics_from_binary_masks(seg, gt):
             fn=torch.sum((gt == 1) * (seg == 0)).cpu().numpy(),
         )
     elif isinstance(seg, np.ndarray):
-        gt = gt.reshape(-1).astype(int)
-        seg = seg.reshape(-1).astype(int)
-        assert len(gt) == len(seg)
+        # FIXME: why is this being converted to int? 
+        # Is it required for the comparison or is it to improve performance?
+        # Please explain with a comment or remove the conversion
+        gt = gt.astype(int)
+        seg = seg.astype(int)
+        assert gt.shape == seg.shape, f"{gt.shape} should be same as {seg.shape}"
         return Metrics(
             tp=(np.sum((gt == 1) * (seg == 1))),
             tn=(np.sum((gt == 0) * (seg == 0))),
