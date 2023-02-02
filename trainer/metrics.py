@@ -66,6 +66,14 @@ class Metrics:
     fp: int = 0
     tn: int = 0
     fn: int = 0
+
+    # implemented because python sum only works with integers
+    @staticmethod
+    def sum(list_of_metrics):
+        metrics_sum = Metrics()
+        for m in list_of_metrics:
+            metrics_sum += m
+        return metrics_sum
     
     def total(self):
         return self.tp + self.tn + self.fp + self.fn
@@ -102,7 +110,7 @@ class Metrics:
                        fp=self.fp+other.fp, 
                        tn=self.tn+other.tn, 
                        fn=self.fn+other.fn)
-    
+
     def __str__(self, to_use=None):
         out_str = ""
         for name in metric_headers:
@@ -114,11 +122,14 @@ class Metrics:
                     out_str += f" {name} {val:.4g}"
         return out_str
 
-    def csv_row(self, start_time):
+    def csv_row(self, start_time=None):
         now_str = datetime.now().strftime('%Y-%m-%d-%H:%M:%S')
-        seconds = time.time() - start_time
-        parts = [seconds, now_str, self.tp,
-                 self.fp, self.tn, self.fn,
-                 round(self.precision(), 4), round(self.recall(), 4),
-                 round(self.dice(), 4)]
+        parts = []
+        if start_time: # csv_row does not always include duration.
+            seconds = time.time() - start_time
+            parts.append(seconds)
+        parts += [now_str, self.tp,
+                  self.fp, self.tn, self.fn,
+                  round(self.precision(), 4), round(self.recall(), 4),
+                  round(self.dice(), 4)]
         return ','.join([str(p) for p in parts])
