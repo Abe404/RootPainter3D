@@ -276,7 +276,7 @@ class RootPainter(QtWidgets.QMainWindow):
                                              self.get_val_annot_dir())
         
         if self.annot_path and os.path.isfile(self.annot_path):
-            self.annot_data = im_utils.load_annot(self.annot_path, self.img_data.shape)
+            self.annot_data = im_utils.load_annot(self.annot_path)
         else:
             # otherwise create empty annotation array
             # if we are working with 3D data (npy file) and the

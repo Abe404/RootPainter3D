@@ -65,7 +65,7 @@ def load_image(image_path):
     return image
 
 
-def load_annot(annot_path, img_data_shape):
+def load_annot(annot_path):
     annot_image = nib.load(annot_path)
     annot_data = np.array(annot_image.dataobj, dtype=bool)
     return annot_data
@@ -75,7 +75,8 @@ def load_seg(seg_path):
     seg_image = nib.load(seg_path)
     seg_data = np.array(seg_image.dataobj, dtype=bool)
     # This issue may be related to file system issues.
-    assert  len(seg_data.shape) == 3, f"seg shape is {seg_data.shape} for {seg_path}"
+    assert  len(seg_data.shape) == 3, (f"seg shape is unexpected."
+        f"shape is {seg_data.shape} for {seg_path}")
     return seg_data
 
 

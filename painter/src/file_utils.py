@@ -102,8 +102,7 @@ def maybe_save_annotation_3d(image_data_shape, annot_data, annot_path,
     annot_data = annot_data.astype(np.byte)
     # if there is an existing annotation.
     if annot_path:
-        existing_annot = im_utils.load_annot(annot_path,
-                                             image_data_shape).astype(np.byte)
+        existing_annot = im_utils.load_annot(annot_path).astype(np.byte)
         # and the annot we are saving is different.
         if not np.array_equal(annot_data, existing_annot):
             # Then we must over-write the previously saved annoation.
