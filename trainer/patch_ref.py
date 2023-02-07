@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 import numpy as np
 from metrics import Metrics
+from typings import Optional # supporting python3.8
 
 
 @dataclass
@@ -31,7 +32,7 @@ class PatchRef:
  
     # These metrics are the cached performance for this patch 
     # with previous (current best) model.
-    metrics: Metrics | None = None
+    metrics: Optional[Metrics] = None
     
     def has_metrics(self):
         return self.metrics is not None
