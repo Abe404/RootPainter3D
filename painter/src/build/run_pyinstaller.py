@@ -49,7 +49,7 @@ if platform == "darwin":
     icon_fname = 'Icon.icns' # icns for mac
 
 # icon path should be relative to the dist folder
-shutil.copyfile(os.path.join('src', 'main', 'icons', icon_fname),
+shutil.copyfile(os.path.join('icons', icon_fname),
                 os.path.join('dist', icon_fname))
 
 # pyinstaller command line argument documentation is available from:
@@ -112,7 +112,7 @@ run_args.append('--osx-bundle-identifier')
 run_args.append('com.rootpainter3D')
 
 # scriptname: Name of scriptfile to be processed.
-run_args.append(os.path.join('src', 'main', 'python', 'main.py'))
+run_args.append(os.path.join('src', 'main.py'))
 
 PyInstaller.__main__.run(run_args)
 
