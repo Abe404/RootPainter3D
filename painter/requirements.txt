@@ -7,7 +7,7 @@ PyWavelets>=1.1.1
 Pillow==9.0.1
 scipy>=1.4.1
 qimage2ndarray==1.8.3
-nibabel==3.1.1
+nibabel==5.0.0
 pynrrd==0.4.2
 rp-annot>=0.0.4
 medpy==0.4.0
