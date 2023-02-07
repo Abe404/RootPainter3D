@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 import numpy as np
 from metrics import Metrics
-from typings import Optional # supporting python3.8
+from typing import Optional # supporting python3.8
 
 
 @dataclass
