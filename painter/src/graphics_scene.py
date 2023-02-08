@@ -16,19 +16,15 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 # pylint: disable=I1101, C0111, E0611, R0902
 """ Canvas where image and annotations can be drawn """
-import os
 import numpy as np
 from PyQt5 import QtWidgets
 from PyQt5 import QtGui
 from PyQt5 import QtCore
 from PyQt5.QtCore import Qt
-import nibabel as nib
-import time
 import qimage2ndarray
-from skimage.segmentation import flood
 import im_utils
 from view_state import ViewState
-from patch_seg import SegmentPatchThread, PatchSegmentor
+from patch_seg import PatchSegmentor
 
 class GraphicsScene(QtWidgets.QGraphicsScene):
     """
@@ -69,7 +65,6 @@ class GraphicsScene(QtWidgets.QGraphicsScene):
 
                 if button_reply == QtWidgets.QMessageBox.Yes:
                     self.parent.parent.info_label.setText("Removing disconnected regions")
-                    idx = self.parent.slice_nav.max_slice_idx - self.parent.cur_slice_idx 
                     # correct to restrict to only the selected region
                     new_annot, removed_count, holes, error = im_utils.restrict_to_regions_containing_points(
                         self.parent.parent.seg_data,
@@ -129,38 +124,39 @@ class GraphicsScene(QtWidgets.QGraphicsScene):
                     v.scene.addItem(v.scene.line)
                     v.scene.line.setVisible(True)
 
-
-    def flood_fill(self, x, y):
-        raise Exception('disabled')
-        x = round(x)
-        y = round(y)
-        # all rgb channels must match for the flood region to expand
-        image =  self.annot_pixmap.toImage()
-        rgb_np = np.array(qimage2ndarray.rgb_view(image))
-        alpha_np = np.array(qimage2ndarray.alpha_view(image))
-        mask = np.ones((rgb_np.shape[0], rgb_np.shape[1]), dtype=np.int)
-        for i in range(3):
-            mask *= flood(rgb_np[:, :, i], (y, x), connectivity=1)
-        mask *= flood(alpha_np, (y, x), connectivity=1)
-        
-        # Assign previous labels to the new annotation before adding flooded region.        
-        np_rgba = np.zeros((rgb_np.shape[0], rgb_np.shape[1], 4))
-        fg = rgb_np[:, :, 0] > 0
-        bg = rgb_np[:, :, 1] > 0
-        np_rgba[:, :, 1] = bg * 255 # green is bg
-        np_rgba[:, :, 0] = fg * 255 # red is fg
-        np_rgba[:, :, 3] = (bg + fg) * 180 # alpha
-
-        # flood fill should be with current brush color
-        np_rgba[:, :, :][mask > 0] = [
-            self.parent.brush_color.red(),
-            self.parent.brush_color.green(),
-            self.parent.brush_color.blue(),
-            self.parent.brush_color.alpha()
-        ]
-        q_image = qimage2ndarray.array2qimage(np_rgba)
-        return QtGui.QPixmap.fromImage(q_image)
-
+    # FIXME: should we remove this commented out function?
+    #     def flood_fill(self, x, y):
+    #         raise Exception('disabled')
+    #         # from skimage.segmentation import flood
+    #         x = round(x)
+    #         y = round(y)
+    #         # all rgb channels must match for the flood region to expand
+    #         image =  self.annot_pixmap.toImage()
+    #         rgb_np = np.array(qimage2ndarray.rgb_view(image))
+    #         alpha_np = np.array(qimage2ndarray.alpha_view(image))
+    #         mask = np.ones((rgb_np.shape[0], rgb_np.shape[1]), dtype=np.int)
+    #         for i in range(3):
+    #             mask *= flood(rgb_np[:, :, i], (y, x), connectivity=1)
+    #         mask *= flood(alpha_np, (y, x), connectivity=1)
+    #         
+    #         # Assign previous labels to the new annotation before adding flooded region.        
+    #         np_rgba = np.zeros((rgb_np.shape[0], rgb_np.shape[1], 4))
+    #         fg = rgb_np[:, :, 0] > 0
+    #         bg = rgb_np[:, :, 1] > 0
+    #         np_rgba[:, :, 1] = bg * 255 # green is bg
+    #         np_rgba[:, :, 0] = fg * 255 # red is fg
+    #         np_rgba[:, :, 3] = (bg + fg) * 180 # alpha
+    # 
+    #         # flood fill should be with current brush color
+    #         np_rgba[:, :, :][mask > 0] = [
+    #             self.parent.brush_color.red(),
+    #             self.parent.brush_color.green(),
+    #             self.parent.brush_color.blue(),
+    #             self.parent.brush_color.alpha()
+    #         ]
+    #         q_image = qimage2ndarray.array2qimage(np_rgba)
+    #         return QtGui.QPixmap.fromImage(q_image)
+ 
     def mousePressEvent(self, event):
         super().mousePressEvent(event)
         modifiers = QtWidgets.QApplication.keyboardModifiers()
@@ -182,6 +178,7 @@ class GraphicsScene(QtWidgets.QGraphicsScene):
                 idx = self.parent.slice_nav.max_slice_idx - self.parent.cur_slice_idx 
                 self.regions_to_restrict_to.append((round(x), round(y), idx))
                 self.mouse_down = False
+            # FIXME: should we remove this commented out code?
             #elif modifiers == QtCore.Qt.AltModifier:
                 # if alt key is pressed then we want to flood fill
                 #  from the clicked region.
@@ -232,8 +229,6 @@ class GraphicsScene(QtWidgets.QGraphicsScene):
             self.parent.parent.update_viewer_annot_slice()
             self.parent.parent.update_viewer_outline()
 
-            pos = event.scenePos()
-            x, y = pos.x(), pos.y()
             idx = self.parent.slice_nav.max_slice_idx - self.parent.cur_slice_idx            
             
             if self.parent.parent.auto_complete_enabled:
