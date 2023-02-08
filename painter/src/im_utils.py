@@ -17,24 +17,14 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 # pylint: disable=C0111, W0511
 # pylint: disable=E0401 # import error
 
-import os
-import warnings
-import glob
-import sys
 
 import numpy as np
-from skimage import color
-from skimage.io import imread, imsave
-from skimage import img_as_ubyte
-from skimage.transform import resize
 from skimage.measure import label
-from skimage.morphology import binary_dilation, remove_small_holes
-from PIL import Image
+from skimage.morphology import binary_dilation
 from PyQt5 import QtGui
 import qimage2ndarray
 import nibabel as nib
 from scipy.ndimage import binary_fill_holes
-from skimage.segmentation import flood
 import nrrd
 
 
