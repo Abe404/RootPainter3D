@@ -48,6 +48,15 @@ def init_root_painter():
                 json.dump(content, json_file, indent=4)
 
         settings = json.load(open(settings_path, 'r'))
+        
+        # if the file exists but does not contain contrast presets
+        # (for example, if the user has previously used RootPainter 2D)
+        # then add contrast presets (defaults) and then resave.
+        if "contrast_presets" not in settings:
+            settings['contrast_presets'] = { 'Mediastinal': [-125, 250, 100] } 
+            with open(settings_path, 'w+') as json_file:
+                json.dump(settings, json_file, indent=4)
+
         sync_dir = Path(settings['sync_dir'])
         contrast_presets = settings['contrast_presets']
         server_ip = None
