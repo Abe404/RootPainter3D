@@ -134,7 +134,7 @@ class GraphicsScene(QtWidgets.QGraphicsScene):
     #         image =  self.annot_pixmap.toImage()
     #         rgb_np = np.array(qimage2ndarray.rgb_view(image))
     #         alpha_np = np.array(qimage2ndarray.alpha_view(image))
-    #         mask = np.ones((rgb_np.shape[0], rgb_np.shape[1]), dtype=np.int)
+    #         mask = np.ones((rgb_np.shape[0], rgb_np.shape[1]), dtype=int)
     #         for i in range(3):
     #             mask *= flood(rgb_np[:, :, i], (y, x), connectivity=1)
     #         mask *= flood(alpha_np, (y, x), connectivity=1)

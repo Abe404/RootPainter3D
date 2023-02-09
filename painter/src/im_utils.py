@@ -51,7 +51,7 @@ def load_image(image_path):
         image = image[::-1, :, ::-1]
     else:
         raise Exception(f"Unhandled file ending {image_path}")
-    image = image.astype(np.int)
+    image = image.astype(int)
     return image
 
 
@@ -98,15 +98,15 @@ def annot_slice_to_pixmap(slice_np):
 
 
 def get_outline_pixmap(seg_slice, annot_slice):
-    seg_map = (seg_slice > 0).astype(np.int)
-    annot_plus = (annot_slice[1] > 0).astype(np.int)
-    annot_minus = (annot_slice[0] > 0).astype(np.int)
+    seg_map = (seg_slice > 0).astype(int)
+    annot_plus = (annot_slice[1] > 0).astype(int)
+    annot_minus = (annot_slice[0] > 0).astype(int)
 
     # remove anything where seg is less than 0 as this is outside of the box
-    seg_minus = (seg_slice < 0).astype(np.int)
+    seg_minus = (seg_slice < 0).astype(int)
     mask = ((((seg_map + annot_plus) - annot_minus) - seg_minus) > 0)
     dilated = binary_dilation(mask)
-    outline = dilated.astype(np.int) - mask.astype(np.int)
+    outline = dilated.astype(int) - mask.astype(int)
     np_rgb = np.zeros((outline.shape[0], outline.shape[1], 4))
     np_rgb[outline > 0] = [255, 255, 0, 180]
     q_image = qimage2ndarray.array2qimage(np_rgb)
@@ -174,9 +174,9 @@ def store_annot_slice(annot_pixmap, annot_data, slice_idx, mode):
 
 
 def get_num_regions(seg_data, annot_data):
-    seg_map = (seg_data > 0).astype(np.int)
-    annot_plus = (annot_data[1] > 0).astype(np.int)
-    annot_minus = (annot_data[0] > 0).astype(np.int)
+    seg_map = (seg_data > 0).astype(int)
+    annot_plus = (annot_data[1] > 0).astype(int)
+    annot_minus = (annot_data[0] > 0).astype(int)
     # remove anything where seg is less than 0 as this is outside of the box
     corrected = (((seg_map + annot_plus) - annot_minus) > 0)
     labelled = label(corrected, connectivity=2)
@@ -188,9 +188,9 @@ def restrict_to_regions_containing_points(seg_data, annot_data, region_points):
     # restrict corrected structure to only the selected
     # connected region found at x,y,z
     # also remove small holes.
-    seg_map = (seg_data > 0).astype(np.int)
-    annot_plus = (annot_data[1] > 0).astype(np.int)
-    annot_minus = (annot_data[0] > 0).astype(np.int)
+    seg_map = (seg_data > 0).astype(int)
+    annot_plus = (annot_data[1] > 0).astype(int)
+    annot_minus = (annot_data[0] > 0).astype(int)
 
     # remove anything where seg is less than 0 as this is outside of the box
     corrected = (((seg_map + annot_plus) - annot_minus) > 0)
@@ -224,11 +224,11 @@ def restrict_to_regions_containing_points(seg_data, annot_data, region_points):
     min_x = np.min(coords[2])
     max_x = np.max(coords[2])
     # remove_small_holes
-    roi_annot_plus = (annot_data[1, min_z: max_z, min_y:max_y, min_x:max_x] > 0).astype(np.int)
-    roi_annot_minus = (annot_data[0,  min_z: max_z, min_y:max_y, min_x:max_x] > 0).astype(np.int)
+    roi_annot_plus = (annot_data[1, min_z: max_z, min_y:max_y, min_x:max_x] > 0).astype(int)
+    roi_annot_minus = (annot_data[0,  min_z: max_z, min_y:max_y, min_x:max_x] > 0).astype(int)
     # remove anything where seg is less than 0 as this is outside of the box
     roi_corrected = (((seg_map[min_z: max_z, min_y:max_y, min_x:max_x] + roi_annot_plus) - roi_annot_minus) > 0)
-    roi_corrected_no_holes = binary_fill_holes(roi_corrected).astype(np.int)
+    roi_corrected_no_holes = binary_fill_holes(roi_corrected).astype(int)
     roi_extra_fg = roi_corrected_no_holes - roi_corrected
     holes_removed += len(np.unique(label(roi_extra_fg))) - 1
     # Set the extra foreground from remove small holes to foreground in the annotation.
@@ -243,7 +243,7 @@ def fill_annot(annot_pixmap):
     rgb_np = np.array(qimage2ndarray.rgb_view(image))
     fg_mask = rgb_np[:, :, 0]
     fg_mask = binary_fill_holes(fg_mask)
-    fg_mask = fg_mask.astype(np.int)
+    fg_mask = fg_mask.astype(int)
     np_rgba = np.zeros((rgb_np.shape[0], rgb_np.shape[1], 4))
     # set fg annotation to be new fg mask
     # set bg annotation to be opposite of the fg mask

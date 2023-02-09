@@ -317,7 +317,7 @@ class RootPainter(QtWidgets.QMainWindow):
                         print(label_idx, 'of', len(voxel_counts))
                         if label_idx == to_keep_idx:
                             biggest_region_mask = labels_out == (to_keep_idx + 1)
-                            roi_corrected_no_holes = binary_fill_holes(biggest_region_mask).astype(np.int)
+                            roi_corrected_no_holes = binary_fill_holes(biggest_region_mask).astype(int)
                             roi_extra_fg = roi_corrected_no_holes - biggest_region_mask
                             self.annot_data[1][roi_extra_fg > 0] = 1 # set fg regions to remove holes.
                         else:
