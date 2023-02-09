@@ -13,6 +13,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+print('Initializing RootPainter3D')
 
 #pylint: disable=I1101,C0111,W0201,R0903,E0611,R0902,R0914,W0703
 import sys
@@ -23,9 +24,11 @@ import traceback
 
 from PyQt5 import QtWidgets
 from root_painter import RootPainter
-
+print('Imports Loaded')
 def init_root_painter():
+    
     app = QtWidgets.QApplication(sys.argv)
+    print('Application Created')
     settings_path = os.path.join(Path.home(), 'root_painter_settings.json')
     try:
         # if the settings file does not exist then create it with
