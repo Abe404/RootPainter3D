@@ -48,6 +48,7 @@ from patch_seg import handle_patch_update_in_epoch_step
 from im_utils import is_image, load_image, save
 import im_utils
 from file_utils import ls
+from model_utils import print_memory
 
 
 class Trainer():
@@ -262,6 +263,7 @@ class Trainer():
         Compute the metrics for a given
             model, annotation directory and dataset (image directory).
         """
+        print_memory('val epoch start')
         dataset = RPDataset(self.train_config['val_annot_dirs'],
                             None, # train_seg_dirs
                             self.train_config['dataset_dir'],
@@ -301,6 +303,7 @@ class Trainer():
             if not self.training: # in this context we consider validation part of training.
                 return None # a way to stop validation quickly if user specifies
 
+            print_memory('val epoch step')
             # https://github.com/googlecolab/colabtools/issues/166
             print(f"\rValidation: {(step+1) * self.batch_size}/"
                   f"{len(loader.dataset)} ",
@@ -318,6 +321,7 @@ class Trainer():
             # no training until data ready
             return False
 
+        print_memory('train epoch start')
         if self.first_loop:
             self.first_loop = False
             self.write_message('Training started')
@@ -369,6 +373,7 @@ class Trainer():
             batch_loss.backward()
             self.optimizer.step()
             
+            print_memory('train epoch step')
             # https://github.com/googlecolab/colabtools/issues/166
             print(f"\rTraining: {(step+1) * self.batch_size}/"
                   f"{len(loader.dataset)} "
