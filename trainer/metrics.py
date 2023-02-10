@@ -132,4 +132,4 @@ class Metrics:
                   self.fp, self.tn, self.fn,
                   round(self.precision(), 4), round(self.recall(), 4),
                   round(self.dice(), 4)]
-        return ','.join([str(p) for p in parts])
+        return ','.join([str(p) for p in parts]) + '\n'
