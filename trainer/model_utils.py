@@ -35,12 +35,16 @@ cached_model = None
 cached_model_path = None
 use_fake_cnn = False
 
-def print_memory(message=''):
-    frameinfo = getframeinfo(currentframe())
-    print(frameinfo.filename, frameinfo.lineno, message)
-    print("torch.cuda.memory_allocated: %fGB"%(torch.cuda.memory_allocated(0)/1024/1024/1024))
-    print("torch.cuda.memory_reserved: %fGB"%(torch.cuda.memory_reserved(0)/1024/1024/1024))
-    print("torch.cuda.max_memory_reserved: %fGB"%(torch.cuda.max_memory_reserved(0)/1024/1024/1024))
+# to enable this, put MEM_DEBUG=True in the command before invoking python.
+mem_debug_enabled = ('MEM_DEBUG' in os.environ)
+
+def debug_memory(message=''):
+    if mem_debug_enabled:
+        frameinfo = getframeinfo(currentframe())
+        print(frameinfo.filename, frameinfo.lineno, message)
+        print("torch.cuda.memory_allocated: %fGB"%(torch.cuda.memory_allocated(0)/1024/1024/1024))
+        print("torch.cuda.memory_reserved: %fGB"%(torch.cuda.memory_reserved(0)/1024/1024/1024))
+        print("torch.cuda.max_memory_reserved: %fGB"%(torch.cuda.max_memory_reserved(0)/1024/1024/1024))
 
 
 
