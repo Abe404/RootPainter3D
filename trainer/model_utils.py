@@ -34,15 +34,25 @@ cached_model = None
 cached_model_path = None
 use_fake_cnn = False
 
-def fake_cnn(patches_for_gpu):
-    raise Exception("no longer consistent with real cnn")
-    """ Useful debug function for checking patch layout etc """
-    output = []
-    for t in patches_for_gpu:
-        v = t[0, 17:-17, 17:-17, 17:-17].data.cpu().numpy()
-        v_mean = np.mean(v)
-        output.append((v > v_mean).astype(np.int8))
-    return torch.tensor(np.array(output))
+
+def get_in_w_and_out_w_for_image(im, in_w, out_w):
+    """ the input image may be smaller than the default 
+        patch size, so find a patch size where the output patch
+        size will fit inside the image """
+
+    # FIXME: See above comment - Is using variable patch sizes 
+    #        reliable, considering how the network was trained?
+    _im_depth, im_height, im_width = im.shape
+
+    if out_w < im_width and out_w < im_height:
+        return in_w, out_w
+    
+    for valid_in_w, valid_out_w in get_in_w_out_w_pairs():
+        if valid_out_w < im_width and valid_out_w < im_height and valid_out_w < out_w:
+            return valid_in_w, valid_out_w
+
+    raise Exception('cannot find patch size small enough for image with shape' + str(im.shape))
+
 
 
 
@@ -54,7 +64,6 @@ def get_in_w_out_w_pairs():
     # output always 34 less than input
     out_w_list = [x - 34 for x in in_w_list]
     return list(zip(in_w_list, out_w_list))
-
 
 def allocate_net(in_w, out_w, num_classes):
 
@@ -104,6 +113,8 @@ def get_in_w_out_w_for_memory(num_classes):
             allocate_net(in_w, out_w, num_classes)
             torch.cuda.empty_cache()
             print(in_w, out_w, 'ok')
+            # FIXME +2 seems to be required for smaller patches and +1 for larger.
+            #       investigate and come up with something more systematic.
             print('using', pairs[i+2], 'to be safe') # return the next next smallest to be safe
             return pairs[i+2] # return the next next smallest to be safe
         except Exception as e:

@@ -26,7 +26,6 @@ import json
 import sys
 from datetime import datetime
 import copy
-import random
 import multiprocessing
 
 from metrics import Metrics
@@ -34,7 +33,6 @@ from metrics import Metrics
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
-import torch.nn.functional as F
 from loss import get_batch_loss
 from instructions import fix_config_paths
 
@@ -47,19 +45,20 @@ import model_utils
 from model_utils import save_if_better, save_model
 import data_utils
 from patch_seg import handle_patch_update_in_epoch_step
-from im_utils import is_image, load_image, save_then_move, save
+from im_utils import is_image, load_image, save
 import im_utils
 from file_utils import ls
 
 
 class Trainer():
-
-    def __init__(self, sync_dir, ip=None, port=None, max_workers=12):
+    def __init__(self, sync_dir, ip=None, port=None, max_workers=12, epoch_length=None):
         self.sync_dir = sync_dir
         self.ip = ip
         self.port = port
         self.patch_update_enabled = ip and port
-
+        # if this is not specified, epoch_length will be calculated automatically
+        # This can be specified as a manual override for debugging purposes (for example).
+        self.epoch_length = epoch_length 
         self.instruction_dir = os.path.join(self.sync_dir, 'instructions')
         self.training = False
         self.running = False
@@ -96,6 +95,16 @@ class Trainer():
                                    self.stop_training,
                                    self.segment_patch]
 
+    def get_train_epoch_length(self):
+        if self.epoch_length: # manual override
+            train_epoch_length = self.epoch_length
+        if self.val_patch_refs:
+            # selected as it leads to training taking around 5x validation time
+            train_epoch_length = max(64, 2 * len(self.val_patch_refs))
+        else:
+            train_epoch_length = 128
+        return train_epoch_length
+
     def main_loop(self, on_epoch_end=None):
         print('Started main loop. Checking for instructions in',
               self.instruction_dir)
@@ -112,12 +121,8 @@ class Trainer():
                 # can take a while so checks for
                 # new instructions are also made inside
                 self.val_patch_refs = self.get_new_val_patches_refs()
-                if self.val_patch_refs:
-                    # selected as it leads to training taking around 5x validation time
-                    train_epoch_length = max(64, 2 * len(self.val_patch_refs))
-                else:
-                    train_epoch_length = 128
-                train_metrics = Metrics.sum(self.train_epoch(self.model, length=train_epoch_length))
+                train_metrics = Metrics.sum(self.train_epoch(self.model,
+                                            length=self.get_train_epoch_length()))
                 if train_metrics:
                     self.log_metrics('train', train_metrics)
                     print(train_metrics.__str__(to_use=['dice', 'precision', 'recall']))
@@ -271,13 +276,11 @@ class Trainer():
                             collate_fn=data_utils.collate_fn,
                             num_workers=self.num_workers,
                             drop_last=False, pin_memory=True)
-        loss_sum = 0
         epoch_items_metrics = []
-
         epoch_start = time.time()
-        for step, (batch_im_patches, batch_fg_patches,
+        for _step, (batch_im_patches, batch_fg_patches,
                    batch_bg_patches, batch_ignore_masks,
-                   batch_seg_patches, batch_classes) in enumerate(loader):
+                   _batch_seg_patches, batch_classes) in enumerate(loader):
 
             self.check_for_instructions()
             batch_im_patches = torch.from_numpy(np.array(batch_im_patches)).cuda()
@@ -296,10 +299,9 @@ class Trainer():
 
             self.check_for_instructions() # could update training parameter
             if not self.training: # in this context we consider validation part of training.
-                return # a way to stop validation quickly if user specifies
+                return None # a way to stop validation quickly if user specifies
         duration = round(time.time() - epoch_start, 3)
-        print(f'Validation epoch duration', duration,
-               'time per instance',
+        print('Validation epoch duration', duration, 'time per instance',
                round((time.time() - epoch_start) / len(epoch_items_metrics), 3))
         return epoch_items_metrics
 
@@ -367,11 +369,10 @@ class Trainer():
 
             self.check_for_instructions() # could update training parameter
             if not self.training: # in this context we consider validation part of training.
-                return
+                return None # understood as training stopping early
 
         duration = round(time.time() - epoch_start, 3)
-        print(f'Training epoch duration', duration,
-              'time per instance',
+        print('Training epoch duration', duration, 'time per instance',
               round((time.time() - epoch_start) / len(epoch_items_metrics), 3))
         return epoch_items_metrics
 
@@ -603,26 +604,10 @@ class Trainer():
         prev_m = Metrics.sum([r.metrics for r in self.val_patch_refs])
         return prev_m
 
-    def segment_patch(self, segment_config):
-        raise Exception('feature disabled')
-        # patch_seg.segment_patch(segment_config)
+    #def segment_patch(self, segment_config):
+    #    raise Exception('feature disabled')
+    #    # patch_seg.segment_patch(segment_config)
         
-    def get_in_w_and_out_w_for_image(self, im, in_w, out_w):
-        """ the input image may be smaller than the default 
-            patch size, so find a patch size where the output patch
-            size will fit inside the image """
-
-        im_depth, im_height, im_width = im.shape
-
-        if out_w < im_width and out_w < im_height:
-            return in_w, out_w
-        
-        for valid_in_w, valid_out_w in model_utils.get_in_w_out_w_pairs():
-            if valid_out_w < im_width and valid_out_w < im_height and valid_out_w < out_w:
-                return valid_in_w, valid_out_w
-
-        raise Exception('cannot find patch size small enough for image with shape' + str(im.shape))
-
     def segment_file(self, in_dir, seg_dir, fname, model_paths,
                      in_w, out_w, in_d, out_d, classes, overwrite=False):
 
@@ -636,7 +621,7 @@ class Trainer():
             # segment to nifty as they don't get loaded repeatedly in training.
             out_paths = [os.path.join(seg_dir, fname)]
 
-        if not overwrite and all([os.path.isfile(out_path) for out_path in out_paths]):
+        if not overwrite and all(os.path.isfile(out_path) for out_path in out_paths):
             print(f'Skip because found existing segmentation files for {fname}')
             return
 
@@ -659,7 +644,7 @@ class Trainer():
         seg_start = time.time()
         print('segment image, input shape = ', im.shape, datetime.now())
 
-        seg_in_w, seg_out_w = self.get_in_w_and_out_w_for_image(im, in_w, out_w) 
+        seg_in_w, seg_out_w = model_utils.get_in_w_and_out_w_for_image(im, in_w, out_w) 
         segmented = load_model_then_segment_3d(model_paths, im, self.batch_size,
                                                seg_in_w, seg_out_w, in_d, out_d, classes)
 
