@@ -122,10 +122,8 @@ def get_in_w_out_w_for_memory(num_classes):
             allocate_net(in_w, num_classes)
             torch.cuda.empty_cache()
             print(in_w, out_w, 'ok')
-            # FIXME +2 seems to be required for smaller patches and +1 for larger.
-            #       investigate and come up with something more systematic.
-            print('using', pairs[i+2], 'to be safe') # return the next next smallest to be safe
-            return pairs[i+2] # return the next next smallest to be safe
+            print('Using', pairs[i+1], 'to be safe') # return next smallest to be safe
+            return pairs[i+1] # return the next smallest to be safe
         except Exception as e:
             if 'out of memory' in str(e):
                 print(in_w, out_w, 'too big')

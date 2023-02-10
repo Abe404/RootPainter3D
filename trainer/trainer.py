@@ -275,7 +275,7 @@ class Trainer():
                             self.train_config['out_d'],
                             'val', # FIXME: mode should be an enum.
                             val_patch_refs)
-        loader = DataLoader(dataset, self.batch_size, shuffle=True,
+        loader = DataLoader(dataset, self.batch_size * 2, shuffle=True,
                             collate_fn=data_utils.collate_fn,
                             num_workers=self.num_workers,
                             drop_last=False, pin_memory=True)
