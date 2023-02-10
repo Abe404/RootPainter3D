@@ -67,7 +67,7 @@ class Trainer():
         self.train_config = None
         self.model = None
         self.first_loop = True
-        self.batch_size = 4 
+        self.batch_size = 4
         self.num_workers = min(multiprocessing.cpu_count(), max_workers)
         print(self.num_workers, 'workers will be assigned for data loaders')
 
@@ -272,7 +272,7 @@ class Trainer():
                             self.train_config['out_d'],
                             'val', # FIXME: mode should be an enum.
                             val_patch_refs)
-        loader = DataLoader(dataset, self.batch_size * 2, shuffle=True,
+        loader = DataLoader(dataset, self.batch_size, shuffle=True,
                             collate_fn=data_utils.collate_fn,
                             num_workers=self.num_workers,
                             drop_last=False, pin_memory=True)
@@ -361,7 +361,8 @@ class Trainer():
             loss_sum += batch_loss.item() # float
             batch_loss.backward()
             self.optimizer.step()
-
+            
+            # https://github.com/googlecolab/colabtools/issues/166
             print(f"\rTraining: {(step+1) * self.batch_size}/"
                   f"{len(loader.dataset)} "
                   f" loss={round(batch_loss.item(), 3)}",
