@@ -264,6 +264,7 @@ class Trainer():
             model, annotation directory and dataset (image directory).
         """
         print_memory('val epoch start')
+        torch.set_grad_enabled(False)
         dataset = RPDataset(self.train_config['val_annot_dirs'],
                             None, # train_seg_dirs
                             self.train_config['dataset_dir'],
@@ -327,7 +328,6 @@ class Trainer():
             self.write_message('Training started')
             self.log('Starting Training')
 
-        torch.set_grad_enabled(False)
         dataset = RPDataset(self.train_config['train_annot_dirs'],
                             self.train_config['train_seg_dirs'],
                             self.train_config['dataset_dir'],
