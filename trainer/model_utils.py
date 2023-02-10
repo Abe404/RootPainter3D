@@ -65,7 +65,7 @@ def get_in_w_out_w_pairs():
     out_w_list = [x - 34 for x in in_w_list]
     return list(zip(in_w_list, out_w_list))
 
-def allocate_net(in_w, out_w, num_classes):
+def allocate_net(in_w, num_classes):
 
     channels = 1 # change to 3 for auto-complete
     net = UNet3D(im_channels=channels, num_classes=num_classes).cuda()
@@ -110,7 +110,7 @@ def get_in_w_out_w_for_memory(num_classes):
     for i, (in_w, out_w) in enumerate(pairs):
         torch.cuda.empty_cache()
         try:
-            allocate_net(in_w, out_w, num_classes)
+            allocate_net(in_w, num_classes)
             torch.cuda.empty_cache()
             print(in_w, out_w, 'ok')
             # FIXME +2 seems to be required for smaller patches and +1 for larger.
@@ -230,7 +230,6 @@ def pad_then_segment_3d(cnn, image, batch_size, in_w, out_w, in_d, out_d):
     out_patch_shape = (out_d, out_w, out_w)
 
     depth_diff = in_patch_shape[0] - out_patch_shape[0]
-    height_diff = in_patch_shape[1] - out_patch_shape[1]
     width_diff = in_patch_shape[2] - out_patch_shape[2]
 
     print('input image shape (before pad) = ', image.shape)
@@ -261,8 +260,6 @@ def segment_3d(cnn, image, batch_size, in_patch_shape, out_patch_shape, auto_com
     # don't need channel dimension
     # make sure the width, height and depth is at least as big as the patch.
     assert len(image.shape) == 3, str(image.shape)
-
-    original_shape = image.shape
 
     # if the image is smaller than the patch size then pad it to be the same as the patch.
     padded_for_patch = False
@@ -388,5 +385,3 @@ def add_config_shape(config, in_w, out_w):
     new_config['in_d'] = 52
     new_config['out_d'] = 18
     return new_config
-
-
