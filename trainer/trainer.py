@@ -92,8 +92,8 @@ class Trainer():
         # These can be trigged by data sent from client
         self.valid_instructions = [self.start_training,
                                    self.segment,
-                                   self.stop_training,
-                                   self.segment_patch]
+                                   self.stop_training]
+                                   #self.segment_patch]
 
     def get_train_epoch_length(self):
         if self.epoch_length: # manual override
