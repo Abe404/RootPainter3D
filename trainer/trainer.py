@@ -278,7 +278,7 @@ class Trainer():
                             drop_last=False, pin_memory=True)
         epoch_items_metrics = []
         epoch_start = time.time()
-        for _step, (batch_im_patches, batch_fg_patches,
+        for step, (batch_im_patches, batch_fg_patches,
                    batch_bg_patches, batch_ignore_masks,
                    _batch_seg_patches, batch_classes) in enumerate(loader):
 
@@ -300,7 +300,14 @@ class Trainer():
             self.check_for_instructions() # could update training parameter
             if not self.training: # in this context we consider validation part of training.
                 return None # a way to stop validation quickly if user specifies
+
+            # https://github.com/googlecolab/colabtools/issues/166
+            print(f"\rValidation: {(step+1) * self.batch_size}/"
+                  f"{len(loader.dataset)} ",
+                  end='', flush=True)
+
         duration = round(time.time() - epoch_start, 3)
+        print('')
         print('Validation epoch duration', duration, 'time per instance',
                round((time.time() - epoch_start) / len(epoch_items_metrics), 3))
         return epoch_items_metrics
