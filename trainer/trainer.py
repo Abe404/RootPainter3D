@@ -98,7 +98,7 @@ class Trainer():
     def get_train_epoch_length(self):
         if self.epoch_length: # manual override
             train_epoch_length = self.epoch_length
-        if self.val_patch_refs:
+        elif self.val_patch_refs:
             # selected as it leads to training taking around 5x validation time
             train_epoch_length = max(64, 2 * len(self.val_patch_refs))
         else:
