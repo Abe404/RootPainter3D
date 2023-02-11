@@ -119,9 +119,9 @@ class RPDataset(Dataset):
 
             # we only want annotations with defiend regions in the output area.
             # Otherwise we will have nothing to update the loss.
-            if np.any([np.any(a) for a in annot_patches]):
+            if np.any(np.any(a) for a in annot_patches):
                 # if force fg is true then make sure fg is defined.
-                if not force_fg or np.any(np.any(a[1]) for a in annot_patches]):
+                if not force_fg or np.any(np.any(a[1]) for a in annot_patches):
                     # ok we have some annotation for this
                     # part of the image so let's return the patch.
                     im_patch = image[z_in:z_in+self.in_d,
