@@ -82,7 +82,7 @@ class RPDataset(Dataset):
     def get_train_item(self, patch_ref=None):
         return self.get_train_item_3d(patch_ref)
 
-    def get_random_patch_3d(self, annots, segs, image, fname):
+    def get_random_patch_3d(self, annots, segs, image, fname, force_fg):
         # this will find something eventually as we know
         # all annotation contain labels somewhere
 
@@ -120,13 +120,15 @@ class RPDataset(Dataset):
             # we only want annotations with defiend regions in the output area.
             # Otherwise we will have nothing to update the loss.
             if np.any([np.any(a) for a in annot_patches]):
-                # ok we have some annotation for this
-                # part of the image so let's return the patch.
-                im_patch = image[z_in:z_in+self.in_d,
-                                 y_in:y_in+self.in_w,
-                                 x_in:x_in+self.in_w]
+                # if force fg is true then make sure fg is defined.
+                if not force_fg or np.any(np.any(a[1]) for a in annot_patches]):
+                    # ok we have some annotation for this
+                    # part of the image so let's return the patch.
+                    im_patch = image[z_in:z_in+self.in_d,
+                                     y_in:y_in+self.in_w,
+                                     x_in:x_in+self.in_w]
 
-                return annot_patches, seg_patches, im_patch
+                    return annot_patches, seg_patches, im_patch
             if attempts > warn_after_attempts:
                 print(f'Warning {attempts} attempts to get random patch from {fname}')
                 warn_after_attempts *= 10
@@ -150,7 +152,9 @@ class RPDataset(Dataset):
                                                                            self.use_seg,
                                                                            force_fg)
               
-        annot_patches, seg_patches, im_patch = self.get_random_patch_3d(annots, segs, image, fname)
+        annot_patches, seg_patches, im_patch = self.get_random_patch_3d(annots, segs,
+                                                                        image,
+                                                                        fname, force_fg)
 
         im_patch = img_as_float32(im_patch)
         im_patch = im_utils.normalize_patch(im_patch)
