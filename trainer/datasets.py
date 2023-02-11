@@ -19,6 +19,7 @@ import random
 import math
 import os
 from pathlib import Path
+from file_utils import ls
 
 import torch
 import numpy as np
@@ -139,11 +140,16 @@ class RPDataset(Dataset):
             im_patch, foregrounds, backgrounds, classes = self.get_patch_from_ref_3d(patch_ref)
             # For now just return the patch. We plan to add augmentation here.
             return im_patch, foregrounds, backgrounds, classes
-
+        
+        num_annots = len(ls(self.annot_dirs[0])) # estimate num annotations from first class 
+        force_fg_prob = max(0, (100-num_annots) / 100)
+        force_fg = force_fg_prob > 0.5
         (image, annots, segs, classes, fname) = load_train_image_and_annot(self.dataset_dir,
                                                                            self.train_seg_dirs,
                                                                            self.annot_dirs,
-                                                                           self.use_seg)
+                                                                           self.use_seg,
+                                                                           force_fg)
+              
         annot_patches, seg_patches, im_patch = self.get_random_patch_3d(annots, segs, image, fname)
 
         im_patch = img_as_float32(im_patch)

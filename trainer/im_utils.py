@@ -157,7 +157,8 @@ def load_image_and_annot_for_seg(dataset_dir, train_annot_dirs, fname):
 
 
 
-def load_train_image_and_annot(dataset_dir, train_seg_dirs, train_annot_dirs, use_seg):
+def load_train_image_and_annot(dataset_dir, train_seg_dirs, train_annot_dirs, use_seg
+                               force_fg):
     """
     returns
         image (np.array) - image data
@@ -209,7 +210,11 @@ def load_train_image_and_annot(dataset_dir, train_seg_dirs, train_annot_dirs, us
             annot_path = os.path.join(annot_dir, fname)
             annot = load_image(annot_path)
             # Why would we have annotations without content?
-            assert np.sum(annot) > 0
+            assert np.any(annot)
+            
+            if force_fg: # make sure foreground present.
+                assert np.any(annot[1])
+
             annot = np.pad(annot, ((0, 0), (17,17), (17,17), (17, 17)), mode='constant')
             annots.append(annot)
 
@@ -240,6 +245,9 @@ def load_train_image_and_annot(dataset_dir, train_seg_dirs, train_annot_dirs, us
         return image, annots, segs, classes, fname
 
     load_random = partial(load_random, train_annot_dirs, train_seg_dirs, dataset_dir)
+
+    
+
     return load_with_retry(load_random, None)
 
 def pad_3d(image, width, depth, mode='reflect', constant_values=0):
