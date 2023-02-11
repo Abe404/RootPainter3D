@@ -87,8 +87,6 @@ class RPDataset(Dataset):
     def get_train_item(self, patch_ref=None):
         return self.get_train_item_3d(patch_ref)
 
-
-    
     def get_random_patch_3d(self, annots, segs, image, fname, force_fg):
         # this will find something eventually as we know
         # all annotation contain labels somewhere
@@ -151,8 +149,8 @@ class RPDataset(Dataset):
             return im_patch, foregrounds, backgrounds, classes
         
         num_annots = len(ls(self.annot_dirs[0])) # estimate num annotations from first class 
-        # start at 77% force fg and go down to 0 by the time 85 images are annotated.
-        force_fg_prob = max(0, (85-(num_annots)) / 110) 
+        # start at 66% force fg and go down to 0 by the time 80 images are annotated.
+        force_fg_prob = max(0, (80-(num_annots)) / 110) 
             
         force_fg = force_fg_prob > random.random()
         (image, annots, segs, classes, fname) = load_train_image_and_annot(self.dataset_dir,
