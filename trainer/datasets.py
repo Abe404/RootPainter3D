@@ -179,7 +179,6 @@ class RPDataset(Dataset):
         for annot_patch in annot_patches:
             #annot patch shape is  (2, 18, 194, 194)
             foreground = np.array(annot_patch)[1]
-            print('fg sum = ', np.sum(foreground))
             background = np.array(annot_patch)[0]
             foreground = foreground.astype(np.int64)
             foreground = torch.from_numpy(foreground)
