@@ -157,7 +157,7 @@ def load_image_and_annot_for_seg(dataset_dir, train_annot_dirs, fname):
 
 
 
-def load_train_image_and_annot(dataset_dir, train_seg_dirs, train_annot_dirs, use_seg
+def load_train_image_and_annot(dataset_dir, train_seg_dirs, train_annot_dirs, use_seg,
                                force_fg):
     """
     returns
