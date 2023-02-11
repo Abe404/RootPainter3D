@@ -1,4 +1,6 @@
 # Copyright (C) 2022 André Pedersen
+# Copyright (C) 2022 Abraham Smith
+# Copyright (C) 2023 Rohan Orton
 
 #This program is free software: you can redistribute it and/or modify
 #it under the terms of the GNU General Public License as published by
@@ -18,40 +20,41 @@ name: Build Windows
 on:
   push:
     branches:
-      - '*'
+      - "*"
   pull_request:
     branches:
-      - '*'
+      - "*"
 
 jobs:
   build:
     runs-on: windows-2019
 
     steps:
-    - uses: actions/checkout@v1
-    - name: Set up Python 3.7
-      uses: actions/setup-python@v2
-      with:
-        python-version: 3.7
+      - uses: actions/checkout@v1
+      - name: Set up Python 3.8
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.8
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install pyinstaller==5.0
-        pip install torch six tensorboard
-        pip install -r painter/requirements.txt
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller==5.4.1
+          pip install -r painter/requirements.txt
 
-    - name: Build software
-      run: pyinstaller --noconfirm --clean main.spec
+      - name: Build software
+        run: |
+          cd painter
+          python src/build/run_pyinstaller.py
 
-    - name: Make installer
-      run: |
-        makensis.exe RootPainter3D.nsi
-        cp -r RootPainter3D-0.0.1-win.exe dist/RootPainter3D-0.0.1-win.exe
+      - name: Make installer
+        run: |
+          cd painter
+          makensis.exe src/build/assets/Installer.nsi
 
-    - name: Upload package
-      uses: actions/upload-artifact@v2
-      with:
-        name: Package
-        path: ${{github.workspace}}/dist/RootPainter3D-*
-        if-no-files-found: error
+      - name: Upload package
+        uses: actions/upload-artifact@v2
+        with:
+          name: Package
+          path: ${{github.workspace}}/painter/dist/RootPainter3DInstaller.exe
+          if-no-files-found: error
