@@ -50,6 +50,7 @@ import im_utils
 from file_utils import ls
 from model_utils import debug_memory
 
+metrics_to_print = ['dice', 'precision', 'recall', 'total_true', 'total_pred']
 
 class Trainer():
     def __init__(self, sync_dir, ip=None, port=None, max_workers=12, epoch_length=None):
@@ -126,7 +127,7 @@ class Trainer():
                                             length=self.get_train_epoch_length()))
                 if train_metrics:
                     self.log_metrics('train', train_metrics)
-                    print(train_metrics.__str__(to_use=['dice', 'precision', 'recall']))
+                    print(train_metrics.__str__(to_use=metrics_to_print))
             if self.training:
                 self.validation()
                 if on_epoch_end:
@@ -449,6 +450,8 @@ class Trainer():
 
             cur_val_metrics = Metrics.sum(cur_val_items_metrics)
             self.log_metrics('cur_val', cur_val_metrics)
+
+            print('Current Model Validation:', cur_val_metrics.__str__(to_use=metrics_to_print))
 
             # uses current val_patch_refs, where computation is required only.
             prev_val_metrics = self.get_prev_model_metrics(prev_model)
