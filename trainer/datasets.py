@@ -149,9 +149,8 @@ class RPDataset(Dataset):
             return im_patch, foregrounds, backgrounds, classes
         
         num_annots = len(ls(self.annot_dirs[0])) # estimate num annotations from first class 
-        # start at 66% force fg and go down to 0 by the time 80 images are annotated.
-        force_fg_prob = max(0, (80-(num_annots)) / 110) 
-            
+        # start at 90% force fg and go down to 0 by the time 90 images are annotated.
+        force_fg_prob = max(0, (90-(num_annots)) / 100) 
         force_fg = force_fg_prob > random.random()
         (image, annots, segs, classes, fname) = load_train_image_and_annot(self.dataset_dir,
                                                                            self.train_seg_dirs,
