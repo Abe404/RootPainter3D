@@ -155,7 +155,6 @@ class RPDataset(Dataset):
         force_fg_prob = max(0, (85-(num_annots)) / 110) 
             
         force_fg = force_fg_prob > random.random()
-        print('prop', force_fg_prob, 'forcefg', force_fg)
         (image, annots, segs, classes, fname) = load_train_image_and_annot(self.dataset_dir,
                                                                            self.train_seg_dirs,
                                                                            self.annot_dirs,
