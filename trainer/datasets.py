@@ -146,6 +146,7 @@ class RPDataset(Dataset):
         num_annots = len(ls(self.annot_dirs[0])) # estimate num annotations from first class 
         force_fg_prob = max(0, (100-num_annots) / 100)
         force_fg = force_fg_prob > 0.5
+        print('force_fg = ', force_fg)
         (image, annots, segs, classes, fname) = load_train_image_and_annot(self.dataset_dir,
                                                                            self.train_seg_dirs,
                                                                            self.annot_dirs,
@@ -155,7 +156,7 @@ class RPDataset(Dataset):
         annot_patches, seg_patches, im_patch = self.get_random_patch_3d(annots, segs,
                                                                         image,
                                                                         fname, force_fg)
-
+        
         im_patch = img_as_float32(im_patch)
         im_patch = im_utils.normalize_patch(im_patch)
         # ensure image is still 32 bit after normalisation.
@@ -170,6 +171,7 @@ class RPDataset(Dataset):
         for annot_patch in annot_patches:
             #annot patch shape is  (2, 18, 194, 194)
             foreground = np.array(annot_patch)[1]
+            print('fg sum = ', np.sum(foreground))
             background = np.array(annot_patch)[0]
             foreground = foreground.astype(np.int64)
             foreground = torch.from_numpy(foreground)
