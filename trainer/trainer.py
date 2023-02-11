@@ -386,6 +386,7 @@ class Trainer():
                 return None # understood as training stopping early
 
         duration = round(time.time() - epoch_start, 3)
+        print('')
         print('Training epoch duration', duration, 'time per instance',
               round((time.time() - epoch_start) / len(epoch_items_metrics), 3))
         return epoch_items_metrics
