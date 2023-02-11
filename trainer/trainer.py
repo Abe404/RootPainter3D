@@ -307,7 +307,7 @@ class Trainer():
 
             debug_memory('val epoch step')
             # https://github.com/googlecolab/colabtools/issues/166
-            print(f"\rValidation: {(step+1) * self.batch_size}/"
+            print(f"\rValidation: {(step+1) * (self.batch_size * 2)}/"
                   f"{len(loader.dataset)} ",
                   end='', flush=True)
 
