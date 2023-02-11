@@ -1,5 +1,5 @@
 """
-Copyright (C) 2019, 2020 Abraham George Smith
+Copyright (C) 2019, 2020, 2023 Abraham George Smith
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -32,6 +32,11 @@ import im_utils
 def rnd():
     """ Give higher than random chance to select the edges """
     return max(0, min(1, (1.2 * random.random()) - 0.1))
+
+
+
+def annot_patch_has_fg(annot):
+    return np.any(annot[1][17:-17,17:-17,17:-17])
 
 
 class RPDataset(Dataset):
@@ -82,6 +87,8 @@ class RPDataset(Dataset):
     def get_train_item(self, patch_ref=None):
         return self.get_train_item_3d(patch_ref)
 
+
+    
     def get_random_patch_3d(self, annots, segs, image, fname, force_fg):
         # this will find something eventually as we know
         # all annotation contain labels somewhere
@@ -119,11 +126,9 @@ class RPDataset(Dataset):
 
             # we only want annotations with defiend regions in the output area.
             # Otherwise we will have nothing to update the loss.
-            if np.any(np.any(a) for a in annot_patches):
+            if np.any([np.any(a) for a in annot_patches]):
                 # if force fg is true then make sure fg is defined.
-                if not force_fg or np.any(np.any(a[1]) for a in annot_patches):
-                    print('annot patches len', len(annot_patches))
-                    print('annots[0][0]  sum', np.sum(annot_patches[0][1]))
+                if not force_fg or np.any([annot_patch_has_fg(a) for a in annot_patches]):
                     # ok we have some annotation for this
                     # part of the image so let's return the patch.
                     im_patch = image[z_in:z_in+self.in_d,
@@ -146,9 +151,11 @@ class RPDataset(Dataset):
             return im_patch, foregrounds, backgrounds, classes
         
         num_annots = len(ls(self.annot_dirs[0])) # estimate num annotations from first class 
-        force_fg_prob = max(0, (100-num_annots) / 100)
-        force_fg = force_fg_prob > 0.5
-        print('force_fg = ', force_fg)
+        # start at 77% force fg and go down to 0 by the time 85 images are annotated.
+        force_fg_prob = max(0, (85-(num_annots)) / 110) 
+            
+        force_fg = force_fg_prob > random.random()
+        print('prop', force_fg_prob, 'forcefg', force_fg)
         (image, annots, segs, classes, fname) = load_train_image_and_annot(self.dataset_dir,
                                                                            self.train_seg_dirs,
                                                                            self.annot_dirs,
