@@ -102,10 +102,10 @@ class Metrics:
         return (self.tp + self.fn) / self.total()
 
     def total_true(self):
-        return (self.tp + self.fn),
+        return self.tp + self.fn
 
     def total_pred(self):
-        return (self.fp + self.tp)
+        return self.fp + self.tp
 
     def __add__(self, other):
         return Metrics(tp=self.tp+other.tp, 
