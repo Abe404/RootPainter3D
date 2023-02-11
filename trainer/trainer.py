@@ -373,12 +373,16 @@ class Trainer():
             loss_sum += batch_loss.item() # float
             batch_loss.backward()
             self.optimizer.step()
+        
+            total_fg = ''
+            for b in batch_items_metrics:
+                total_fg += f',{b.total_true()}'
             
             debug_memory('train epoch step')
             # https://github.com/googlecolab/colabtools/issues/166
             print(f"\rTraining: {(step+1) * self.batch_size}/"
                   f"{len(loader.dataset)} "
-                  f" loss={round(batch_loss.item(), 3)}",
+                  f" loss={round(batch_loss.item(), 3)}, fg={total_fg}",
                   end='', flush=True)
 
             self.check_for_instructions() # could update training parameter
