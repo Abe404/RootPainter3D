@@ -122,6 +122,8 @@ class RPDataset(Dataset):
             if np.any(np.any(a) for a in annot_patches):
                 # if force fg is true then make sure fg is defined.
                 if not force_fg or np.any(np.any(a[1]) for a in annot_patches):
+                    print('annot patches len', len(annot_patches))
+                    print('annots[0][0]  sum', np.sum(annot_patches[0][1]))
                     # ok we have some annotation for this
                     # part of the image so let's return the patch.
                     im_patch = image[z_in:z_in+self.in_d,
