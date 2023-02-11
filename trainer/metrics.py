@@ -29,7 +29,9 @@ import numpy as np
 import torch
 
 
-metric_headers = ['seconds', 'time', 'tp', 'fp', 'tn', 'fn', 'precision', 'recall', 'dice']
+metric_headers = ['seconds', 'time', 'tp', 'fp', 'tn', 'fn',
+                  'total_true', 'total_pred',
+                  'precision', 'recall', 'dice']
 
 def metrics_from_binary_masks(seg, gt):
 
