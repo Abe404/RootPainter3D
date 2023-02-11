@@ -61,6 +61,9 @@ run_args = [
     # --clean: Clean PyInstaller cache and remove temporary files before building.
     '--clean',
 
+    # FIXME: These hidden imports are not currently used in the project, but will be used 
+    #        in future features. They show up as errors when pyinstaller runs, but can be
+    #        safely ignored.
     # hidden imports added based on this advice:    
     # https://github.com/pyqtgraph/pyqtgraph/issues/2179
     '--hidden-import', 'pyqtgraph.graphicsItems.ViewBox.axisCtrlTemplate_pyqt5',
