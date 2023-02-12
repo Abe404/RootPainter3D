@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=RootPainter3D
+Comment=RootPainter3D
+Exec=/usr/local/bin/RootPainter3D/RootPainter3D
+Terminal=false
+Type=Application
+Icon=/usr/local/bin/RootPainter3D/icons/icon.svg
