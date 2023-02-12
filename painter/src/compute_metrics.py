@@ -29,6 +29,9 @@ import csv
 metrics_headers = ['fname', 'dice', 'tp', 'tn', 'fp', 'fn']
 
 
+
+# FIXME this function only works with binary masks as gt. It would be helpful if it
+#       also worked with RootPainter two channel annotations.
 def get_seg_metrics(seg_dir, gt_dir, fname, headers):
     # warning some images might have different axis order or might need flipping
     # we ignore that here.
@@ -184,7 +187,7 @@ class ExtractSegMetricsWidget(QtWidgets.QWidget):
 
         def gt_selected():
             self.gt_dir = self.gt_dialog.selectedFiles()[0]
-            self.in_dir_label.setText('Ground truth directory: ' + self.gt_dir)
+            self.gt_dir_label.setText('Ground truth directory: ' + self.gt_dir)
             self.validate()
 
         self.gt_dialog.fileSelected.connect(gt_selected)
