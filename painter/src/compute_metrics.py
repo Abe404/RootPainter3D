@@ -16,23 +16,106 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #pylint: disable=I1101,C0111,W0201,R0903,E0611, R0902, R0914
 import os
-
+from dataclasses import dataclass
+from datetime import datetime
 
 from PyQt5 import QtWidgets
 from PyQt5 import QtCore
 import numpy as np
 from progress_widget import BaseProgressWidget
 import im_utils
-from medpy.metric.binary import dc 
-import csv
 
-metrics_headers = ['fname', 'dice', 'tp', 'tn', 'fp', 'fn']
+metrics_headers = ['time', 'fname',  'tp', 'fp', 'tn', 'fn',
+                   'total_true', 'total_pred',
+                   'precision', 'recall', 'dice']
 
+def metrics_from_binary_masks(seg, gt):
+    assert gt.shape == seg.shape, f"{gt.shape} should be same as {seg.shape}"
+    return Metrics(
+        tp=(np.sum((gt == 1) * (seg == 1))),
+        tn=(np.sum((gt == 0) * (seg == 0))),
+        fp=(np.sum((gt == 0) * (seg == 1))),
+        fn=(np.sum((gt == 1) * (seg == 0)))
+    )
+
+@dataclass
+class Metrics:
+    tp: int = 0
+    fp: int = 0
+    tn: int = 0
+    fn: int = 0
+    fname: str = ''
+
+    # implemented because python sum only works with integers
+    @staticmethod
+    def sum(list_of_metrics):
+        metrics_sum = Metrics()
+        for m in list_of_metrics:
+            metrics_sum += m
+        return metrics_sum
+    
+    def total(self):
+        return self.tp + self.tn + self.fp + self.fn
+    
+    def accuracy(self):
+        return (self.tp + self.tn) / self.total()
+
+    def precision(self):
+        if self.tp > 0:
+            return self.tp / (self.tp + self.fp)
+        return float('NaN')
+
+    def recall(self): 
+        if self.tp > 0:
+            return self.tp / (self.tp + self.fn)
+        return float('NaN')
+
+    def dice(self): 
+        if self.tp > 0:
+            return 2 * ((self.precision() * self.recall()) / (self.precision() + self.recall()))
+        return float('NaN')
+    
+    def true_mean(self):
+        return (self.tp + self.fn) / self.total()
+
+    def total_true(self):
+        return self.tp + self.fn
+
+    def total_pred(self):
+        return self.fp + self.tp
+
+    def __add__(self, other):
+        return Metrics(tp=self.tp+other.tp, 
+                       fp=self.fp+other.fp, 
+                       tn=self.tn+other.tn, 
+                       fn=self.fn+other.fn)
+
+    def __str__(self, to_use=None):
+        out_str = ""
+        for name in metrics_headers:
+            if to_use is None or name in to_use:
+                if hasattr(self, name):
+                    val = getattr(self, name)
+                    if callable(val):
+                        val = val()
+                    out_str += f" {name} {val:.4g}"
+        return out_str
+
+    def csv_row(self):
+
+        now_str = datetime.now().strftime('%Y-%m-%d-%H:%M:%S')
+        parts = []
+        parts += [now_str, self.fname, self.tp,
+                  self.fp, self.tn, self.fn,
+                  self.total_true(), self.total_pred(), 
+                  round(self.precision(), 4), round(self.recall(), 4),
+                  round(self.dice(), 4)]
+        return ','.join([str(p) for p in parts]) + '\n'
 
 
 # FIXME this function only works with binary masks as gt. It would be helpful if it
 #       also worked with RootPainter two channel annotations.
-def get_seg_metrics(seg_dir, gt_dir, fname, headers):
+def get_seg_metrics(seg_dir, gt_dir, fname):
     # warning some images might have different axis order or might need flipping
     # we ignore that here.
     seg = im_utils.load_seg(os.path.join(seg_dir, fname))
@@ -44,15 +127,10 @@ def get_seg_metrics(seg_dir, gt_dir, fname, headers):
     # if they dont match in shape assume the gt needs the depth moving from last to first
     if gt.shape != seg.shape:
         gt = np.moveaxis(gt, -1, 0)
-
-    dice = dc(seg, gt)
-
-    tp = np.sum(np.logical_and(seg == 1, gt == 1))
-    tn = np.sum(np.logical_and(seg == 0, gt == 0))
-    fp = np.sum(np.logical_and(seg == 1, gt == 0))
-    fn = np.sum(np.logical_and(seg == 0, gt == 1))
-
-    return [fname, dice, tp, tn, fp, fn]
+        
+    m = metrics_from_binary_masks(seg, gt)
+    m.fname = fname
+    return m
 
 class Thread(QtCore.QThread):
     progress_change = QtCore.pyqtSignal(int, int)
@@ -72,39 +150,13 @@ class Thread(QtCore.QThread):
         if os.path.isfile(self.csv_path):
             os.remove(self.csv_path)
         try: 
-            all_props = []
             with open(self.csv_path, 'w+')  as csvfile:
-                writer = csv.writer(csvfile, delimiter=',',
-                                    quotechar='|', quoting=csv.QUOTE_MINIMAL)
-                # Write the column headers
-                writer.writerow(self.headers)
+                print(','.join(metrics_headers), file=csvfile)
                 for i, fname in enumerate(self.fnames):
                     self.progress_change.emit(i+1, len(self.fnames))
                     # headers allow the output options to be detected.
-                    props = get_seg_metrics(self.segment_dir, self.gt_dir, fname, self.headers)
-                    print('props= ', props)
-                    all_props.append(props)
-                    writer.writerow(props)
-
-            # write a summary file with .summary on the end.
-            with open(os.path.splitext(self.csv_path)[0] + '.summary.csv', 'w+')  as csvfile:
-                writer = csv.writer(csvfile, delimiter=',',
-                                    quotechar='|', quoting=csv.QUOTE_MINIMAL)
-                summary_headers = []
-                results = []
-                for i, h in enumerate(self.headers):
-                    if h != 'fname':
-                        summary_headers.append(f'{h}_mean')
-                        results.append(np.mean([p[i] for p in all_props]))
-                        summary_headers.append(f'{h}_min')
-                        results.append(np.min([p[i] for p in all_props]))
-                        summary_headers.append(f'{h}_max')
-                        results.append(np.max([p[i] for p in all_props]))
-                        summary_headers.append(f'{h}_std')
-                        results.append(np.std([p[i] for p in all_props]))
-                # Write the column headers
-                writer.writerow(summary_headers)
-                writer.writerow(results)
+                    m = get_seg_metrics(self.segment_dir, self.gt_dir, fname)
+                    print(m.csv_row(), file=csvfile)
                 self.done.emit()
         except Exception as e:
             print(e)

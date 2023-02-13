@@ -10,4 +10,3 @@ qimage2ndarray==1.8.3
 nibabel==5.0.0
 pynrrd==0.4.2
 rp-annot>=0.0.4
-medpy==0.4.0
