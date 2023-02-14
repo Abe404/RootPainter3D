@@ -18,7 +18,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import random
 import math
 import os
-import time
 from pathlib import Path
 from file_utils import ls
 
@@ -211,7 +210,6 @@ class RPDataset(Dataset):
         # image could have nrrd extension
         if not os.path.isfile(image_path):
             image_path = image_path.replace('.nii.gz', '.nrrd')
-        t = time.time()
         image = im_utils.load_with_retry(im_utils.load_image, image_path)
         #  needs to be swapped to channels first and rotated etc
         # to be consistent with everything else.
@@ -242,7 +240,6 @@ class RPDataset(Dataset):
             
             # pad to provide annotation at same size as input image.
             annot = np.pad(annot, ((0, 0), (17, 17), (17, 17), (17, 17)), mode='constant')
-            print('time to prep', image_path, time.time() - t)
             # The x, y and z are in reference to the annotation patch before padding.
             annot_patch = annot[:,
                                patch_ref.z:patch_ref.z+self.in_d,
