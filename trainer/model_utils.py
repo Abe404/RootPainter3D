@@ -307,6 +307,7 @@ def segment_3d(cnn, image, batch_size, in_patch_shape, out_patch_shape, auto_com
                     image.shape[2] - width_diff)
 
     coords = im_utils.get_coords_3d(out_im_shape, out_patch_shape)
+    print('coords', coords)
     coord_idx = 0
     class_output_patches = None # list of patches for each class
 

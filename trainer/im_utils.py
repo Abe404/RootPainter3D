@@ -344,8 +344,9 @@ def get_val_patch_refs_for_annot_3d(annot_dir, annot_fname, out_shape):
 
     # which regions to ignore because they already exist in another patch
     full_ignore_mask = np.zeros(list(annot.shape)[1:]) 
-
-    for (x, y, z) in coords:
+    print('coords', coords)
+    coords.reverse() # start from the end for ignore mask to be consistent with segmentation.
+    for (x, y, z) in reverse(coords):
         annot_patch = annot[:, z:z+out_shape[0], y:y+out_shape[1], x:x+out_shape[2]]
         ignore_mask = np.array(full_ignore_mask[z:z+out_shape[0],
                                                 y:y+out_shape[1],
