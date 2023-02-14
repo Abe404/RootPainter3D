@@ -58,6 +58,12 @@ def normalize_patch(patch):
 
 def reconstruct_from_patches(patches, coords, output_shape):
     image = np.zeros(output_shape)
+    # reverse patches and coords because in validation we dont
+    # overwrite predictions for coords earlier in the list.
+    # We instead tell patch-refs/coords later in the list to ignore
+    # already predicted regions.
+    patches.reverse()
+    coords.reverse()
     for patch, (x_coord, y_coord, z_coord) in zip(patches, coords):
         image[z_coord:z_coord+patch.shape[0],
               y_coord:y_coord+patch.shape[1],
@@ -345,7 +351,6 @@ def get_val_patch_refs_for_annot_3d(annot_dir, annot_fname, out_shape):
     # which regions to ignore because they already exist in another patch
     full_ignore_mask = np.zeros(list(annot.shape)[1:]) 
     print('coords', coords)
-    coords.reverse() # start from the end for ignore mask to be consistent with segmentation.
     for (x, y, z) in reverse(coords):
         annot_patch = annot[:, z:z+out_shape[0], y:y+out_shape[1], x:x+out_shape[2]]
         ignore_mask = np.array(full_ignore_mask[z:z+out_shape[0],
