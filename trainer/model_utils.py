@@ -244,9 +244,9 @@ def pad_then_segment_3d(cnn, image, batch_size, in_w, out_w, in_d, out_d):
     width_diff = in_patch_shape[2] - out_patch_shape[2]
 
     print('input image shape (before pad) = ', image.shape)
+
     # pad so seg will be size of input image
-    image = im_utils.pad_3d(image, width_diff//2, depth_diff//2,
-                            mode='reflect', constant_values=0)
+    image = np.pad(image, ((17, 17), (17, 17), (17, 17)), mode='constant')
 
     # segment returns a series of prediction maps. one for each class.
     print('input image shape (after pad) = ', image.shape)
