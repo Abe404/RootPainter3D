@@ -26,41 +26,41 @@ import json
 import sys
 from datetime import datetime
 import copy
-import random
 import multiprocessing
 
+from metrics import Metrics
 
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
-import torch.nn.functional as F
 from loss import get_batch_loss
 from instructions import fix_config_paths
 
 from datasets import RPDataset
-from metrics import get_metrics, get_metrics_str, get_metric_csv_row
 from model_utils import load_model_then_segment_3d
+from model_utils import add_config_shape
 from model_utils import create_first_model_with_random_weights
 from model_utils import random_model
 import model_utils
 from model_utils import save_if_better, save_model
-from metrics import metrics_from_val_tile_refs
 import data_utils
-#import patch_seg
-
-from im_utils import is_image, load_image, save_then_move, save
+from patch_seg import handle_patch_update_in_epoch_step
+from im_utils import is_image, load_image, save
 import im_utils
 from file_utils import ls
+from model_utils import debug_memory
 
+metrics_to_print = ['dice', 'precision', 'recall', 'total_true', 'total_pred']
 
 class Trainer():
-
-    def __init__(self, sync_dir, ip=None, port=None, max_workers=12):
+    def __init__(self, sync_dir, ip=None, port=None, max_workers=12, epoch_length=None):
         self.sync_dir = sync_dir
         self.ip = ip
         self.port = port
         self.patch_update_enabled = ip and port
-
+        # if this is not specified, epoch_length will be calculated automatically
+        # This can be specified as a manual override for debugging purposes (for example).
+        self.epoch_length = epoch_length 
         self.instruction_dir = os.path.join(self.sync_dir, 'instructions')
         self.training = False
         self.running = False
@@ -69,12 +69,12 @@ class Trainer():
         self.train_config = None
         self.model = None
         self.first_loop = True
-        self.batch_size = 4 
+        self.batch_size = 4
         self.num_workers = min(multiprocessing.cpu_count(), max_workers)
         print(self.num_workers, 'workers will be assigned for data loaders')
 
         self.optimizer = None
-        self.val_tile_refs = []
+        self.val_patch_refs = []
         # used to check for updates
         self.annot_mtimes = []
         self.msg_dir = None
@@ -94,16 +94,27 @@ class Trainer():
         # These can be trigged by data sent from client
         self.valid_instructions = [self.start_training,
                                    self.segment,
-                                   self.stop_training,
-                                   self.segment_patch]
+                                   self.stop_training]
+                                   #self.segment_patch]
+
+    def get_train_epoch_length(self):
+        if self.epoch_length: # manual override
+            train_epoch_length = self.epoch_length
+        elif self.val_patch_refs:
+            # selected as it leads to training taking around 5x validation time
+            train_epoch_length = max(64, 2 * len(self.val_patch_refs))
+        else:
+            train_epoch_length = 128
+        return train_epoch_length
 
     def main_loop(self, on_epoch_end=None):
         print('Started main loop. Checking for instructions in',
               self.instruction_dir)
         if self.patch_update_enabled:
-            print('start patch seg server')
-            patch_seg.start_server(self.sync_dir, self.ip, self.port) # direct socket connection
-            print('after start server')
+            raise Exception('implementation temporarily removed')
+            # print('start patch seg server')
+            # patch_seg.start_server(self.sync_dir, self.ip, self.port) # direct socket connection
+            # print('after start server')
 
         self.running = True
         while self.running:
@@ -111,18 +122,12 @@ class Trainer():
             if self.training:
                 # can take a while so checks for
                 # new instructions are also made inside
-                self.val_tile_refs = self.get_new_val_tiles_refs()
-                if self.val_tile_refs:
-                    # selected as it leads to training taking around 5x validation time
-                    train_epoch_length = max(64, 2 * len(self.val_tile_refs))
-                else:
-                    train_epoch_length = 128
-                epoch_result = self.one_epoch(self.model, 'train', length=train_epoch_length)
-                if epoch_result:
-                    (tps, fps, tns, fns) = epoch_result
-                    train_m = get_metrics(np.sum(tps), np.sum(fps), np.sum(tns), np.sum(fns))
-                    self.log_metrics('train', train_m)
-                    print(get_metrics_str(train_m, to_use=['dice', 'precision', 'recall']))
+                self.val_patch_refs = self.get_new_val_patches_refs()
+                train_metrics = Metrics.sum(self.train_epoch(self.model,
+                                            length=self.get_train_epoch_length()))
+                if train_metrics:
+                    self.log_metrics('train', train_metrics)
+                    print(train_metrics.__str__(to_use=metrics_to_print))
             if self.training:
                 self.validation()
                 if on_epoch_end:
@@ -130,21 +135,6 @@ class Trainer():
             else:
                 self.first_loop = True
                 time.sleep(1.0)
-
-    def add_config_shape(self, config):
-        new_config = copy.deepcopy(config)
-        num_classes = len(config['classes'])
-        if self.in_w is None:
-            in_w, out_w = model_utils.get_in_w_out_w_for_memory(num_classes)
-            self.in_w = in_w
-            self.out_w = out_w
-            print('found input width of', in_w, 'and output width of', out_w)
-        new_config['in_w'] = self.in_w
-        new_config['out_w'] = self.out_w
-        new_config['in_d'] = 52
-        new_config['out_d'] = 18
-        return new_config
-
 
     def fix_config_paths(self, old_config):
         """ get paths relative to local machine """
@@ -220,12 +210,14 @@ class Trainer():
             else:
                 self.train_config['classes'] = classes
 
-            self.val_tile_refs = [] # dont want to cache these between projects
+            self.val_patch_refs = [] # dont want to cache these between projects
             self.epochs_without_progress = 0
             self.msg_dir = self.train_config['message_dir']
             model_dir = self.train_config['model_dir']
             classes = self.train_config['classes']
-            self.train_config = self.add_config_shape(self.train_config)
+            self.train_config = add_config_shape(self.train_config, self.in_w, self.out_w)
+            self.in_w = self.train_config['in_w']
+            self.out_w = self.train_config['out_w']
 
             model_paths = model_utils.get_latest_model_paths(model_dir, 1)
             if model_paths:
@@ -266,140 +258,155 @@ class Trainer():
                 found_train_annot = True
         return found_train_annot 
 
-    def one_epoch(self, model, mode='train', val_tile_refs=None, length=None):
+
+    def val_epoch(self, model, val_patch_refs):
+        """
+        Compute the metrics for a given
+            model, annotation directory and dataset (image directory).
+        """
+        debug_memory('val epoch start')
+        torch.set_grad_enabled(False)
+        dataset = RPDataset(self.train_config['val_annot_dirs'],
+                            None, # train_seg_dirs
+                            self.train_config['dataset_dir'],
+                            # only specifying w and d as h is always same as w
+                            self.train_config['in_w'],
+                            self.train_config['out_w'],
+                            self.train_config['in_d'],
+                            self.train_config['out_d'],
+                            'val', # FIXME: mode should be an enum.
+                            val_patch_refs)
+        loader = DataLoader(dataset, self.batch_size * 2, shuffle=True,
+                            collate_fn=data_utils.collate_fn,
+                            num_workers=self.num_workers,
+                            drop_last=False, pin_memory=True)
+        epoch_items_metrics = []
+        epoch_start = time.time()
+        for step, (batch_im_patches, batch_fg_patches,
+                   batch_bg_patches, batch_ignore_masks,
+                   _batch_seg_patches, batch_classes) in enumerate(loader):
+
+            self.check_for_instructions()
+            batch_im_patches = torch.from_numpy(np.array(batch_im_patches)).cuda()
+            if self.patch_update_enabled:
+                batch_im_patches = handle_patch_update_in_epoch_step(batch_im_patches, mode='val')
+
+            outputs = model(batch_im_patches)
+
+            (_, batch_items_metrics) = get_batch_loss(
+                outputs, batch_fg_patches,
+                batch_bg_patches, batch_ignore_masks, None,
+                batch_classes, self.train_config['classes'],
+                compute_loss=False)
+
+            epoch_items_metrics += batch_items_metrics
+
+            self.check_for_instructions() # could update training parameter
+            if not self.training: # in this context we consider validation part of training.
+                return None # a way to stop validation quickly if user specifies
+
+            debug_memory('val epoch step')
+            # https://github.com/googlecolab/colabtools/issues/166
+            print(f"\rValidation: {(step+1) * (self.batch_size * 2)}/"
+                  f"{len(loader.dataset)} ",
+                  end='', flush=True)
+
+        duration = round(time.time() - epoch_start, 3)
+        print('')
+        print('Validation epoch duration', duration, 'time per instance',
+               round((time.time() - epoch_start) / len(epoch_items_metrics), 3))
+        return epoch_items_metrics
+
+
+    def train_epoch(self, model, length=None):
         if not self.train_annotation_exists():
             # no training until data ready
             return False
 
+        debug_memory('train epoch start')
         if self.first_loop:
             self.first_loop = False
             self.write_message('Training started')
             self.log('Starting Training')
 
-        if mode == 'val':
-            dataset = RPDataset(self.train_config['val_annot_dirs'],
-                                None,
-                                self.train_config['dataset_dir'],
-                                self.train_config['in_w'],
-                                self.train_config['out_w'],
-                                self.train_config['in_d'],
-                                self.train_config['out_d'],
-                                'val',
-                                val_tile_refs)
-            torch.set_grad_enabled(False)
-            loader = DataLoader(dataset, self.batch_size * 2, shuffle=True,
-                                collate_fn=data_utils.collate_fn,
-                                num_workers=self.num_workers,
-                                drop_last=False, pin_memory=True)
-        elif mode == 'train':
-            dataset = RPDataset(self.train_config['train_annot_dirs'],
-                                self.train_config['train_seg_dirs'],
-                                self.train_config['dataset_dir'],
-                                self.train_config['in_w'],
-                                self.train_config['out_w'],
-                                self.train_config['in_d'],
-                                self.train_config['out_d'],
-                                'train',
-                                val_tile_refs,
-                                self.use_seg_in_training,
-                                length=length)
-            torch.set_grad_enabled(True)
-            loader = DataLoader(dataset, self.batch_size, shuffle=False,
-                                collate_fn=data_utils.collate_fn,
-                                num_workers=self.num_workers,
-                                drop_last=False, pin_memory=True)
-            model.train()
-        else:
-            raise Exception(f"Invalid mode: {mode}")
-
+        dataset = RPDataset(self.train_config['train_annot_dirs'],
+                            self.train_config['train_seg_dirs'],
+                            self.train_config['dataset_dir'],
+                            self.train_config['in_w'],
+                            self.train_config['out_w'],
+                            self.train_config['in_d'],
+                            self.train_config['out_d'],
+                            'train',
+                            None,
+                            self.use_seg_in_training,
+                            length=length)
+        torch.set_grad_enabled(True)
+        loader = DataLoader(dataset, self.batch_size, shuffle=False,
+                            collate_fn=data_utils.collate_fn,
+                            num_workers=self.num_workers,
+                            drop_last=False, pin_memory=True)
+        model.train()
         epoch_start = time.time()
 
-        tps = []
-        fps = []
-        tns = []
-        fns = []
+        epoch_items_metrics = []  
         loss_sum = 0
-        for step, (batch_im_tiles, batch_fg_tiles,
-                   batch_bg_tiles, batch_seg_tiles, batch_classes) in enumerate(loader):
+        for step, (batch_im_patches, batch_fg_patches,
+                   batch_bg_patches, batch_ignore_masks,
+                   batch_seg_patches, batch_classes) in enumerate(loader):
+
             self.check_for_instructions()
-            batch_im_tiles = torch.from_numpy(np.array(batch_im_tiles)).cuda()
+            batch_im_patches = torch.from_numpy(np.array(batch_im_patches)).cuda()
             self.optimizer.zero_grad()
-        
-            # padd channels to allow annotation input (or not)
-            # l,r, l,r, but from end to start    w  w  h  h  d  d, c, c, b, b
+            
             if self.patch_update_enabled:
-                model_input = F.pad(batch_im_tiles, (0, 0, 0, 0, 0, 0, 0, 2), 'constant', 0)
-            else:
-                model_input = batch_im_tiles
-    
-            # model_input[:, 0] is the input image
-            # model_input[:, 1] is fg
-            # model_input[:, 2] is bg
-            if self.patch_update_enabled and mode == 'train':
-                for i, (fg_tiles, bg_tiles) in enumerate(zip(batch_fg_tiles, batch_bg_tiles)):
-                    # if it's trianing then with 50% chance 
-                    # add the annotations to the model input
-                    # Validation should not have access to the annotations.
-                    if random.random() > 0.5:
-                        # go through fg tiles and bg_tiles for each batch item
-                        # in this case we know there is always 1 bg and 1 fg tile.
-                        # at random add the annotation slice
-                        for slice_idx in range(fg_tiles[0].shape[0]):
-                            if torch.any(fg_tiles[0][slice_idx]) or torch.any(bg_tiles[0][slice_idx]):
-                                # each slice with annotation is included with 50 percent probability.
-                                # This allows the network to learn how to use the annotation to improve predictions
-                                if random.random() > 0.5: 
-                                    model_input[i, 1, slice_idx] = fg_tiles[0][slice_idx]
-                                    model_input[i, 2, slice_idx] = bg_tiles[0][slice_idx]
+                batch_im_patches = handle_patch_update_in_epoch_step(batch_im_patches, 'train')
 
-            outputs = model(model_input)
+            outputs = model(batch_im_patches)
 
-           
-            (batch_loss, batch_tps, batch_tns,
-             batch_fps, batch_fns) = get_batch_loss(
-                 outputs, batch_fg_tiles, batch_bg_tiles, batch_seg_tiles,
-                 #outputs, batch_fg_tiles, batch_bg_tiles,
+            (batch_loss, batch_items_metrics) = get_batch_loss(
+                 outputs, batch_fg_patches, batch_bg_patches, 
+                 batch_ignore_masks, batch_seg_patches,
                  batch_classes, self.train_config['classes'],
-                 compute_loss=(mode=='train'))
+                 compute_loss=True)
 
-            tps += batch_tps
-            fps += batch_fps
-            tns += batch_tns
-            fns += batch_fns
-
-            if mode == 'train':
-                loss_sum += batch_loss.item() # float
-                batch_loss.backward()
-                self.optimizer.step()
-
-            if mode == 'train':
-                sys.stdout.write(f"{mode} {(step+1) * self.batch_size}/"
-                                 f"{len(loader.dataset)} "
-                                 f" loss={round(batch_loss.item(), 3)} \r")
-                sys.stdout.flush()
+            epoch_items_metrics += batch_items_metrics 
+            loss_sum += batch_loss.item() # float
+            batch_loss.backward()
+            self.optimizer.step()
+        
+            total_fg = ''
+            for b in batch_items_metrics:
+                total_fg += f',{b.total_true()}'
+            
+            debug_memory('train epoch step')
+            # https://github.com/googlecolab/colabtools/issues/166
+            print(f"\rTraining: {(step+1) * self.batch_size}/"
+                  f"{len(loader.dataset)} "
+                  f" loss={round(batch_loss.item(), 3)}, fg={total_fg}",
+                  end='', flush=True)
 
             self.check_for_instructions() # could update training parameter
             if not self.training: # in this context we consider validation part of training.
-                return
+                return None # understood as training stopping early
 
         duration = round(time.time() - epoch_start, 3)
-        print(f'{mode} epoch duration', duration,
-              'time per instance', round((time.time() - epoch_start) / len(tps), 3))
+        print('')
+        print('Training epoch duration', duration, 'time per instance',
+              round((time.time() - epoch_start) / len(epoch_items_metrics), 3))
+        return epoch_items_metrics
 
-        return [tps, fps, tns, fns]
+    def assign_metrics_to_refs(self, metrics_list):
+        # now go through and assign the errors to the appropriate patch refs.
+        for i, metrics_for_ref in enumerate(metrics_list):
+            # go through the val patch refs to find the equivalent patch ref
+            self.val_patch_refs[i].metrics = metrics_for_ref
 
-    def assign_metrics_to_refs(self, tps, fps, tns, fns):
-        # now go through and assign the errors to the appropriate tile refs.
-        for i, (tp, fp, tn, fn) in enumerate(zip(tps, fps, tns, fns)):
-            # go through the val tile refs to find the equivalent tile ref
-            self.val_tile_refs[i][3] = [tp, fp, tn, fn]
-
-    def get_new_val_tiles_refs(self):
-        return im_utils.get_val_tile_refs(self.train_config['val_annot_dirs'],
-                                          copy.deepcopy(self.val_tile_refs),
-                                          out_shape=(self.train_config['out_d'],
-                                                     self.train_config['out_w'],
-                                                     self.train_config['out_w']))
+    def get_new_val_patches_refs(self):
+        return im_utils.get_val_patch_refs(self.train_config['val_annot_dirs'],
+                                           copy.deepcopy(self.val_patch_refs),
+                                           out_shape=(self.train_config['out_d'],
+                                                      self.train_config['out_w'],
+                                                      self.train_config['out_w']))
 
     def log_metrics(self, name, metrics):
         fname = datetime.today().strftime('%Y-%m-%d')
@@ -411,7 +418,7 @@ class Trainer():
                   'false_negatives,precision,recall,dice',
                   file=open(fpath, 'w+'))
         with open(fpath, 'a+') as log_file:
-            log_file.write(get_metric_csv_row(metrics))
+            log_file.write(metrics.csv_row())
             log_file.flush()
 
     def validation(self):
@@ -424,9 +431,12 @@ class Trainer():
         model_dir = self.train_config['model_dir']
         prev_model, prev_path = model_utils.get_prev_model(model_dir,
                                                            self.train_config['classes'])
-        self.val_tile_refs = self.get_new_val_tiles_refs()
 
-        if not self.val_tile_refs:
+        # this could include some of the prevous patches refs 
+        # (if annotation has not changed etc)
+        self.val_patch_refs = self.get_new_val_patches_refs()
+
+        if not self.val_patch_refs:
             # if we don't yet have any validation data
             # but we are training then just save the model
             # Assuming we will get better than random weights
@@ -434,25 +444,33 @@ class Trainer():
             save_model(model_dir, self.model, prev_path)
             was_saved = True
         else:
-            # for current model get errors for all tiles in the validation set.
-            epoch_result = self.one_epoch(copy.deepcopy(self.model), 'val', self.val_tile_refs)
-            if not epoch_result:
+            # for current model get errors for all patches in the validation set.
+            cur_val_items_metrics = self.val_epoch(copy.deepcopy(self.model),
+                                                   self.val_patch_refs)
+            if not cur_val_items_metrics:
                 # if we didn't get anything back then it means the
                 # dataset did not contain any annotations so no need
                 # to proceed with validation.
                 return 
-            (tps, fps, tns, fns) = epoch_result
-        
-            cur_m = get_metrics(np.sum(tps), np.sum(fps), np.sum(tns), np.sum(fns))
-            self.log_metrics('cur_val', cur_m)
 
-            prev_m = self.get_prev_model_metrics(prev_model)
-            self.log_metrics('prev_val', prev_m)
+            cur_val_metrics = Metrics.sum(cur_val_items_metrics)
+            self.log_metrics('cur_val', cur_val_metrics)
+
+            print('Current Model Validation:', cur_val_metrics.__str__(to_use=metrics_to_print))
+
+            # uses current val_patch_refs, where computation is required only.
+            prev_val_metrics = self.get_prev_model_metrics(prev_model)
+            self.log_metrics('prev_val', prev_val_metrics)
+
             was_saved = save_if_better(model_dir, self.model, prev_path,
-                                       cur_m['dice'], prev_m['dice'])
+                                       cur_val_metrics.dice(),
+                                       prev_val_metrics.dice())
             if was_saved:
+                # if it was saved then cur_model will become prev_model so
                 # update the cache to use metrics from current model
-                self.assign_metrics_to_refs(tps, fps, tns, fns)
+                # assign metrics to refs
+                for i, metrics_for_ref in enumerate(cur_val_items_metrics):
+                    self.val_patch_refs[i].metrics = metrics_for_ref
 
         if was_saved:
             self.epochs_without_progress = 0
@@ -467,10 +485,11 @@ class Trainer():
             # (because this would cause the restart to stop and typical training to resumse)
             # so we keep track of the best dice so far for this specific restart, and extend
             # training if we beat it, i.e set epochs_without_progress to 0
-            if cur_m['dice'] > self.restart_best_val_dice:
+            if cur_val_metrics.dice() > self.restart_best_val_dice:
                 print('local restart dice improvement from',
-                      round(self.restart_best_val_dice, 4), 'to', round(cur_m['dice'], 4))
-                self.restart_best_val_dice = cur_m['dice']
+                      round(self.restart_best_val_dice, 4), 'to',
+                      round(cur_val_metrics.dice(), 4))
+                self.restart_best_val_dice = cur_val_metrics.dice()
                 self.epochs_without_progress = 0
 
         self.reset_progress_if_annots_changed()
@@ -495,8 +514,9 @@ class Trainer():
         self.log('Restarting training from scratch')
         self.training_restart = True
         self.restart_best_val_dice = 0 # need to beat this or restart will stop after 60 epochs
-        self.val_tile_refs = [] # dont want to cache these
+        self.val_patch_refs = [] # dont want to cache these
         self.epochs_without_progress = 0
+        # FIXME: should train_config be a dataclass?
         self.model = random_model(self.train_config['classes'])
         self.optimizer = torch.optim.SGD(self.model.parameters(), lr=0.01,
                                          momentum=0.99, nesterov=True)
@@ -525,7 +545,9 @@ class Trainer():
         in_dir = segment_config['dataset_dir']
         seg_dir = segment_config['seg_dir']
 
-        segment_config = self.add_config_shape(segment_config)
+        segment_config = add_config_shape(segment_config, self.in_w, self.out_w)
+        self.in_w = segment_config['in_w']
+        self.out_w = segment_config['out_w']
         
         classes = segment_config['classes']
         if "file_names" in segment_config:
@@ -567,60 +589,46 @@ class Trainer():
 
 
     def get_prev_model_metrics(self, prev_model, use_cache=True):
-        # for previous model get errors for all tiles which do not yet have metrics
+        # for previous model get errors for all patches which do not yet have metrics
         refs_to_compute = []
 
         if use_cache:
-            # for each val tile
-            for t in self.val_tile_refs:
-                if t[3] is None:
-                    refs_to_compute.append(t)
+            for ref in self.val_patch_refs:
+                if not ref.has_metrics():
+                    refs_to_compute.append(ref)
         else:
-            refs_to_compute = self.val_tile_refs
+            refs_to_compute = self.val_patch_refs
 
         print('computing prev model metrics for ', len(refs_to_compute),
-              'out of', len(self.val_tile_refs))
+              'out of', len(self.val_patch_refs))
         # if it is missing metrics then add it to refs_to_compute
-        # then compute the errors for these tile refs
+        # then compute the errors for these patch refs
         if refs_to_compute:
             
-            (tps, fps, tns, fns) = self.one_epoch(prev_model, 'val', refs_to_compute)
-            assert len(tps) == len(fps) == len(tns) == len(fns) == len(refs_to_compute)
+            val_metrics = self.val_epoch(prev_model, refs_to_compute)
+            assert len(val_metrics) == len(refs_to_compute)
 
-            # now go through and assign the errors to the appropriate tile refs.
-            for tp, fp, tn, fn, computed_ref in zip(tps, fps, tns, fns, refs_to_compute):
-                # go through the val tile refs to find the equivalent tile ref
-                for i, ref in enumerate(self.val_tile_refs):
-                    if ref[0] == computed_ref[0] and ref[1] == computed_ref[1]:
+            # now go through and assign the errors to the appropriate patch refs.
+            for val_metric, computed_ref in zip(val_metrics, refs_to_compute):
+                # go through the val patch refs to find the equivalent patch ref
+                for i, ref in enumerate(self.val_patch_refs):
+                    if ref.is_same_region_as(computed_ref):
                         if use_cache:
-                            assert self.val_tile_refs[i][3] is None, self.val_tile_refs[i][3]
-                            assert ref[3] is None
-                        ref[3] = [tp, fp, tn, fn]
-                        assert self.val_tile_refs[i][3] is not None
+                            # it was already found that this ref needed computing
+                            # confirm that it is indeed missing metrics
+                            assert not self.val_patch_refs[i].has_metrics(), (
+                                self.val_patch_refs[i].metrics)
+                            assert not ref.has_metrics()
+                        ref.metrics = val_metric 
+                        assert self.val_patch_refs[i].has_metrics()
 
-        prev_m = metrics_from_val_tile_refs(self.val_tile_refs)
+        prev_m = Metrics.sum([r.metrics for r in self.val_patch_refs])
         return prev_m
 
-    def segment_patch(self, segment_config):
-        raise Exception('feature disabled')
-        patch_seg.segment_patch(segment_config)
+    #def segment_patch(self, segment_config):
+    #    raise Exception('feature disabled')
+    #    # patch_seg.segment_patch(segment_config)
         
-    def get_in_w_and_out_w_for_image(self, im, in_w, out_w):
-        """ the input image may be smaller than the default 
-            patch size, so find a patch size where the output patch
-            size will fit inside the image """
-
-        im_depth, im_height, im_width = im.shape
-
-        if out_w < im_width and out_w < im_height:
-            return in_w, out_w
-        
-        for valid_in_w, valid_out_w in model_utils.get_in_w_out_w_pairs():
-            if valid_out_w < im_width and valid_out_w < im_height and valid_out_w < out_w:
-                return valid_in_w, valid_out_w
-
-        raise Exception('cannot find patch size small enough for image with shape' + str(im.shape))
-
     def segment_file(self, in_dir, seg_dir, fname, model_paths,
                      in_w, out_w, in_d, out_d, classes, overwrite=False):
 
@@ -634,7 +642,7 @@ class Trainer():
             # segment to nifty as they don't get loaded repeatedly in training.
             out_paths = [os.path.join(seg_dir, fname)]
 
-        if not overwrite and all([os.path.isfile(out_path) for out_path in out_paths]):
+        if not overwrite and all(os.path.isfile(out_path) for out_path in out_paths):
             print(f'Skip because found existing segmentation files for {fname}')
             return
 
@@ -657,7 +665,7 @@ class Trainer():
         seg_start = time.time()
         print('segment image, input shape = ', im.shape, datetime.now())
 
-        seg_in_w, seg_out_w = self.get_in_w_and_out_w_for_image(im, in_w, out_w) 
+        seg_in_w, seg_out_w = model_utils.get_in_w_and_out_w_for_image(im, in_w, out_w) 
         segmented = load_model_then_segment_3d(model_paths, im, self.batch_size,
                                                seg_in_w, seg_out_w, in_d, out_d, classes)
 

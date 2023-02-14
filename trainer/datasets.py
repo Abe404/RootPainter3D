@@ -1,5 +1,5 @@
 """
-Copyright (C) 2019, 2020 Abraham George Smith
+Copyright (C) 2019, 2020, 2023 Abraham George Smith
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -19,6 +19,7 @@ import random
 import math
 import os
 from pathlib import Path
+from file_utils import ls
 
 import torch
 import numpy as np
@@ -33,12 +34,17 @@ def rnd():
     return max(0, min(1, (1.2 * random.random()) - 0.1))
 
 
+
+def annot_patch_has_fg(annot):
+    return np.any(annot[1][17:-17,17:-17,17:-17])
+
+
 class RPDataset(Dataset):
     def __init__(self, annot_dirs, train_seg_dirs, dataset_dir, in_w, out_w,
-                 in_d, out_d, mode, tile_refs=None,
+                 in_d, out_d, mode, patch_refs=None,
                  use_seg_in_training=True, length=None):
         """
-        in_w and out_w are the tile size in pixels
+        in_w and out_w are the patch size in pixels
 
         target_classes is a list of the possible output classes
             the position in the list is the index (target) to be predicted by
@@ -57,31 +63,31 @@ class RPDataset(Dataset):
         self.annot_dirs = annot_dirs
         self.train_seg_dirs = train_seg_dirs
         self.dataset_dir = dataset_dir
-        assert (tile_refs is None) or (length is None) and (length or tile_refs)
-        # if tile_refs are defined then these will be used.
-        self.tile_refs = tile_refs
+        assert (patch_refs is None) or (length is None) and (length or patch_refs)
+        # if patch_refs are defined then these will be used.
+        self.patch_refs = patch_refs
         # other wise length will return the number of items
         self.length = length
         self.use_seg = use_seg_in_training
 
     def __len__(self):
         if self.mode == 'val':
-            return len(self.tile_refs)
-        if self.tile_refs is not None:
-            return len(self.tile_refs)
+            return len(self.patch_refs)
+        if self.patch_refs is not None:
+            return len(self.patch_refs)
         return self.length
 
     def __getitem__(self, i):
         if self.mode == 'val':
-            return self.get_val_item(self.tile_refs[i])
-        if self.tile_refs is not None:
-            return self.get_train_item(self.tile_refs)
+            return self.get_val_item(self.patch_refs[i])
+        if self.patch_refs is not None:
+            return self.get_train_item(self.patch_refs)
         return self.get_train_item()
 
-    def get_train_item(self, tile_ref=None):
-        return self.get_train_item_3d(tile_ref)
+    def get_train_item(self, patch_ref=None):
+        return self.get_train_item_3d(patch_ref)
 
-    def get_random_tile_3d(self, annots, segs, image, fname):
+    def get_random_patch_3d(self, annots, segs, image, fname, force_fg):
         # this will find something eventually as we know
         # all annotation contain labels somewhere
 
@@ -99,18 +105,18 @@ class RPDataset(Dataset):
             y_in = math.floor(rnd() * bottom_lim)
             z_in = math.floor(rnd() * depth_lim)
 
-            annot_tiles = []
-            seg_tiles = []
+            annot_patches = []
+            seg_patches = []
             for seg, annot in zip(segs, annots):
                 # Get the corresponding region of the annotation after network crop
-                annot_tiles.append(annot[:,
+                annot_patches.append(annot[:,
                                          z_in:z_in+self.in_d,
                                          y_in:y_in+self.in_w,
                                          x_in:x_in+self.in_w])
                 if seg is None:
-                    seg_tiles.append(None)
+                    seg_patches.append(None)
                 else:
-                    seg_tiles.append(seg[z_in:z_in+self.in_d,
+                    seg_patches.append(seg[z_in:z_in+self.in_d,
                                          y_in:y_in+self.in_w,
                                          x_in:x_in+self.in_w])
 
@@ -118,69 +124,89 @@ class RPDataset(Dataset):
 
             # we only want annotations with defiend regions in the output area.
             # Otherwise we will have nothing to update the loss.
-            if np.any([np.any(a) for a in annot_tiles]):
-                # ok we have some annotation for this
-                # part of the image so let's return the patch.
-                im_tile = image[z_in:z_in+self.in_d,
-                                y_in:y_in+self.in_w,
-                                x_in:x_in+self.in_w]
+            if np.any([np.any(a) for a in annot_patches]):
+                # if force fg is true then make sure fg is defined.
+                if not force_fg or np.any([annot_patch_has_fg(a) for a in annot_patches]):
+                    # ok we have some annotation for this
+                    # part of the image so let's return the patch.
+                    im_patch = image[z_in:z_in+self.in_d,
+                                     y_in:y_in+self.in_w,
+                                     x_in:x_in+self.in_w]
 
-                return annot_tiles, seg_tiles, im_tile
+                    return annot_patches, seg_patches, im_patch
             if attempts > warn_after_attempts:
                 print(f'Warning {attempts} attempts to get random patch from {fname}')
                 warn_after_attempts *= 10
     
 
-    def get_train_item_3d(self, tile_ref):
-        # When tile_ref is specified we use these coordinates to get
-        # the input tile. Otherwise we will sample randomly
-        if tile_ref:
+    def get_train_item_3d(self, patch_ref):
+        # When patch_ref is specified we use these coordinates to get
+        # the input patch. Otherwise we will sample randomly
+        if patch_ref:
             raise Exception('not using these')
-            im_tile, foregrounds, backgrounds, classes = self.get_tile_from_ref_3d(tile_ref)
-            # For now just return the tile. We plan to add augmentation here.
-            return im_tile, foregrounds, backgrounds, classes
-
+            im_patch, foregrounds, backgrounds, classes = self.get_patch_from_ref_3d(patch_ref)
+            # For now just return the patch. We plan to add augmentation here.
+            return im_patch, foregrounds, backgrounds, classes
+        
+        num_annots = len(ls(self.annot_dirs[0])) # estimate num annotations from first class 
+        # start at 90% force fg and go down to 0 by the time 90 images are annotated.
+        force_fg_prob = max(0, (90-(num_annots)) / 100) 
+        force_fg = force_fg_prob > random.random()
         (image, annots, segs, classes, fname) = load_train_image_and_annot(self.dataset_dir,
                                                                            self.train_seg_dirs,
                                                                            self.annot_dirs,
-                                                                           self.use_seg)
-        annot_tiles, seg_tiles, im_tile = self.get_random_tile_3d(annots, segs, image, fname)
-
-        im_tile = img_as_float32(im_tile)
-        im_tile = im_utils.normalize_tile(im_tile)
+                                                                           self.use_seg,
+                                                                           force_fg)
+              
+        annot_patches, seg_patches, im_patch = self.get_random_patch_3d(annots, segs,
+                                                                        image,
+                                                                        fname, force_fg)
+        
+        im_patch = img_as_float32(im_patch)
+        im_patch = im_utils.normalize_patch(im_patch)
         # ensure image is still 32 bit after normalisation.
-        im_tile = im_tile.astype(np.float32)
-        # need list of foregrounds and masks for all tiles.
+        im_patch = im_patch.astype(np.float32)
+        # need list of foregrounds and masks for all patches.
         foregrounds = []
         backgrounds = []
-        for annot_tile in annot_tiles:
-            #annot tile shape is  (2, 18, 194, 194)
-            foreground = np.array(annot_tile)[1]
-            background = np.array(annot_tile)[0]
+        # ignore_masks prevent coordinates from being added to the metrics computation twice.
+        # They tell us which region of the image prediction has already been stored in the metrics
+        # and thus should not be added to the metrics again.
+        ignore_mask = None
+        for annot_patch in annot_patches:
+            #annot patch shape is  (2, 18, 194, 194)
+            foreground = np.array(annot_patch)[1]
+            background = np.array(annot_patch)[0]
             foreground = foreground.astype(np.int64)
             foreground = torch.from_numpy(foreground)
             foregrounds.append(foreground)
             background = background.astype(np.int64)
             background = torch.from_numpy(background)
             backgrounds.append(background)
+            # mask is same for all annotations so just return one.
+            ignore_mask = np.zeros((self.out_d, self.out_w, self.out_w), dtype=np.uint8)
 
-        im_tile = im_tile.astype(np.float32)
+        im_patch = im_patch.astype(np.float32)
         
         # add dimension for input channel
-        im_tile = np.expand_dims(im_tile, axis=0)
-        assert len(backgrounds) == len(seg_tiles)
-        return im_tile, foregrounds, backgrounds, seg_tiles, classes
+        im_patch = np.expand_dims(im_patch, axis=0)
+        assert len(backgrounds) == len(seg_patches)
+        return im_patch, foregrounds, backgrounds, ignore_mask, seg_patches, classes
        
-    def get_val_item(self, tile_ref):
-        return self.get_tile_from_ref_3d(tile_ref)
+    def get_val_item(self, patch_ref):
+        return self.get_patch_from_ref_3d(patch_ref)
 
-    def get_tile_from_ref_3d(self, tile_ref):
-        """ return image tile, annotation tile and mask
-            for a given file name ans location specified
-            in x,y,z relative to the annotation """
+    def get_patch_from_ref_3d(self, patch_ref):
+        """ return image patch, annotation patch and ignore mask
+            for a given file name and location specified
+            in x,y,z relative to the full image annotation """
 
-        fname, (tile_x, tile_y, tile_z), _, _ = tile_ref
-        image_path = os.path.join(self.dataset_dir, fname)
+        # TODO: One concern is that we could end up with a lot of these patch_refs. 
+        #       is adding the ignore_mask going to introduce significant memory usage?
+        #       please investigate.
+        
+
+        image_path = os.path.join(self.dataset_dir, patch_ref.annot_fname)
         # image could have nrrd extension
         if not os.path.isfile(image_path):
             image_path = image_path.replace('.nii.gz', '.nrrd')
@@ -193,62 +219,60 @@ class RPDataset(Dataset):
         # reverse lr and ud
         image = image[::-1, :, ::-1]
 
+            
+        # FiXME: Consider moving padding to the GPU. See:
+        # https://pytorch.org/docs/stable/generated/torch.nn.ReflectionPad3d.html#torch.nn.ReflectionPad3d
         # pad so seg will be size of input image
         image = np.pad(image, ((17, 17), (17, 17), (17, 17)), mode='constant')
+           
 
         classes = []
         foregrounds = []
         backgrounds = []
-        annot_tiles = []
+        annot_patches = []
+        ignore_mask = None # ignore mask is a single item for each image.
 
         for annot_dir in self.annot_dirs:
-            annot_path = os.path.join(annot_dir, fname)
+            annot_path = os.path.join(annot_dir, patch_ref.annot_fname)
 
             annot = im_utils.load_with_retry(im_utils.load_image, annot_path)
             classes.append(Path(annot_dir).parts[-2])
             
             # pad to provide annotation at same size as input image.
             annot = np.pad(annot, ((0, 0), (17, 17), (17, 17), (17, 17)), mode='constant')
-            # The x, y and z are in reference to the annotation tile before padding.
-            annot_tile = annot[:,
-                               tile_z:tile_z+self.in_d,
-                               tile_y:tile_y+self.in_w,
-                               tile_x:tile_x+self.in_w]
+            # The x, y and z are in reference to the annotation patch before padding.
+            annot_patch = annot[:,
+                               patch_ref.z:patch_ref.z+self.in_d,
+                               patch_ref.y:patch_ref.y+self.in_w,
+                               patch_ref.x:patch_ref.x+self.in_w]
 
-            assert annot_tile.shape[1:] == (self.in_d, self.in_w, self.in_w), (
-                f" annot is {annot_tile.shape}, and "
+            assert annot_patch.shape[1:] == (self.in_d, self.in_w, self.in_w), (
+                f" annot is {annot_patch.shape}, and "
                 f"should be ({self.in_d},{self.in_w},{self.in_w})")
 
-            #else: # not auto-complete
-            #    if os.path.isfile(annot_path):
-            #        # The x, y and z are in reference to the annotation tile before padding.
-            #        annot_tile = annot[:,
-            #                           tile_z:tile_z+self.out_d,
-            #                           tile_y:tile_y+self.out_w,
-            #                           tile_x:tile_x+self.out_w]
+            annot_patches.append(annot_patch)
 
-            annot_tiles.append(annot_tile)
-
-        im_tile = image[tile_z:tile_z + self.in_d,
-                        tile_y:tile_y + self.in_w,
-                        tile_x:tile_x + self.in_w]
+        im_patch = image[patch_ref.z:patch_ref.z + self.in_d,
+                        patch_ref.y:patch_ref.y + self.in_w,
+                        patch_ref.x:patch_ref.x + self.in_w]
  
-        assert im_tile.shape == (self.in_d, self.in_w, self.in_w), (
-            f" shape is {im_tile.shape}")
-        
-        for annot_tile in annot_tiles:
-            foreground = np.array(annot_tile)[1]
-            background = np.array(annot_tile)[0]
+        assert im_patch.shape == (self.in_d, self.in_w, self.in_w), (
+            f" shape is {im_patch.shape}")
+        for annot_patch in annot_patches:
+            foreground = np.array(annot_patch)[1]
+            background = np.array(annot_patch)[0]
             foreground = foreground.astype(np.int64)
             foreground = torch.from_numpy(foreground)
             foregrounds.append(foreground)
             background = background.astype(np.int64)
             background = torch.from_numpy(background)
             backgrounds.append(background)
+            ignore_mask = patch_ref.ignore_mask # will be same for each annotation.
 
-        im_tile = img_as_float32(im_tile)
-        im_tile = im_utils.normalize_tile(im_tile)
-        im_tile = im_tile.astype(np.float32)
-        im_tile = np.expand_dims(im_tile, axis=0)
+        im_patch = img_as_float32(im_patch)
+        im_patch = im_utils.normalize_patch(im_patch)
+        im_patch = im_patch.astype(np.float32)
+        im_patch = np.expand_dims(im_patch, axis=0)
         segs = [None] * len(backgrounds)
-        return im_tile, foregrounds, backgrounds, segs, classes
+        
+        return im_patch, foregrounds, backgrounds, ignore_mask, segs, classes

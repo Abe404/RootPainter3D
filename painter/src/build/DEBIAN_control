@@ -1,0 +1,5 @@
+Package: RootPainter3D
+Version: 0.2.0
+Architecture: i386
+Maintainer: Abraham George Smith ags@di.ku.dk
+Description: RootPainter3D enables the rapid training of neural networks for biological image segmentation.

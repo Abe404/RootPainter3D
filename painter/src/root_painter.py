@@ -276,7 +276,7 @@ class RootPainter(QtWidgets.QMainWindow):
                                              self.get_val_annot_dir())
         
         if self.annot_path and os.path.isfile(self.annot_path):
-            self.annot_data = im_utils.load_annot(self.annot_path, self.img_data.shape)
+            self.annot_data = im_utils.load_annot(self.annot_path)
         else:
             # otherwise create empty annotation array
             # if we are working with 3D data (npy file) and the
@@ -317,7 +317,7 @@ class RootPainter(QtWidgets.QMainWindow):
                         print(label_idx, 'of', len(voxel_counts))
                         if label_idx == to_keep_idx:
                             biggest_region_mask = labels_out == (to_keep_idx + 1)
-                            roi_corrected_no_holes = binary_fill_holes(biggest_region_mask).astype(np.int)
+                            roi_corrected_no_holes = binary_fill_holes(biggest_region_mask).astype(int)
                             roi_extra_fg = roi_corrected_no_holes - biggest_region_mask
                             self.annot_data[1][roi_extra_fg > 0] = 1 # set fg regions to remove holes.
                         else:

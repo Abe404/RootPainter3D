@@ -32,6 +32,10 @@ import nrrd
 from pathlib import Path
 import traceback
 
+from patch_ref import PatchRef
+
+
+
 def is_image(fname):
     """ extensions that have been tested with so far """
     extensions = {".jpg", ".png", ".jpeg", '.tif', '.tiff'}
@@ -39,25 +43,31 @@ def is_image(fname):
     return (fname_ext in extensions or fname.endswith('.nii.gz') or 
             fname.endswith('.npy') or fname.endswith('.nrrd'))
 
-def normalize_tile(tile):
-    if np.min(tile) < np.max(tile):
-        tile = rescale_intensity(tile, out_range=(0, 1))
+def normalize_patch(patch):
+    if np.min(patch) < np.max(patch):
+        patch = rescale_intensity(patch, out_range=(0, 1))
     else:
-        # a single value tile is very rare but it has been claimed
+        # a single value patch is very rare but it has been claimed
         # that it may occur in X-ray background regions.
-        # set to be 0 to ensure it is within a similar range to the normalized tiles.
-        tile *= 0 
-    assert np.min(tile) >= 0, f"tile min {np.min(tile)}"
-    assert np.max(tile) <= 1, f"tile max {np.max(tile)}"
-    return tile
+        # set to be 0 to ensure it is within a similar range to the normalized patches.
+        patch *= 0 
+    assert np.min(patch) >= 0, f"patch min {np.min(patch)}"
+    assert np.max(patch) <= 1, f"patch max {np.max(patch)}"
+    return patch
 
 
-def reconstruct_from_tiles(tiles, coords, output_shape):
+def reconstruct_from_patches(patches, coords, output_shape):
     image = np.zeros(output_shape)
-    for tile, (x_coord, y_coord, z_coord) in zip(tiles, coords):
-        image[z_coord:z_coord+tile.shape[0],
-              y_coord:y_coord+tile.shape[1],
-              x_coord:x_coord+tile.shape[2]] = tile
+    # reverse patches and coords because in validation we dont
+    # overwrite predictions for coords earlier in the list.
+    # We instead tell patch-refs/coords later in the list to ignore
+    # already predicted regions.
+    patches.reverse()
+    coords.reverse()
+    for patch, (x_coord, y_coord, z_coord) in zip(patches, coords):
+        image[z_coord:z_coord+patch.shape[0],
+              y_coord:y_coord+patch.shape[1],
+              x_coord:x_coord+patch.shape[2]] = patch
     return image
 
 
@@ -153,7 +163,8 @@ def load_image_and_annot_for_seg(dataset_dir, train_annot_dirs, fname):
 
 
 
-def load_train_image_and_annot(dataset_dir, train_seg_dirs, train_annot_dirs, use_seg):
+def load_train_image_and_annot(dataset_dir, train_seg_dirs, train_annot_dirs, use_seg,
+                               force_fg):
     """
     returns
         image (np.array) - image data
@@ -205,7 +216,11 @@ def load_train_image_and_annot(dataset_dir, train_seg_dirs, train_annot_dirs, us
             annot_path = os.path.join(annot_dir, fname)
             annot = load_image(annot_path)
             # Why would we have annotations without content?
-            assert np.sum(annot) > 0
+            assert np.any(annot)
+            
+            if force_fg: # make sure foreground present.
+                assert np.any(annot[1])
+
             annot = np.pad(annot, ((0, 0), (17,17), (17,17), (17, 17)), mode='constant')
             annots.append(annot)
 
@@ -236,6 +251,9 @@ def load_train_image_and_annot(dataset_dir, train_seg_dirs, train_annot_dirs, us
         return image, annots, segs, classes, fname
 
     load_random = partial(load_random, train_annot_dirs, train_seg_dirs, dataset_dir)
+
+    
+
     return load_with_retry(load_random, None)
 
 def pad_3d(image, width, depth, mode='reflect', constant_values=0):
@@ -250,33 +268,20 @@ def pad_3d(image, width, depth, mode='reflect', constant_values=0):
                   constant_values=constant_values)
 
 
-def get_val_tile_refs(annot_dirs, prev_tile_refs, out_shape):
+def get_val_patch_refs(annot_dirs, prev_patch_refs, out_shape):
     """
-    Get tile info which covers all annotated regions of the annotation dataset.
+    Get patch info which covers all annotated regions of the annotation dataset.
     The list must be structured such that an index can be used to refer to each example
     so that it can be used with a dataloader.
 
-    returns tile_refs (list)
-        Each element of tile_refs is a list that includes:
-            * image file name (string) - for loading the image from disk during validation
-            * coord (x int, y int) - for addressing the location within the padded image
-            * annot_mtime (int)
-                The image annotation may get updated by the user at any time.
-                We can use the mtime to check for this.
-                If the annotation has changed then we need to retrieve tile
-                coords for this image again. The reason for this is that we
-                only want tile coords with annotations in. The user may have added or removed
-                annotation in part of an image. This could mean a different set of coords (or
-                not) should be returned for this image.
-
-    Parameter prev_tile_refs is used for comparing both file names and mtime.
+    Parameter prev_patch_refs is used for comparing both file names and mtime.
 
     The annot_dir folder should be checked for any new files (not in
-    prev_tile_refs) or files with an mtime different from prev_tile_refs. For these
-    file, the image should be loaded and new tile_refs should be retrieved. For all
-    other images the tile_refs from prev_tile_refs can be used.
+    prev_patch_refs) or files with an mtime different from prev_patch_refs. For these
+    file, the image should be loaded and new patch_refs should be retrieved. For all
+    other images the patch_refs from prev_patch_refs can be used.
     """
-    tile_refs = []
+    patch_refs = []
 
     # TODO, change this so we have a list of all annot names and their corresopnding classes.
     #  make a large list of classes that corresponds to all the file names. Ive done this elsewhere.
@@ -297,13 +302,13 @@ def get_val_tile_refs(annot_dirs, prev_tile_refs, out_shape):
             all_classes += [class_name] * len(annot_fnames)
             all_dirs += [annot_dir] * len(annot_fnames)
     
-    prev_annot_fnames = [r[0] for r in prev_tile_refs]
+    prev_annot_fnames = [r.annot_fname for r in prev_patch_refs]
     all_annot_fnames = set(cur_annot_fnames + prev_annot_fnames)
 
     for annot_dir, annot_fname in zip(all_dirs, all_annot_fnames):
         # get existing coord refs for this image
-        prev_refs = [r for r in prev_tile_refs if r[0] == annot_fname]
-        prev_mtimes = [r[2] for r in prev_tile_refs if r[0] == annot_fname]
+        prev_refs = [r for r in prev_patch_refs if r.annot_fname == annot_fname]
+        prev_mtimes = [r.mtime for r in prev_refs]
         need_new_refs = False
         # if no refs for this image then check again
         if not prev_refs:
@@ -324,21 +329,15 @@ def get_val_tile_refs(annot_dirs, prev_tile_refs, out_shape):
                 if cur_mtime > prev_mtime:
                     need_new_refs = True
         if need_new_refs:
-            new_file_refs = get_val_tile_refs_for_annot_3d(annot_dir, annot_fname, out_shape)
-            tile_refs += new_file_refs
+            new_file_refs = get_val_patch_refs_for_annot_3d(annot_dir, annot_fname, out_shape)
+            patch_refs += new_file_refs
         else:
-            tile_refs += prev_refs
-    return tile_refs
+            patch_refs += prev_refs
+    return patch_refs
 
 
-def get_val_tile_refs_for_annot_3d(annot_dir, annot_fname, out_shape):
+def get_val_patch_refs_for_annot_3d(annot_dir, annot_fname, out_shape):
     """
-    Each element of tile_refs is a list that includes:
-        * image file name (string) - for loading the image from disk during validation
-        * coord (x int, y int) - for addressing the location within the padded image
-        * annot_mtime (int)
-        * cached performance for this tile with previous (current best) model.
-          Initialized to None but otherwise [tp, fp, tn, fn]
     """
     annot_path = os.path.join(annot_dir, annot_fname)
     if not os.path.isfile(annot_path):
@@ -346,50 +345,64 @@ def get_val_tile_refs_for_annot_3d(annot_dir, annot_fname, out_shape):
     annot = load_image(annot_path)
     new_file_refs = []
     annot_shape = annot.shape[1:]
-    coords = get_coords_3d(annot_shape, out_tile_shape=out_shape)
-
+    coords = get_coords_3d(annot_shape, out_patch_shape=out_shape)
     mtime = os.path.getmtime(annot_path)
-    for (x, y, z) in coords:
-        annot_tile = annot[:, z:z+out_shape[0], y:y+out_shape[1], x:x+out_shape[2]]
-        # we only want to validate on annotation tiles
+
+    # which regions to ignore because they already exist in another patch
+    full_ignore_mask = np.zeros(list(annot.shape)[1:]) 
+    print('coords', coords)
+    for (x, y, z) in reverse(coords):
+        annot_patch = annot[:, z:z+out_shape[0], y:y+out_shape[1], x:x+out_shape[2]]
+        ignore_mask = np.array(full_ignore_mask[z:z+out_shape[0],
+                                                y:y+out_shape[1],
+                                                x:x+out_shape[2]])
+
+        # we only want to validate on annotation patches
         # which have annotation information.
-        if np.any(annot_tile):
+        if np.any(annot_patch):
             # fname, [x, y, z], mtime, prev model metrics i.e [tp, tn, fp, fn] or None
-            new_file_refs.append([annot_fname, [x, y, z], mtime, None])
+            
+            new_ref = PatchRef(annot_fname=annot_fname,
+                               x=x, y=y, z=z, mtime=mtime,
+                               ignore_mask=ignore_mask)
+            new_file_refs.append(new_ref)
+            # this region should get ignored in future patches from this image.
+            full_ignore_mask[z:z+out_shape[0], y:y+out_shape[1], x:x+out_shape[2]] = 1
+
     return new_file_refs
 
 
-def get_coords_3d(annot_shape, out_tile_shape):
+def get_coords_3d(annot_shape, out_patch_shape):
     """ Get the coordinates relative to the output image for the 
         validation routine. These coordinates will lead to patches
         which cover the image with minimum overlap (assuming fixed size patch) """
 
     assert len(annot_shape) == 3, str(annot_shape) # d, h, w
     
-    depth_count = ceil(annot_shape[0] / out_tile_shape[0])
-    vertical_count = ceil(annot_shape[1] / out_tile_shape[1])
-    horizontal_count = ceil(annot_shape[2] / out_tile_shape[2])
+    depth_count = ceil(annot_shape[0] / out_patch_shape[0])
+    vertical_count = ceil(annot_shape[1] / out_patch_shape[1])
+    horizontal_count = ceil(annot_shape[2] / out_patch_shape[2])
 
-    # first split the image based on the tiles that fit
-    z_coords = [d*out_tile_shape[0] for d in range(depth_count-1)] # z is depth
-    y_coords = [v*out_tile_shape[1] for v in range(vertical_count-1)]
-    x_coords = [h*out_tile_shape[2] for h in range(horizontal_count-1)]
+    # first split the image based on the patches that fit
+    z_coords = [d*out_patch_shape[0] for d in range(depth_count-1)] # z is depth
+    y_coords = [v*out_patch_shape[1] for v in range(vertical_count-1)]
+    x_coords = [h*out_patch_shape[2] for h in range(horizontal_count-1)]
 
-    # The last row and column of tiles might not fit
+    # The last row and column of patches might not fit
     # (Might go outside the image)
-    # so get the tile positiion by subtracting tile size from the
+    # so get the patch positiion by subtracting patch size from the
     # edge of the image.
-    lower_z = annot_shape[0] - out_tile_shape[0]
-    bottom_y = annot_shape[1] - out_tile_shape[1]
-    right_x = annot_shape[2] - out_tile_shape[2]
+    lower_z = annot_shape[0] - out_patch_shape[0]
+    bottom_y = annot_shape[1] - out_patch_shape[1]
+    right_x = annot_shape[2] - out_patch_shape[2]
 
     z_coords.append(max(0, lower_z))
     y_coords.append(max(0, bottom_y))
     x_coords.append(max(0, right_x))
 
     # because its a cuboid get all combinations of x, y and z
-    tile_coords = [(x, y, z) for x in x_coords for y in y_coords for z in z_coords]
-    return tile_coords
+    patch_coords = [(x, y, z) for x in x_coords for y in y_coords for z in z_coords]
+    return patch_coords
 
 
 

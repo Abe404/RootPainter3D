@@ -17,7 +17,6 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-
 from pathlib import Path
 import os
 import json
@@ -34,6 +33,11 @@ if __name__ == '__main__':
                     type=int,
                     default=12,
                     help=('maximum number of workers used for the dataloader'))
+
+    parser.add_argument('--epochlength',
+                        type=int,
+                        help=('Number of instances to be used in each training epoch. '
+                              'Primarily used as a manual override for debugging purposes.'))
 
     settings_path = os.path.join(Path.home(), 'root_painter_settings.json')
    
@@ -52,8 +56,11 @@ if __name__ == '__main__':
     if settings and 'auto_complete' in settings and settings['auto_complete']:
         ip = settings['server_ip']
         port = settings['server_port']
-        trainer = Trainer(sync_dir, ip, port, max_workers=args.maxworkers)
+        trainer = Trainer(sync_dir, ip, port, max_workers=args.maxworkers,
+                         epoch_length=args.epochlength)
     else:
-        trainer = Trainer(sync_dir, max_workers=args.maxworkers)
+        trainer = Trainer(sync_dir,
+                          max_workers=args.maxworkers,
+                          epoch_length=args.epochlength)
 
     trainer.main_loop()

@@ -13,6 +13,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+print('Initializing RootPainter3D')
 
 #pylint: disable=I1101,C0111,W0201,R0903,E0611,R0902,R0914,W0703
 import sys
@@ -23,9 +24,11 @@ import traceback
 
 from PyQt5 import QtWidgets
 from root_painter import RootPainter
-
+print('Imports Loaded')
 def init_root_painter():
+    
     app = QtWidgets.QApplication(sys.argv)
+    print('Application Created')
     settings_path = os.path.join(Path.home(), 'root_painter_settings.json')
     try:
         # if the settings file does not exist then create it with
@@ -48,6 +51,15 @@ def init_root_painter():
                 json.dump(content, json_file, indent=4)
 
         settings = json.load(open(settings_path, 'r'))
+        
+        # if the file exists but does not contain contrast presets
+        # (for example, if the user has previously used RootPainter 2D)
+        # then add contrast presets (defaults) and then resave.
+        if "contrast_presets" not in settings:
+            settings['contrast_presets'] = { 'Mediastinal': [-125, 250, 100] } 
+            with open(settings_path, 'w+') as json_file:
+                json.dump(settings, json_file, indent=4)
+
         sync_dir = Path(settings['sync_dir'])
         contrast_presets = settings['contrast_presets']
         server_ip = None

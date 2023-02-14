@@ -1,6 +1,0 @@
-Package: RootPainter3D
-Version: 0.0.1
-Architecture: i386
-Maintainer: Abraham George Smith <some@gmail.com>
-Description: Interactive-machine-learning enables rapid and accurate contouring for radiotherapy.
- Software to iteratively annotate 3D data using a contineous machine learning system.

@@ -1,5 +1,5 @@
 # Copyright (C) 2022 André Pedersen
-# Copyright (C) 2022 Abraham Smith
+# Copyright (C) 2022 Abraham George Smith
 # Copyright (C) 2023 Rohan Orton
 
 #This program is free software: you can redistribute it and/or modify
@@ -15,7 +15,7 @@
 #You should have received a copy of the GNU General Public License
 #along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-name: Build Windows
+name: Build Ubuntu 22.04
 
 on:
   push:
@@ -27,34 +27,39 @@ on:
 
 jobs:
   build:
-    runs-on: windows-2019
+    runs-on: ubuntu-22.04
 
     steps:
       - uses: actions/checkout@v1
-      - name: Set up Python 3.8
+      - name: Set up Python '3.10'
         uses: actions/setup-python@v2
         with:
-          python-version: 3.8
+          python-version: "3.10"
 
       - name: Install dependencies
         run: |
+          cd painter
           python -m pip install --upgrade pip
-          pip install pyinstaller==5.4.1
-          pip install -r painter/requirements.txt
+          python -m venv env
+          source env/bin/activate
+          # install pyinstaller seperately to use different version depending on platform
+          pip install pyinstaller==4.8 # fix for https://github.com/Abe404/root_painter/issues/41
+          pip install -r requirements.txt
 
       - name: Build software
         run: |
           cd painter
+          source env/bin/activate
           python src/build/run_pyinstaller.py
 
       - name: Make installer
         run: |
           cd painter
-          makensis.exe src/build/assets/Installer.nsi
+          bash src/build/make_deb_file.sh
 
       - name: Upload package
         uses: actions/upload-artifact@v2
         with:
           name: Package
-          path: ${{github.workspace}}/painter/dist/RootPainter3DInstaller.exe
+          path: ${{github.workspace}}/painter/dist/RootPainter3D.deb
           if-no-files-found: error
