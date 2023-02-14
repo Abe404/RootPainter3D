@@ -210,6 +210,7 @@ class RPDataset(Dataset):
         # image could have nrrd extension
         if not os.path.isfile(image_path):
             image_path = image_path.replace('.nii.gz', '.nrrd')
+        t = time.time()
         image = im_utils.load_with_retry(im_utils.load_image, image_path)
         #  needs to be swapped to channels first and rotated etc
         # to be consistent with everything else.
@@ -219,8 +220,12 @@ class RPDataset(Dataset):
         # reverse lr and ud
         image = image[::-1, :, ::-1]
 
+            
+        # FiXME: Consider moving padding to the GPU. See:
+        # https://pytorch.org/docs/stable/generated/torch.nn.ReflectionPad3d.html#torch.nn.ReflectionPad3d
         # pad so seg will be size of input image
         image = np.pad(image, ((17, 17), (17, 17), (17, 17)), mode='constant')
+           
 
         classes = []
         foregrounds = []
@@ -236,6 +241,7 @@ class RPDataset(Dataset):
             
             # pad to provide annotation at same size as input image.
             annot = np.pad(annot, ((0, 0), (17, 17), (17, 17), (17, 17)), mode='constant')
+            print('time to prep', image_path, time.time() - t)
             # The x, y and z are in reference to the annotation patch before padding.
             annot_patch = annot[:,
                                patch_ref.z:patch_ref.z+self.in_d,
