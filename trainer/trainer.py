@@ -276,12 +276,13 @@ class Trainer():
                             self.train_config['out_d'],
                             'val', # FIXME: mode should be an enum.
                             val_patch_refs)
-        loader = DataLoader(dataset, self.batch_size * 2, shuffle=True,
+        loader = DataLoader(dataset, self.batch_size * 2,
                             collate_fn=data_utils.collate_fn,
                             num_workers=self.num_workers,
                             drop_last=False, pin_memory=True)
         epoch_items_metrics = []
         epoch_start = time.time()
+
         for step, (batch_im_patches, batch_fg_patches,
                    batch_bg_patches, batch_ignore_masks,
                    _batch_seg_patches, batch_classes) in enumerate(loader):
