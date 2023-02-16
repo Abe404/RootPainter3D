@@ -302,8 +302,8 @@ class Trainer():
 
             (_, batch_items_metrics) = get_batch_loss(
                 outputs,
-                np.array([fg_patches]),
-                np.array([bg_patches]),
+                torch.unsqueeze(fg_patches, 0)
+                torch.unsqueeze(bg_patches, 0)
                 np.array([ignore_mask]),
                 None,
                 np.array([classes]),
