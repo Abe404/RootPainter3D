@@ -262,10 +262,10 @@ class RPDataset(Dataset):
             foreground = np.array(annot_patch)[1]
             background = np.array(annot_patch)[0]
             foreground = foreground.astype(np.int64)
-            foreground = torch.from_numpy(foreground)
+            #foreground = torch.from_numpy(foreground)
             foregrounds.append(foreground)
             background = background.astype(np.int64)
-            background = torch.from_numpy(background)
+            #background = torch.from_numpy(background)
             backgrounds.append(background)
             ignore_mask = patch_ref.ignore_mask # will be same for each annotation.
 
