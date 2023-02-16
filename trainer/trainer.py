@@ -299,7 +299,6 @@ class Trainer():
                 batch_im_patches = handle_patch_update_in_epoch_step(batch_im_patches, mode='val')
 
             outputs = model(batch_im_patches)
-            print('fg patches shape = ', fg_patches.shape)
             (_, batch_items_metrics) = get_batch_loss(
                 outputs,
                 [fg_patches],
