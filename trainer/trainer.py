@@ -299,14 +299,14 @@ class Trainer():
                 batch_im_patches = handle_patch_update_in_epoch_step(batch_im_patches, mode='val')
 
             outputs = model(batch_im_patches)
-
+            print('fg patches shape = ', fg_patches.shape)
             (_, batch_items_metrics) = get_batch_loss(
                 outputs,
-                torch.tensor(np.array([fg_patches])),
-                torch.tensor(np.array([bg_patches])),
-                np.array([ignore_mask]),
+                [fg_patches],
+                [bg_patches],
+                [ignore_mask],
                 None,
-                [[classes]],
+                [classes],
                 self.train_config['classes'],
                 compute_loss=False)
 
