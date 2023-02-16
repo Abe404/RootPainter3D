@@ -84,8 +84,8 @@ class RPDataset(Dataset):
             return self.get_train_item(self.patch_refs)
         return self.get_train_item()
 
-    def get_train_item(self, patch_ref=None):
-        return self.get_train_item_3d(patch_ref)
+    def get_train_item(self):
+        return self.get_train_item_3d()
 
     def get_random_patch_3d(self, annots, segs, image, fname, force_fg):
         # this will find something eventually as we know
@@ -137,16 +137,15 @@ class RPDataset(Dataset):
             if attempts > warn_after_attempts:
                 print(f'Warning {attempts} attempts to get random patch from {fname}')
                 warn_after_attempts *= 10
-    
 
-    def get_train_item_3d(self, patch_ref):
+    def get_train_item_3d(self):
         # When patch_ref is specified we use these coordinates to get
         # the input patch. Otherwise we will sample randomly
-        if patch_ref:
-            raise Exception('not using these')
-            im_patch, foregrounds, backgrounds, classes = self.get_patch_from_ref_3d(patch_ref)
-            # For now just return the patch. We plan to add augmentation here.
-            return im_patch, foregrounds, backgrounds, classes
+        # if patch_ref:
+        #     raise Exception('not using these')
+        #     im_patch, foregrounds, backgrounds, classes = self.get_patch_from_ref_3d(patch_ref)
+        #     # For now just return the patch. We plan to add augmentation here.
+        #     return im_patch, foregrounds, backgrounds, classes
         
         num_annots = len(ls(self.annot_dirs[0])) # estimate num annotations from first class 
         # start at 90% force fg and go down to 0 by the time 90 images are annotated.
@@ -196,17 +195,8 @@ class RPDataset(Dataset):
     def get_val_item(self, patch_ref):
         return self.get_patch_from_ref_3d(patch_ref)
 
-    def get_patch_from_ref_3d(self, patch_ref):
-        """ return image patch, annotation patch and ignore mask
-            for a given file name and location specified
-            in x,y,z relative to the full image annotation """
-
-        # TODO: One concern is that we could end up with a lot of these patch_refs. 
-        #       is adding the ignore_mask going to introduce significant memory usage?
-        #       please investigate.
-        
-
-        image_path = os.path.join(self.dataset_dir, patch_ref.annot_fname)
+    def load_im(self, fname):
+        image_path = os.path.join(self.dataset_dir, fname)
         # image could have nrrd extension
         if not os.path.isfile(image_path):
             image_path = image_path.replace('.nii.gz', '.nrrd')
@@ -218,61 +208,79 @@ class RPDataset(Dataset):
         image = np.moveaxis(image, -1, 0) # depth moved to beginning
         # reverse lr and ud
         image = image[::-1, :, ::-1]
-
-            
         # FiXME: Consider moving padding to the GPU. See:
         # https://pytorch.org/docs/stable/generated/torch.nn.ReflectionPad3d.html#torch.nn.ReflectionPad3d
         # pad so seg will be size of input image
         image = np.pad(image, ((17, 17), (17, 17), (17, 17)), mode='constant')
-           
+        return image
 
-        classes = []
-        foregrounds = []
-        backgrounds = []
+    def get_patch_from_ref_3d(self, patch_ref):
+        """ return image patch, annotation patch and ignore mask
+            for a given file name and location specified
+            in x,y,z relative to the full image annotation """
+
+        # TODO: One concern is that we could end up with a lot of these patch_refs. 
+        #       is adding the ignore_mask going to introduce significant memory usage?
+        #       please investigate.
+        image = self.load_im(patch_ref.annot_fname)
+        annots, classes = self.get_annots_for_image(patch_ref.annot_fname)
+
+        (im_patch, foregrounds,
+         backgrounds, segs) = self.get_patch_from_image(image, annots, patch_ref)            
+
+        return (im_patch, foregrounds, backgrounds,
+                patch_ref.ignore_mask, segs, classes)
+
+
+    def get_patch_from_image(self, image, annots, patch_ref):
         annot_patches = []
-        ignore_mask = None # ignore mask is a single item for each image.
-
-        for annot_dir in self.annot_dirs:
-            annot_path = os.path.join(annot_dir, patch_ref.annot_fname)
-
-            annot = im_utils.load_with_retry(im_utils.load_image, annot_path)
-            classes.append(Path(annot_dir).parts[-2])
-            
-            # pad to provide annotation at same size as input image.
-            annot = np.pad(annot, ((0, 0), (17, 17), (17, 17), (17, 17)), mode='constant')
-            # The x, y and z are in reference to the annotation patch before padding.
+        for annot in annots: 
             annot_patch = annot[:,
-                               patch_ref.z:patch_ref.z+self.in_d,
-                               patch_ref.y:patch_ref.y+self.in_w,
-                               patch_ref.x:patch_ref.x+self.in_w]
-
-            assert annot_patch.shape[1:] == (self.in_d, self.in_w, self.in_w), (
-                f" annot is {annot_patch.shape}, and "
-                f"should be ({self.in_d},{self.in_w},{self.in_w})")
-
+                                patch_ref.z:patch_ref.z+self.in_d,
+                                patch_ref.y:patch_ref.y+self.in_w,
+                                patch_ref.x:patch_ref.x+self.in_w]
             annot_patches.append(annot_patch)
 
         im_patch = image[patch_ref.z:patch_ref.z + self.in_d,
                         patch_ref.y:patch_ref.y + self.in_w,
                         patch_ref.x:patch_ref.x + self.in_w]
- 
+
         assert im_patch.shape == (self.in_d, self.in_w, self.in_w), (
             f" shape is {im_patch.shape}")
+
+        assert annot_patch.shape[1:] == (self.in_d, self.in_w, self.in_w), (
+            f" annot is {annot_patch.shape}, and "
+            f" should be ({self.in_d},{self.in_w},{self.in_w})")
+
+        foregrounds = []
+        backgrounds = []
         for annot_patch in annot_patches:
             foreground = np.array(annot_patch)[1]
             background = np.array(annot_patch)[0]
             foreground = foreground.astype(np.int64)
-            foreground = torch.from_numpy(foreground)
             foregrounds.append(foreground)
             background = background.astype(np.int64)
-            background = torch.from_numpy(background)
             backgrounds.append(background)
-            ignore_mask = patch_ref.ignore_mask # will be same for each annotation.
 
         im_patch = img_as_float32(im_patch)
         im_patch = im_utils.normalize_patch(im_patch)
         im_patch = im_patch.astype(np.float32)
         im_patch = np.expand_dims(im_patch, axis=0)
         segs = [None] * len(backgrounds)
-        
-        return im_patch, foregrounds, backgrounds, ignore_mask, segs, classes
+
+        return im_patch, foregrounds, backgrounds, segs  
+ 
+    def get_annots_for_image(self, annot_fname): 
+        classes = []
+        annots = []
+        for annot_dir in self.annot_dirs:
+            annot_path = os.path.join(annot_dir, annot_fname)
+
+            annot = im_utils.load_with_retry(im_utils.load_image, annot_path)
+            classes.append(Path(annot_dir).parts[-2])
+            
+            # pad to provide annotation at same size as input image.
+            annot = np.pad(annot, ((0, 0), (17, 17), (17, 17), (17, 17)), mode='constant')
+            annots.append(annot)
+        return annots, classes
+

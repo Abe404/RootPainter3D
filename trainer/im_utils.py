@@ -36,6 +36,36 @@ from patch_ref import PatchRef
 
 
 
+def maybe_pad_image_to_pad_size(image, in_patch_shape):
+    # if the image is smaller than the patch size then pad it to be the same as the patch.
+    padded_for_patch = False
+    patch_pad_z = 0
+    patch_pad_y = 0
+    patch_pad_x = 0
+
+    if image.shape[0] < in_patch_shape[0]:
+        padded_for_patch = True
+        patch_pad_z = in_patch_shape[0] - image.shape[0]
+
+    if image.shape[1] < in_patch_shape[1]:
+        padded_for_patch = True
+        patch_pad_y = in_patch_shape[1] - image.shape[1]
+
+    if image.shape[2] < in_patch_shape[2]:
+        padded_for_patch = True
+        patch_pad_x = in_patch_shape[2] - image.shape[2]
+
+    if padded_for_patch:
+        padded_image = np.zeros((
+            image.shape[0] + patch_pad_z,
+            image.shape[1] + patch_pad_y,
+            image.shape[2] + patch_pad_x),
+            dtype=image.dtype)
+        padded_image[:image.shape[0], :image.shape[1], :image.shape[2]] = image
+        image = padded_image  
+    return image, padded_for_patch
+
+
 def is_image(fname):
     """ extensions that have been tested with so far """
     extensions = {".jpg", ".png", ".jpeg", '.tif', '.tiff'}
@@ -350,8 +380,7 @@ def get_val_patch_refs_for_annot_3d(annot_dir, annot_fname, out_shape):
 
     # which regions to ignore because they already exist in another patch
     full_ignore_mask = np.zeros(list(annot.shape)[1:]) 
-    print('coords', coords)
-    for (x, y, z) in reverse(coords):
+    for (x, y, z) in coords:
         annot_patch = annot[:, z:z+out_shape[0], y:y+out_shape[1], x:x+out_shape[2]]
         ignore_mask = np.array(full_ignore_mask[z:z+out_shape[0],
                                                 y:y+out_shape[1],

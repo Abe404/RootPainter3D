@@ -23,7 +23,6 @@ import warnings
 import traceback
 from pathlib import Path
 import json
-import sys
 from datetime import datetime
 import copy
 import multiprocessing
@@ -266,6 +265,8 @@ class Trainer():
         """
         debug_memory('val epoch start')
         torch.set_grad_enabled(False)
+
+
         dataset = RPDataset(self.train_config['val_annot_dirs'],
                             None, # train_seg_dirs
                             self.train_config['dataset_dir'],
@@ -276,40 +277,52 @@ class Trainer():
                             self.train_config['out_d'],
                             'val', # FIXME: mode should be an enum.
                             val_patch_refs)
-        loader = DataLoader(dataset, self.batch_size * 2, shuffle=True,
-                            collate_fn=data_utils.collate_fn,
-                            num_workers=self.num_workers,
-                            drop_last=False, pin_memory=True)
+
+        fnames = {r.annot_fname for r in val_patch_refs}
+
         epoch_items_metrics = []
         epoch_start = time.time()
-        for step, (batch_im_patches, batch_fg_patches,
-                   batch_bg_patches, batch_ignore_masks,
-                   _batch_seg_patches, batch_classes) in enumerate(loader):
+ 
+        step = 0
 
-            self.check_for_instructions()
-            batch_im_patches = torch.from_numpy(np.array(batch_im_patches)).cuda()
-            if self.patch_update_enabled:
-                batch_im_patches = handle_patch_update_in_epoch_step(batch_im_patches, mode='val')
+        for fname in fnames:
+            # FiXME: We assume image has same extension as annotation.
+            #        Is this always the case?
+            image = dataset.load_im(fname)
+            annots, classes = dataset.get_annots_for_image(fname)
+            refs = [r for r in val_patch_refs if r.annot_fname == fname]
 
-            outputs = model(batch_im_patches)
+            for ref in refs:
+                (im_patch, fg_patches,
+                 bg_patches, _segs) = dataset.get_patch_from_image(image, annots, ref)            
+                ignore_mask = ref.ignore_mask
 
-            (_, batch_items_metrics) = get_batch_loss(
-                outputs, batch_fg_patches,
-                batch_bg_patches, batch_ignore_masks, None,
-                batch_classes, self.train_config['classes'],
-                compute_loss=False)
+                self.check_for_instructions()
+                batch_im_patches = torch.from_numpy(np.array([im_patch])).cuda()
 
-            epoch_items_metrics += batch_items_metrics
+                if self.patch_update_enabled:
+                    batch_im_patches = handle_patch_update_in_epoch_step(batch_im_patches, mode='val')
+                outputs = model(batch_im_patches)
+                (_, batch_items_metrics) = get_batch_loss(
+                    outputs,
+                    [fg_patches],
+                    [bg_patches],
+                    [ignore_mask],
+                    None,
+                    [classes],
+                    self.train_config['classes'],
+                    compute_loss=False)
 
-            self.check_for_instructions() # could update training parameter
-            if not self.training: # in this context we consider validation part of training.
-                return None # a way to stop validation quickly if user specifies
+                epoch_items_metrics += batch_items_metrics
 
-            debug_memory('val epoch step')
-            # https://github.com/googlecolab/colabtools/issues/166
-            print(f"\rValidation: {(step+1) * (self.batch_size * 2)}/"
-                  f"{len(loader.dataset)} ",
-                  end='', flush=True)
+                self.check_for_instructions() # could update training parameter
+                if not self.training: # in this context we consider validation part of training.
+                    return None # a way to stop validation quickly if user specifies
+
+                debug_memory('val epoch step')
+                # https://github.com/googlecolab/colabtools/issues/166
+                print(f"\rValidation: {(step+1)}/{len(val_patch_refs)}", end='', flush=True)
+                step += 1
 
         duration = round(time.time() - epoch_start, 3)
         print('')
