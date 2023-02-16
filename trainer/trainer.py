@@ -23,7 +23,6 @@ import warnings
 import traceback
 from pathlib import Path
 import json
-import sys
 from datetime import datetime
 import copy
 import multiprocessing
@@ -266,6 +265,14 @@ class Trainer():
         """
         debug_memory('val epoch start')
         torch.set_grad_enabled(False)
+
+        #         annot_fnames = set([r.annot_fname for r in val_patch_refs])
+        #         for fname in annot_fname:
+        #             # FiXME: We assume image has same extension as annotation.
+        #             #        Is this always the case?
+        #             image_path = os.path.join(self.dataset_dir, fname)
+        #             image = im_utils.load_with_retry(im_utils.load_image, image_path)
+
         dataset = RPDataset(self.train_config['val_annot_dirs'],
                             None, # train_seg_dirs
                             self.train_config['dataset_dir'],
@@ -276,28 +283,31 @@ class Trainer():
                             self.train_config['out_d'],
                             'val', # FIXME: mode should be an enum.
                             val_patch_refs)
-        loader = DataLoader(dataset, self.batch_size * 2,
-                            collate_fn=data_utils.collate_fn,
-                            num_workers=self.num_workers,
-                            drop_last=False, pin_memory=True)
+
         epoch_items_metrics = []
         epoch_start = time.time()
+        
+        for step, item in enumerate(dataset):
 
-        for step, (batch_im_patches, batch_fg_patches,
-                   batch_bg_patches, batch_ignore_masks,
-                   _batch_seg_patches, batch_classes) in enumerate(loader):
+            (im_patch, fg_patches, bg_patches,
+             ignore_mask, _segs, classes) = item
 
             self.check_for_instructions()
-            batch_im_patches = torch.from_numpy(np.array(batch_im_patches)).cuda()
+            batch_im_patches = torch.from_numpy(np.array([im_patch])).cuda()
+
             if self.patch_update_enabled:
                 batch_im_patches = handle_patch_update_in_epoch_step(batch_im_patches, mode='val')
 
             outputs = model(batch_im_patches)
 
             (_, batch_items_metrics) = get_batch_loss(
-                outputs, batch_fg_patches,
-                batch_bg_patches, batch_ignore_masks, None,
-                batch_classes, self.train_config['classes'],
+                outputs,
+                np.array([fg_patches]),
+                np.array([bg_patches]),
+                np.array([ignore_mask]),
+                None,
+                np.array([classes]),
+                self.train_config['classes'],
                 compute_loss=False)
 
             epoch_items_metrics += batch_items_metrics
@@ -308,9 +318,7 @@ class Trainer():
 
             debug_memory('val epoch step')
             # https://github.com/googlecolab/colabtools/issues/166
-            print(f"\rValidation: {(step+1) * (self.batch_size * 2)}/"
-                  f"{len(loader.dataset)} ",
-                  end='', flush=True)
+            print(f"\rValidation: {(step+1)}/{len(dataset)}", end='', flush=True)
 
         duration = round(time.time() - epoch_start, 3)
         print('')
