@@ -116,6 +116,8 @@ def allocate_net(in_w, num_classes):
 
 def get_in_w_out_w_for_memory(num_classes):
     print('computing largest patch size for GPU, num class = ', num_classes)
+    start_time = time.time()
+
     # search for appropriate input size for GPU
     # in_w, out_w = get_in_w_out_w_for_memory(num_classes)
     # try to train a network and see which patch size fits on the gpu.
@@ -127,6 +129,7 @@ def get_in_w_out_w_for_memory(num_classes):
             torch.cuda.empty_cache()
             print(in_w, out_w, 'ok')
             print('Using', pairs[i+1], 'to be safe') # return next smallest to be safe
+            print('time to calculate in_w,out_w pair:', time.time() - start_time)
             return pairs[i+1] # return the next smallest to be safe
         except Exception as e:
             if 'out of memory' in str(e):
