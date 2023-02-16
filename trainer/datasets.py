@@ -195,16 +195,9 @@ class RPDataset(Dataset):
     def get_val_item(self, patch_ref):
         return self.get_patch_from_ref_3d(patch_ref)
 
-    def get_patch_from_ref_3d(self, patch_ref):
-        """ return image patch, annotation patch and ignore mask
-            for a given file name and location specified
-            in x,y,z relative to the full image annotation """
 
-        # TODO: One concern is that we could end up with a lot of these patch_refs. 
-        #       is adding the ignore_mask going to introduce significant memory usage?
-        #       please investigate.
-        
-        image_path = os.path.join(self.dataset_dir, patch_ref.annot_fname)
+    def load_im_for_netork(self, fname):
+        image_path = os.path.join(self.dataset_dir, fname)
         # image could have nrrd extension
         if not os.path.isfile(image_path):
             image_path = image_path.replace('.nii.gz', '.nrrd')
@@ -220,25 +213,21 @@ class RPDataset(Dataset):
         # https://pytorch.org/docs/stable/generated/torch.nn.ReflectionPad3d.html#torch.nn.ReflectionPad3d
         # pad so seg will be size of input image
         image = np.pad(image, ((17, 17), (17, 17), (17, 17)), mode='constant')
- 
+        return image
+
+    def get_patch_from_ref_3d(self, patch_ref):
+        """ return image patch, annotation patch and ignore mask
+            for a given file name and location specified
+            in x,y,z relative to the full image annotation """
+
+        # TODO: One concern is that we could end up with a lot of these patch_refs. 
+        #       is adding the ignore_mask going to introduce significant memory usage?
+        #       please investigate.
+        image = self.load_im_for_network(patch_ref.annot_fname)
         annots, classes = self.get_annots_for_image(patch_ref.annot_fname)
-        im_patch, annot_patches = self.get_patch_from_image(image, annots, patch_ref)            
 
-        foregrounds = []
-        backgrounds = []
-        for annot_patch in annot_patches:
-            foreground = np.array(annot_patch)[1]
-            background = np.array(annot_patch)[0]
-            foreground = foreground.astype(np.int64)
-            foregrounds.append(foreground)
-            background = background.astype(np.int64)
-            backgrounds.append(background)
-
-        im_patch = img_as_float32(im_patch)
-        im_patch = im_utils.normalize_patch(im_patch)
-        im_patch = im_patch.astype(np.float32)
-        im_patch = np.expand_dims(im_patch, axis=0)
-        segs = [None] * len(backgrounds)
+        (im_patch, foregrounds,
+         backgrounds, segs) = self.get_patch_from_image(image, annots, patch_ref)            
 
         return (im_patch, foregrounds, backgrounds,
                 patch_ref.ignore_mask, segs, classes)
@@ -263,7 +252,24 @@ class RPDataset(Dataset):
         assert annot_patch.shape[1:] == (self.in_d, self.in_w, self.in_w), (
             f" annot is {annot_patch.shape}, and "
             f" should be ({self.in_d},{self.in_w},{self.in_w})")
-        return im_patch, annot_patches
+
+        foregrounds = []
+        backgrounds = []
+        for annot_patch in annot_patches:
+            foreground = np.array(annot_patch)[1]
+            background = np.array(annot_patch)[0]
+            foreground = foreground.astype(np.int64)
+            foregrounds.append(foreground)
+            background = background.astype(np.int64)
+            backgrounds.append(background)
+
+        im_patch = img_as_float32(im_patch)
+        im_patch = im_utils.normalize_patch(im_patch)
+        im_patch = im_patch.astype(np.float32)
+        im_patch = np.expand_dims(im_patch, axis=0)
+        segs = [None] * len(backgrounds)
+
+        return im_patch, foregrounds, backgrounds, segs  
  
     def get_annots_for_image(self, annot_fname): 
         classes = []
