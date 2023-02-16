@@ -284,7 +284,8 @@ class Trainer():
         epoch_start = time.time()
  
         step = 0
-
+        val_cnn = copy.deepcopy(model)
+        val_cnn.half()
         for fname in fnames:
             # FiXME: We assume image has same extension as annotation.
             #        Is this always the case?
@@ -302,7 +303,8 @@ class Trainer():
 
                 if self.patch_update_enabled:
                     batch_im_patches = handle_patch_update_in_epoch_step(batch_im_patches, mode='val')
-                outputs = model(batch_im_patches)
+                batch_im_patches = batch_im_patches.half()
+                outputs = val_cnn(batch_im_patches)
                 (_, batch_items_metrics) = get_batch_loss(
                     outputs,
                     [fg_patches],
