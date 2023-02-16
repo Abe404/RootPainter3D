@@ -288,7 +288,7 @@ class Trainer():
         for fname in fnames:
             # FiXME: We assume image has same extension as annotation.
             #        Is this always the case?
-            image = dataset.load_im_for_network(fname)
+            image = dataset.load_im(fname)
             annots, classes = dataset.get_annots_for_image(fname)
             refs = [r for r in val_patch_refs if r.annot_fname == fname]
 

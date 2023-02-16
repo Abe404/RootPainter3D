@@ -195,8 +195,7 @@ class RPDataset(Dataset):
     def get_val_item(self, patch_ref):
         return self.get_patch_from_ref_3d(patch_ref)
 
-
-    def load_im_for_netork(self, fname):
+    def load_im(self, fname):
         image_path = os.path.join(self.dataset_dir, fname)
         # image could have nrrd extension
         if not os.path.isfile(image_path):
@@ -223,7 +222,7 @@ class RPDataset(Dataset):
         # TODO: One concern is that we could end up with a lot of these patch_refs. 
         #       is adding the ignore_mask going to introduce significant memory usage?
         #       please investigate.
-        image = self.load_im_for_network(patch_ref.annot_fname)
+        image = self.load_im(patch_ref.annot_fname)
         annots, classes = self.get_annots_for_image(patch_ref.annot_fname)
 
         (im_patch, foregrounds,
