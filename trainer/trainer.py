@@ -306,7 +306,7 @@ class Trainer():
                 torch.tensor(np.array([bg_patches])),
                 np.array([ignore_mask]),
                 None,
-                np.array([classes]),
+                [[classes]],
                 self.train_config['classes'],
                 compute_loss=False)
 
