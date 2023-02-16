@@ -136,6 +136,13 @@ def get_batch_loss(outputs, batch_fg_patches, batch_bg_patches,
                     # Right now there is two output channels per class, 
                     # with one for bg and one for fg
                     class_output = outputs[im_idx][class_idx:class_idx+2] 
+                    
+                    if isinstance(mask, np.ndarray):
+                        mask = torch.from_numpy(mask)
+
+                    if isinstance(fg_patch, np.ndarray):
+                        fg_patch = torch.from_numpy(fg_patch)
+
 
                     mask = mask.cuda()
                     fg_patch = fg_patch.cuda()
