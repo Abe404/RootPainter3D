@@ -294,7 +294,7 @@ class Trainer():
 
             for ref in refs:
                 (im_patch, fg_patches,
-                 bg_patches, _segs) = self.get_patch_from_image(image, annots, ref)            
+                 bg_patches, _segs) = dataset.get_patch_from_image(image, annots, ref)            
                 ignore_mask = ref.ignore_mask
 
                 self.check_for_instructions()
