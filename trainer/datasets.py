@@ -42,7 +42,7 @@ def annot_patch_has_fg(annot):
 class RPDataset(Dataset):
     def __init__(self, annot_dirs, train_seg_dirs, dataset_dir, in_w, out_w,
                  in_d, out_d, mode, patch_refs=None,
-                 use_seg_in_training=True, length=None, num_workers=None):
+                 use_seg_in_training=True, length=None):
         """
         in_w and out_w are the patch size in pixels
 
@@ -69,7 +69,6 @@ class RPDataset(Dataset):
         # other wise length will return the number of items
         self.length = length
         self.use_seg = use_seg_in_training
-        self.num_workers = num_workers
 
     def __len__(self):
         if self.mode == 'val':
@@ -79,11 +78,6 @@ class RPDataset(Dataset):
         return self.length
 
     def __getitem__(self, i):
-        worker_info = torch.utils.data.get_worker_info()
-        if worker_info:
-            worker_id = worker_info.id
-            print('worker_id {} calling with index {}'.format(worker_id, i))
-
 
         if self.mode == 'val':
             return self.get_val_item(self.patch_refs[i])
@@ -162,8 +156,7 @@ class RPDataset(Dataset):
                                                                            self.train_seg_dirs,
                                                                            self.annot_dirs,
                                                                            self.use_seg,
-                                                                           force_fg,
-                                                                           self.num_workers)
+                                                                           force_fg)
               
         annot_patches, seg_patches, im_patch = self.get_random_patch_3d(annots, segs,
                                                                         image,

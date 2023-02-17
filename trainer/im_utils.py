@@ -195,7 +195,7 @@ def load_image_and_annot_for_seg(dataset_dir, train_annot_dirs, fname):
 
 
 def load_train_image_and_annot(dataset_dir, train_seg_dirs, train_annot_dirs, use_seg,
-                               force_fg, num_workers):
+                               force_fg):
     """
     returns
         image (np.array) - image data
@@ -233,10 +233,20 @@ def load_train_image_and_annot(dataset_dir, train_seg_dirs, train_annot_dirs, us
         # we fetch the item based on it's process index
         # to avoid multiple workers loading the same items
         # and allowing efficient caching of each image to only one worker.
-        current = multiprocessing.current_process()
-        process_index = int(current._identity[0])
-        fnames = fnames[process_index-1::num_workers] 
-        print('fnames for ', process_index, 'are', fnames)
+        #current = multiprocessing.current_process()
+        #process_index = int(current._identity[0])
+        worker_info = torch.utils.data.get_worker_info()
+        if worker_info:
+            worker_id = worker_info.id
+            print('worker_id {} calling with index {}'.format(worker_id, index))
+            fnames = fnames[process_index-1::worker_info.num_workers] 
+            print('fnames for ', process_index, 'are', fnames)
+        else:
+            print("no worker info found")
+
+
+            if worker_id == 0:
+
         fname = random.sample(fnames, 1)[0]
 
         # triggers retry if assertion fails
