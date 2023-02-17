@@ -79,6 +79,12 @@ class RPDataset(Dataset):
         return self.length
 
     def __getitem__(self, i):
+        worker_info = torch.utils.data.get_worker_info()
+        if worker_info:
+            worker_id = worker_info.id
+            print('worker_id {} calling with index {}'.format(worker_id, i))
+
+
         if self.mode == 'val':
             return self.get_val_item(self.patch_refs[i])
         if self.patch_refs is not None:
