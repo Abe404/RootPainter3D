@@ -34,7 +34,8 @@ import traceback
 
 from patch_ref import PatchRef
 
-
+# FIXME each worker will include a copy of it's own cache
+im_cache = {}
 
 def maybe_pad_image_to_pad_size(image, in_patch_shape):
     # if the image is smaller than the patch size then pad it to be the same as the patch.
@@ -466,13 +467,11 @@ def save(out_path, seg):
     else:
         raise Exception(f'Unhandled {out_path}')
 
-
-im_cache = {}
-
 def load_image_with_cache(im_fpath):
     if im_fpath in im_cache:
         return im_cache[im_fpath]
     else:
+        print('loading image', im_fpath)
         image = load_image(im_fpath)
         im_cache[im_fpath] = image
         return image
