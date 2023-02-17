@@ -482,7 +482,7 @@ def load_image_with_cache(im_fpath):
     else:
         current = multiprocessing.current_process()
         #print('running:', current.name, current._identity[0])
-        process_index = current._identity[0])
+        process_index = current._identity[0]
         print('loading image', os.path.basename(im_fpath), 'on process', process_index)
         image = load_image(im_fpath)
         im_cache[im_fpath] = image
