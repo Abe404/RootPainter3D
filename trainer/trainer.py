@@ -354,7 +354,8 @@ class Trainer():
                             'train',
                             None,
                             self.use_seg_in_training,
-                            length=length)
+                            length=length,
+                            num_workers=self.num_workers)
         torch.set_grad_enabled(True)
         loader = DataLoader(dataset, self.batch_size, shuffle=False,
                             collate_fn=data_utils.collate_fn,

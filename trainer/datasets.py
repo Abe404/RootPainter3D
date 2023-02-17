@@ -42,7 +42,7 @@ def annot_patch_has_fg(annot):
 class RPDataset(Dataset):
     def __init__(self, annot_dirs, train_seg_dirs, dataset_dir, in_w, out_w,
                  in_d, out_d, mode, patch_refs=None,
-                 use_seg_in_training=True, length=None):
+                 use_seg_in_training=True, length=None, num_workers=None):
         """
         in_w and out_w are the patch size in pixels
 
@@ -69,6 +69,7 @@ class RPDataset(Dataset):
         # other wise length will return the number of items
         self.length = length
         self.use_seg = use_seg_in_training
+        self.num_workers = num_workers
 
     def __len__(self):
         if self.mode == 'val':
@@ -155,7 +156,8 @@ class RPDataset(Dataset):
                                                                            self.train_seg_dirs,
                                                                            self.annot_dirs,
                                                                            self.use_seg,
-                                                                           force_fg)
+                                                                           force_fg,
+                                                                           self.num_workers)
               
         annot_patches, seg_patches, im_patch = self.get_random_patch_3d(annots, segs,
                                                                         image,

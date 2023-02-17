@@ -195,7 +195,7 @@ def load_image_and_annot_for_seg(dataset_dir, train_annot_dirs, fname):
 
 
 def load_train_image_and_annot(dataset_dir, train_seg_dirs, train_annot_dirs, use_seg,
-                               force_fg):
+                               force_fg, num_workers):
     """
     returns
         image (np.array) - image data
@@ -229,7 +229,14 @@ def load_train_image_and_annot(dataset_dir, train_seg_dirs, train_annot_dirs, us
             all_seg_dirs += [train_seg_dir] * len(annot_fnames)
         
         assert len(fnames), 'should be at least one fname'
-
+        
+        # we fetch the item based on it's process index
+        # to avoid multiple workers loading the same items
+        # and allowing efficient caching of each image to only one worker.
+        current = multiprocessing.current_process()
+        process_index = int(current._identity[0]))
+        fnames = fnames[process_index-1::num_workers] 
+        print('fnames for ', process_index, 'are', fnames)
         fname = random.sample(fnames, 1)[0]
 
         # triggers retry if assertion fails
@@ -473,9 +480,10 @@ def load_image_with_cache(im_fpath):
     if im_fpath in im_cache:
         return im_cache[im_fpath]
     else:
-        print('loading image', im_fpath)
         current = multiprocessing.current_process()
-        print('running:', current.name, current._identity)
+        #print('running:', current.name, current._identity[0])
+        process_index = current._identity[0])
+        print('loading image', os.path.basename(im_fpath), 'on process', process_index)
         image = load_image(im_fpath)
         im_cache[im_fpath] = image
         return image
