@@ -239,9 +239,8 @@ def load_train_image_and_annot(dataset_dir, train_seg_dirs, train_annot_dirs, us
         worker_info = torch.utils.data.get_worker_info()
         if worker_info:
             worker_id = worker_info.id
-            print('worker_id {} calling with index {}'.format(worker_id, index))
-            fnames = fnames[process_index-1::worker_info.num_workers] 
-            print('fnames for ', process_index, 'are', fnames)
+            fnames = fnames[worker_id::worker_info.num_workers] 
+            print('fnames for ', worker_id, 'are', fnames)
         else:
             print("no worker info found")
 
