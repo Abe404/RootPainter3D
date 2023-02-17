@@ -470,11 +470,11 @@ def save(out_path, seg):
 im_cache = {}
 
 def load_image_with_cache(im_fpath):
-    if im_fpath in cache:
-        return cache[im_fpath]
+    if im_fpath in im_cache:
+        return im_cache[im_fpath]
     else:
         image = load_image(im_fpath)
-        cache[im_fpath] = image
+        im_cache[im_fpath] = image
         return image
 
 def load_image(image_path):
