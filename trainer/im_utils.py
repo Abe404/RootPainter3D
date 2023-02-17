@@ -267,7 +267,7 @@ def load_train_image_and_annot(dataset_dir, train_seg_dirs, train_annot_dirs, us
         fname_no_ext = fname.replace('.nii.gz', '').replace('.nrrd', '')
         image_path_part = os.path.join(dataset_dir, fname_no_ext)
         image_path = glob.glob(image_path_part + '.*')[0]
-        image = load_image(image_path)
+        image = load_image_with_cache(image_path)
         #  needs to be swapped to channels first and rotated etc
         # to be consistent with everything else.
         # todo: consider removing this soon.
@@ -466,6 +466,16 @@ def save(out_path, seg):
     else:
         raise Exception(f'Unhandled {out_path}')
 
+
+im_cache = {}
+
+def load_image_with_cache(im_fpath):
+    if im_fpath in cache:
+        return cache[im_fpath]
+    else:
+        image = load_image(im_fpath)
+        cache[im_fpath] = image
+        return image
 
 def load_image(image_path):
     if image_path.endswith('.npy'):
