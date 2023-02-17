@@ -245,9 +245,6 @@ def load_train_image_and_annot(dataset_dir, train_seg_dirs, train_annot_dirs, us
         else:
             print("no worker info found")
 
-
-            if worker_id == 0:
-
         fname = random.sample(fnames, 1)[0]
 
         # triggers retry if assertion fails
