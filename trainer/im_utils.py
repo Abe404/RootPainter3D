@@ -240,9 +240,6 @@ def load_train_image_and_annot(dataset_dir, train_seg_dirs, train_annot_dirs, us
         if worker_info:
             worker_id = worker_info.id
             fnames = fnames[worker_id::worker_info.num_workers] 
-            print('fnames for ', worker_id, 'are', fnames)
-        else:
-            print("no worker info found")
 
         fname = random.sample(fnames, 1)[0]
 
@@ -487,10 +484,6 @@ def load_image_with_cache(im_fpath):
     if im_fpath in im_cache:
         return im_cache[im_fpath]
     else:
-        current = multiprocessing.current_process()
-        #print('running:', current.name, current._identity[0])
-        process_index = current._identity[0]
-        print('loading image', os.path.basename(im_fpath), 'on process', process_index)
         image = load_image(im_fpath)
         im_cache[im_fpath] = image
         return image
