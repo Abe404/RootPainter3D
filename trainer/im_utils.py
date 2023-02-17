@@ -467,11 +467,15 @@ def save(out_path, seg):
     else:
         raise Exception(f'Unhandled {out_path}')
 
+import multiprocessing
+
 def load_image_with_cache(im_fpath):
     if im_fpath in im_cache:
         return im_cache[im_fpath]
     else:
         print('loading image', im_fpath)
+        current = multiprocessing.current_process()
+        print('running:', current.name, current._identity)
         image = load_image(im_fpath)
         im_cache[im_fpath] = image
         return image
