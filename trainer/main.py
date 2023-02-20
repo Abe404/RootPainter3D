@@ -19,10 +19,29 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 from pathlib import Path
 import os
+import re
 import json
 import argparse
 from trainer import Trainer
 from startup import startup_setup
+
+def parse_patchsize(text):
+    """
+    Parse the patchsize argument.
+    It is expected to be two integers, e.g. "164 130"
+    Ignores surrounding and separating characters, e.g. "(164,130)".
+    """
+    # Find all integers in string
+    p = re.compile(r"\d+")
+    result = p.findall(text or "")
+
+    # Only accept results where there are exactly two integers
+    if len(result) != 2:
+        return (None, None)
+
+    result = map(int, result)
+    return tuple(result)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -39,11 +58,18 @@ if __name__ == '__main__':
                         help=('Number of instances to be used in each training epoch. '
                               'Primarily used as a manual override for debugging purposes.'))
 
+
+    parser.add_argument('--patchsize',
+                        type=str,
+                        help=('Manually assign patch size. '
+                              'Primarily used as a manual override for debugging purposes.'))
+
     settings_path = os.path.join(Path.home(), 'root_painter_settings.json')
    
     settings = None
     
     args = parser.parse_args()
+    (in_w, out_w) = parse_patchsize(args.patchsize)
     
     if args.syncdir:
         sync_dir = args.syncdir
@@ -57,10 +83,14 @@ if __name__ == '__main__':
         ip = settings['server_ip']
         port = settings['server_port']
         trainer = Trainer(sync_dir, ip, port, max_workers=args.maxworkers,
-                         epoch_length=args.epochlength)
+                          epoch_length=args.epochlength,
+                          in_w=in_w,
+                          out_w=out_w)
     else:
         trainer = Trainer(sync_dir,
                           max_workers=args.maxworkers,
-                          epoch_length=args.epochlength)
+                          epoch_length=args.epochlength,
+                          in_w=in_w,
+                          out_w=out_w)
 
     trainer.main_loop()

@@ -52,7 +52,7 @@ from model_utils import debug_memory
 metrics_to_print = ['dice', 'precision', 'recall', 'total_true', 'total_pred']
 
 class Trainer():
-    def __init__(self, sync_dir, ip=None, port=None, max_workers=12, epoch_length=None):
+    def __init__(self, sync_dir, ip=None, port=None, max_workers=12, epoch_length=None, in_w=None, out_w=None):
         self.sync_dir = sync_dir
         self.ip = ip
         self.port = port
@@ -81,9 +81,9 @@ class Trainer():
         self.restarts_enabled = False
         self.training_restart = False # is training current in a restart period
         self.restart_best_val_dice = 0
-        
-        self.in_w = None
-        self.out_w = None
+
+        self.in_w = in_w
+        self.out_w = out_w
 
 
         self.use_seg_in_training = False
