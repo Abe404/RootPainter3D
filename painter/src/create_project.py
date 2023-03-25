@@ -252,7 +252,7 @@ class CreateProjectWidget(QtWidgets.QWidget):
         # get files in random order for training.
         all_fnames = os.listdir(dataset_path)
         # images only
-        all_fnames = [a for a in all_fnames if is_image(a)
+        all_fnames = [a for a in all_fnames if is_image(a)]
         # ignore these 'hidden' files.
         all_fnames = [a for a in all_fnames if a[0] != '.']
 
