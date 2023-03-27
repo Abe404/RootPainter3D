@@ -190,7 +190,7 @@ def add_extras_menu(main_window, menu_bar, project_open=False):
     assign_corrections_btn = QtWidgets.QAction(QtGui.QIcon('missing.png'),
                                                'Assign Corrections', main_window)
     assign_corrections_btn.triggered.connect(show_assign_corrections)
-    menu_bar.addAction(assign_corrections_btn)
+    extras_menu.addAction(assign_corrections_btn)
 
 
 
