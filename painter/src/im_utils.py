@@ -17,7 +17,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 # pylint: disable=C0111, W0511
 # pylint: disable=E0401 # import error
 
-
+import os
 import numpy as np
 from skimage.measure import label
 from skimage.morphology import binary_dilation
@@ -36,7 +36,8 @@ def is_image(fname):
 def load_image(image_path):
     if image_path.endswith('.npy'):
         return np.load(image_path, mmap_mode='c')
-    elif image_path.endswith('.nii.gz'):
+
+    if image_path.endswith('.nii.gz'):
         image = nib.load(image_path)
         image = np.array(image.dataobj)
         image = np.rot90(image, k=3)
@@ -44,7 +45,7 @@ def load_image(image_path):
         # reverse lr and ud
         image = image[::-1, :, ::-1]
     elif image_path.endswith('.nrrd'):
-        image, header = nrrd.read(image_path)
+        image, _header = nrrd.read(image_path)
         image = np.rot90(image, k=3)
         image = np.moveaxis(image, -1, 0) # depth moved to beginning
         # reverse lr and ud
@@ -132,11 +133,11 @@ def get_slice(volume, slice_idx, mode):
             slice_data = volume[slice_idx, :, :]
     elif mode == 'coronal':
         raise Exception("not yet implemented")
-        if len(volume.shape) > 3:
+        #if len(volume.shape) > 3:
             # if more than 3 presume first is channel dimension
-            slice_data = volume[:, :, :, slice_idx]
-        else:
-            slice_data = volume[:, slice_idx, :]
+        #    slice_data = volume[:, :, :, slice_idx]
+        #else:
+        #    slice_data = volume[:, slice_idx, :]
     elif mode == 'sagittal':
         if len(volume.shape) > 3:
             # if more than 3 presume first is channel dimension
@@ -162,8 +163,8 @@ def store_annot_slice(annot_pixmap, annot_data, slice_idx, mode):
         annot_data[1, slice_idx] = fg
     elif mode == 'coronal':
         raise Exception("not yet implemented")
-        annot_data[0, :, slice_idx, :] = bg
-        annot_data[1, :, slice_idx, :] = fg
+        # annot_data[0, :, slice_idx, :] = bg
+        # annot_data[1, :, slice_idx, :] = fg
     elif mode == 'sagittal':
         #slice_idx = (annot_data.shape[3] - slice_idx) - 1
         annot_data[0, :, :, slice_idx] = bg
@@ -235,6 +236,26 @@ def restrict_to_regions_containing_points(seg_data, annot_data, region_points):
     annot_data[0, min_z: max_z, min_y:max_y, min_x:max_x][roi_extra_fg > 0] = 0
     annot_data[1, min_z: max_z, min_y:max_y, min_x:max_x][roi_extra_fg > 0] = 1
     return annot_data, removed_count, holes_removed, False
+
+
+def save_corrected_segmentation(annot_fpath, seg_dir, output_dir):
+    """assign the annotations (corrections) to the segmentations. This is useful
+       to obtain more accurate (corrected) segmentations."""
+    fname = os.path.basename(annot_fpath)
+    seg_path = os.path.join(seg_dir, fname)
+    output_path = os.path.join(output_dir, fname)
+
+    seg_data = load_seg(seg_path)
+    annot_data = load_annot(annot_fpath)
+
+    seg_map = (seg_data > 0).astype(int)
+    annot_plus = (annot_data[1] > 0).astype(int)
+    annot_minus = (annot_data[0] > 0).astype(int)
+    # remove anything where seg is less than 0 as this is outside of the box
+    corrected = (((seg_map + annot_plus) - annot_minus) > 0)
+
+    corrected_nifty = nib.Nifti1Image(corrected.astype(np.int8), np.eye(4))
+    corrected_nifty.to_filename(output_path)
 
 
 def fill_annot(annot_pixmap):
