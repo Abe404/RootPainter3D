@@ -25,12 +25,25 @@ from PyQt5 import QtGui
 import qimage2ndarray
 import nibabel as nib
 from scipy.ndimage import binary_fill_holes
+import glob
 import nrrd
 
 
 def is_image(fname):
     extensions = {'.npy', 'gz', 'nrrd'}
     return any(fname.lower().endswith(ext) for ext in extensions)
+
+
+def all_image_paths_in_dir(dir_path):
+    root_dir = os.path.abspath(dir_path)
+    all_paths = glob.iglob(root_dir + '/**/*', recursive=True)
+    image_paths = []
+    for p in all_paths:
+        name = os.path.basename(p)
+        if name[0] != '.':
+            if name.endswith('.nii.gz') or name.endswith('.npy'):
+                image_paths.append(p)
+    return image_paths
 
 
 def load_image(image_path):

@@ -18,7 +18,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 # pylint: disable=I1101,C0111,W0201,R0903,E0611, R0902, R0914
 import os
 
-from im_utils import save_corrected_segmentation 
+from im_utils import save_corrected_segmentation, all_image_paths_in_dir
 from progress_widget import BaseProgressWidget
 from PyQt5 import QtCore, QtWidgets
 import traceback
@@ -35,9 +35,7 @@ class Thread(QtCore.QThread):
         self.out_dir = out_dir
 
     def run(self):
-        annot_fpaths = os.listdir(self.annot_dir)
-        annot_fpaths = [f for f in annot_fpaths if f[0] != '.']
-        annot_fpaths = [f for f in annot_fpaths if f.endswith('.nii.gz')]
+        annot_fpaths = all_image_paths_in_dir(self.annot_dir)
         for i, f in enumerate(annot_fpaths):
             self.progress_change.emit(i + 1, len(annot_fpaths))
             if os.path.isfile(f):
@@ -61,9 +59,7 @@ class ProgressWidget(BaseProgressWidget):
         self.seg_dir = seg_dir
         self.out_dir = out_dir
         self.thread = Thread(annot_dir, seg_dir, out_dir)
-        annot_fpaths = os.listdir(self.annot_dir)
-        annot_fpaths = [f for f in annot_fpaths if f[0] != '.']
-        annot_fpaths = [f for f in annot_fpaths if f.endswith('.nii.gz')]
+        annot_fpaths = all_image_paths_in_dir(self.annot_dir)
         self.progress_bar.setMaximum(len(annot_fpaths))
         self.thread.progress_change.connect(self.onCountChanged)
         self.thread.done.connect(self.done)
