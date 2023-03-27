@@ -19,5 +19,9 @@ disable=trailing-whitespace,
 	inconsistent-return-statements, # sometimes these make sense
 	global-statement, # avoid it in general but sometimes it's useful :) 
 	missing-final-newline, # is this actually a problem?
-	line-too-long # i do care about this but errors matter more
+	line-too-long, # i do care about this but errors matter more
+    unreachable, # i have some code that cant run due to an exception saying it is disabled.
+    consider-using-with,
+    too-many-statements
 
+    

@@ -5,11 +5,10 @@ import json
 
 from PyQt5 import QtWidgets
 from PyQt5 import QtGui
-from PyQt5 import QtCore
-from PyQt5.QtCore import Qt
 from segment_folder import SegmentFolderWidget
 from segment import segment_full_image
 from convert_seg import ConvertSegWidget, convert_seg_to_annot
+from assign_corrections import AssignCorrectionsWidget
 from extract_image_props import ExtractSegImagePropsWidget
 from compute_metrics import ExtractSegMetricsWidget
 from random_split import RandomSplitWidget
@@ -184,6 +183,16 @@ def add_extras_menu(main_window, menu_bar, project_open=False):
     extras_menu.addAction(random_split_btn)
 
 
+    def show_assign_corrections():
+        main_window.assign_corrections_widget = AssignCorrectionsWidget()
+        main_window.assign_corrections_widget.show()
+
+    assign_corrections_btn = QtWidgets.QAction(QtGui.QIcon('missing.png'),
+                                               'Assign Corrections', main_window)
+    assign_corrections_btn.triggered.connect(show_assign_corrections)
+    menu_bar.addAction(assign_corrections_btn)
+
+
 
 
     if project_open:
@@ -218,17 +227,16 @@ def check_extend_dataset(main_window, dataset_dir, prev_fnames, proj_file_path):
         # shuffle the new file names
         random.shuffle(new_image_names)
         # load the project json for reading and writing
-        settings = json.load(open(proj_file_path, 'r'))
+        settings = json.load(open(proj_file_path, encoding="utf-8"))
         # read the file_names
         all_file_names = settings['file_names'] + new_image_names
         settings['file_names'] = all_file_names
 
         # Add the new_files to the list
         # then save the json again
-        json.dump(settings, open(proj_file_path, 'w'), indent=4)
+        json.dump(settings, open(proj_file_path, 'w', encoding="utf-8"), indent=4)
         return True, all_file_names
-    else:
-        return False, all_image_names
+    return False, all_image_names
 
 
 def add_view_menu(window, im_viewer, menu_bar):
