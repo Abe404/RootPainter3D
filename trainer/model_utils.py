@@ -234,7 +234,6 @@ def load_model_then_segment_3d(model_paths, image, batch_size,
                                in_w, out_w, in_d, out_d)
 
 def pad_then_segment_3d(cnn, image, batch_size, in_w, out_w, in_d, out_d):
-    """ Average predictions from each model specified in model_paths """
     t = time.time()
     input_image_shape = image.shape
     in_patch_shape = (in_d, in_w, in_w)
@@ -243,21 +242,17 @@ def pad_then_segment_3d(cnn, image, batch_size, in_w, out_w, in_d, out_d):
     depth_diff = in_patch_shape[0] - out_patch_shape[0]
     width_diff = in_patch_shape[2] - out_patch_shape[2]
 
-    print('input image shape (before pad) = ', image.shape)
-
     # pad so seg will be size of input image
     image = np.pad(image, ((17, 17), (17, 17), (17, 17)), mode='constant')
 
     # segment returns a series of prediction maps. one for each class.
-    print('input image shape (after pad) = ', image.shape)
     pred_maps = segment_3d(cnn, image, batch_size, in_patch_shape, out_patch_shape)
 
-    print('pred maps[0].shape = ', pred_maps[0].shape)
     assert pred_maps[0].shape == input_image_shape, (
         f'pred_maps[0].shape: {pred_maps[0].shape}, '
         f'input_image_shape: {input_image_shape}')
 
-    print('time to segment image', time.time() - t)
+    print('Time to segment image', time.time() - t)
     return pred_maps
 
 
