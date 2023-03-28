@@ -46,6 +46,19 @@ def all_image_paths_in_dir(dir_path):
     return image_paths
 
 
+def load_image_with_header(image_path):
+    assert image_path.endswith('.nii.gz'), 'Only compressed nifty (.nii.gz) supported at the moment'
+    image = nib.load(image_path)
+    header = image.header
+    affine = image.affine
+    image = np.array(image.dataobj)
+    
+    image = np.rot90(image, k=3)
+    image = np.moveaxis(image, -1, 0) # depth moved to beginning
+    # reverse lr and ud
+    image = image[::-1, :, ::-1]
+    return image.astype(int), affine, header
+
 def load_image(image_path):
     if image_path.endswith('.npy'):
         return np.load(image_path, mmap_mode='c')
@@ -260,15 +273,33 @@ def save_corrected_segmentation(annot_fpath, seg_dir, output_dir):
 
     seg_data = load_seg(seg_path)
     annot_data = load_annot(annot_fpath)
+    # TODO: consider using header from segmentation.
+    save_corrected_segmentation_from_data(seg_data, annot_data, None, None, output_path)
+
+
+def save_corrected_segmentation_from_data(seg_data, annot_data, image_affine,
+                                          image_header, output_path):
 
     seg_map = (seg_data > 0).astype(int)
     annot_plus = (annot_data[1] > 0).astype(int)
     annot_minus = (annot_data[0] > 0).astype(int)
-    # remove anything where seg is less than 0 as this is outside of the box
     corrected = (((seg_map + annot_plus) - annot_minus) > 0)
 
-    corrected_nifty = nib.Nifti1Image(corrected.astype(np.int8), np.eye(4))
+    # These operations are the inverse of what is done to an image when it is
+    # loaded. I am performing them to make the segmentation algin with the 
+    # original image.
+    corrected = corrected[::-1, :, ::-1] # reverse lr and ud
+    corrected = np.moveaxis(corrected, 0, -1) # depth moved to end
+    corrected = np.rot90(corrected, k=1) # rotate 90.
+
+    corrected_nifty = nib.Nifti1Image(corrected.astype(np.int8),
+                                      image_affine, image_header)
+    output_dir = os.path.dirname(output_path)
+    if not os.path.isdir(output_dir):
+        print('making output dir', output_dir)
+        os.makedirs(output_dir)
     corrected_nifty.to_filename(output_path)
+
 
 
 def fill_annot(annot_pixmap):

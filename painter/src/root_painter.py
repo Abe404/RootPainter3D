@@ -118,6 +118,13 @@ class RootPainter(QtWidgets.QMainWindow):
             return self.proj_location / 'annotations' / self.cur_class / 'train'
         return self.proj_location / 'annotations' / 'train'
 
+    def get_corrected_segmentation_path(self):
+        # return location where corrected segmentation should be saved
+        if len(self.classes) > 1:
+            return self.proj_location / 'corrected_segmentations' / self.cur_class / self.fname
+        return self.proj_location / 'corrected_segmentations' / self.fname
+        
+
     def get_val_annot_dir(self):
         # taking into account the current class.
         if len(self.classes) > 1:
@@ -219,7 +226,10 @@ class RootPainter(QtWidgets.QMainWindow):
             self.save_annotation()
         self.fname = os.path.basename(fpath)
         self.image_path = os.path.join(self.dataset_dir, self.fname)
-        self.img_data = im_utils.load_image(self.image_path) 
+        (self.img_data,
+         self.img_affine,
+         self.img_header) = im_utils.load_image_with_header(self.image_path) 
+
         # if a guide image directory is specified - TODO: Consider removing guide image functionality if it isn't used frequently
         if hasattr(self, 'guide_image_dir'):
             guide_image_path = os.path.join(os.path.join(self.guide_image_dir, self.fname))
@@ -793,6 +803,17 @@ class RootPainter(QtWidgets.QMainWindow):
                                                        self.get_train_annot_dir(),
                                                        self.get_val_annot_dir(),
                                                        self.log)
+
+            if self.annot_path: # if an annotation was saved.
+                # correct the segmentation by assigning the annotation
+                # and then save to the 'corrected_segmentations' folder.
+                im_utils.save_corrected_segmentation_from_data(
+                    self.seg_data,
+                    self.annot_data,
+                    self.img_affine,
+                    self.img_header,
+                    self.get_corrected_segmentation_path())
+
             if self.annot_path:
                 #if self.auto_complete_enabled:
                 # also save the segmentation, as this updated due to patch updates (potencially).
