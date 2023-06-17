@@ -102,7 +102,7 @@ def reconstruct_from_patches(patches, coords, output_shape):
 
 
 def load_with_retry(load_fn, fpath):
-    max_attempts = 2
+    max_attempts = 200
     attempts = 0
     while attempts < max_attempts:
         attempts += 1
