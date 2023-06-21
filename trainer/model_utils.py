@@ -35,6 +35,14 @@ cached_model = None
 cached_model_path = None
 use_fake_cnn = False
 
+def get_device():
+    if torch.backends.mps.is_available():
+        return torch.device("mps")
+    return torch.device('cuda')
+
+device = get_device()
+
+
 # to enable this, put MEM_DEBUG=True in the command before invoking python.
 mem_debug_enabled = ('MEM_DEBUG' in os.environ)
 
@@ -180,7 +188,7 @@ def random_model(classes):
     model = UNet3D(num_classes=len(classes), im_channels=1) # 3 channels to enable optional annotation as input.
     model = torch.nn.DataParallel(model)
     if not use_fake_cnn: 
-        model.cuda()
+        model.to(device)
     return model
 
 def create_first_model_with_random_weights(model_dir, classes):
