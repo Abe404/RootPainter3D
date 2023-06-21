@@ -48,6 +48,7 @@ from im_utils import is_image, load_image, save
 import im_utils
 from file_utils import ls
 from model_utils import debug_memory
+import train_utils
 
 metrics_to_print = ['dice', 'precision', 'recall', 'total_true', 'total_pred']
 
@@ -360,50 +361,12 @@ class Trainer():
                             collate_fn=data_utils.collate_fn,
                             num_workers=self.num_workers,
                             drop_last=False, pin_memory=True)
-        model.train()
+
         epoch_start = time.time()
-
-        epoch_items_metrics = []  
-        loss_sum = 0
-        for step, (batch_im_patches, batch_fg_patches,
-                   batch_bg_patches, batch_ignore_masks,
-                   batch_seg_patches, batch_classes) in enumerate(loader):
-
-            self.check_for_instructions()
-            batch_im_patches = torch.from_numpy(np.array(batch_im_patches)).cuda()
-            self.optimizer.zero_grad()
-            
-            if self.patch_update_enabled:
-                batch_im_patches = handle_patch_update_in_epoch_step(batch_im_patches, 'train')
-
-            outputs = model(batch_im_patches)
-
-            (batch_loss, batch_items_metrics) = get_batch_loss(
-                 outputs, batch_fg_patches, batch_bg_patches, 
-                 batch_ignore_masks, batch_seg_patches,
-                 batch_classes, self.train_config['classes'],
-                 compute_loss=True)
-
-            epoch_items_metrics += batch_items_metrics 
-            loss_sum += batch_loss.item() # float
-            batch_loss.backward()
-            self.optimizer.step()
-        
-            total_fg = ''
-            for b in batch_items_metrics:
-                total_fg += f',{b.total_true()}'
-            
-            debug_memory('train epoch step')
-            # https://github.com/googlecolab/colabtools/issues/166
-            print(f"\rTraining: {(step+1) * self.batch_size}/"
-                  f"{len(loader.dataset)} "
-                  f" loss={round(batch_loss.item(), 3)}, fg={total_fg}",
-                  end='', flush=True)
-
-            self.check_for_instructions() # could update training parameter
-            if not self.training: # in this context we consider validation part of training.
-                return None # understood as training stopping early
-
+        epoch_items_metrics = train_utils.epoch(
+            model, self.train_config['classes'], loader,
+            self.batch_size, self.optimizer, self.patch_update_enabled,
+            step_callback, stop_fn)
         duration = round(time.time() - epoch_start, 3)
         print('')
         print('Training epoch duration', duration, 'time per instance',
