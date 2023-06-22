@@ -201,13 +201,6 @@ class RPDataset(Dataset):
         if not os.path.isfile(image_path):
             image_path = image_path.replace('.nii.gz', '.nrrd')
         image = im_utils.load_with_retry(im_utils.load_image, image_path)
-        #  needs to be swapped to channels first and rotated etc
-        # to be consistent with everything else.
-        # todo: consider removing this soon.
-        image = np.rot90(image, k=3)
-        image = np.moveaxis(image, -1, 0) # depth moved to beginning
-        # reverse lr and ud
-        image = image[::-1, :, ::-1]
         # FiXME: Consider moving padding to the GPU. See:
         # https://pytorch.org/docs/stable/generated/torch.nn.ReflectionPad3d.html#torch.nn.ReflectionPad3d
         # pad so seg will be size of input image

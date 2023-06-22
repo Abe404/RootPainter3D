@@ -176,15 +176,6 @@ def load_image_and_annot_for_seg(dataset_dir, train_annot_dirs, fname):
         image_path_part = os.path.join(dataset_dir, fname_no_ext)
         image_path = glob.glob(image_path_part + '.*')[0]
         image = load_image(image_path)
-
-        #  needs to be swapped to channels first and rotated etc
-        # to be consistent with everything else.
-        # todo: consider removing this soon.
-        image = np.rot90(image, k=3)
-        image = np.moveaxis(image, -1, 0) # depth moved to beginning
-        # reverse lr and ud
-        image = image[::-1, :, ::-1]
-
         # also return fname for debugging purposes.
         return image, annots, classes, fname
 
@@ -272,14 +263,6 @@ def load_train_image_and_annot(dataset_dir, train_seg_dirs, train_annot_dirs, us
         image_path_part = os.path.join(dataset_dir, fname_no_ext)
         image_path = glob.glob(image_path_part + '.*')[0]
         image = load_image(image_path)
-
-        #  needs to be swapped to channels first and rotated etc
-        # to be consistent with everything else.
-        # todo: consider removing this soon.
-        image = np.rot90(image, k=3)
-        image = np.moveaxis(image, -1, 0) # depth moved to beginning
-        # reverse lr and ud
-        image = image[::-1, :, ::-1]
         # images are no longer padded on disk
         image = np.pad(image, ((17,17), (17,17), (17, 17)), mode='constant')
 

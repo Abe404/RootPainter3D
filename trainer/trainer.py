@@ -630,11 +630,6 @@ class Trainer():
             raise Exception(f'Cannot segment as missing file {fpath}')
         try:
             im = load_image(fpath)
-            # TODO: Consider removing this soon
-            im = np.rot90(im, k=3)
-            im = np.moveaxis(im, -1, 0) # depth moved to beginning
-            # reverse lr and ud
-            im = im[::-1, :, ::-1]
         except Exception as e:
             # Could be temporary issues reading the image.
             # its ok just skip it.
