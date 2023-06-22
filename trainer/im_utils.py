@@ -220,42 +220,55 @@ def load_train_image_and_annot(dataset_dir, train_seg_dirs, train_annot_dirs, us
         
         assert len(fnames), 'should be at least one fname'
 
-        fname = random.sample(fnames, 1)[0]
-
-        # triggers retry if assertion fails
-        assert is_image(fname), f'{fname} is not a valid image'
-
-        # annots and classes associated with fname
-        indices = [i for i, f in enumerate(fnames) if f == fname]
-        classes = [all_classes[i] for i in indices]
-        annot_dirs = [all_annot_dirs[i] for i in indices]
-        seg_dirs = [all_seg_dirs[i] for i in indices]
-        annots = []
-        segs = []
-
-        for annot_dir, seg_dir in zip(annot_dirs, seg_dirs): # for each of the classes.
-            annot_path = os.path.join(annot_dir, fname)
-            annot = load_image(annot_path)
-            # Why would we have annotations without content?
-            assert np.any(annot)
+       
+        tries = 0
+        annots = None
+        # retry - because we may have force_fg=True and an annotation without fg
+        while not annots:
+            if tries >= 100:
+                raise Exception(f'Tried to find an annotation {tries} times, '
+                                'perhaps none have foreground?')
+            tries += 1
+            fname = random.sample(fnames, 1)[0]
             
-            if force_fg: # make sure foreground present.
-                assert np.any(annot[1])
+            # triggers retry if assertion fails
+            assert is_image(fname), f'{fname} is not a valid image'
 
-            annot = np.pad(annot, ((0, 0), (17,17), (17,17), (17, 17)), mode='constant')
-            annots.append(annot)
+            # annots and classes associated with fname
+            indices = [i for i, f in enumerate(fnames) if f == fname]
+            classes = [all_classes[i] for i in indices]
+            annot_dirs = [all_annot_dirs[i] for i in indices]
+            seg_dirs = [all_seg_dirs[i] for i in indices]
+            annots = []
+            segs = []
 
-            if use_seg:
-                seg_path = os.path.join(seg_dir, fname)
+            for annot_dir, seg_dir in zip(annot_dirs, seg_dirs): # for each of the classes.
+                annot_path = os.path.join(annot_dir, fname)
+                annot = load_image(annot_path).astype(int)
 
-            if use_seg and os.path.isfile(seg_path):
-                seg_path = os.path.join(seg_dir, fname)
-                seg = load_image(seg_path)
-                seg = np.pad(seg, ((17,17), (17,17), (17, 17)), mode='constant')
-            else:
-                seg = None
+                # Why would we have annotations without content?
+                assert np.any(annot)
+               
+                # if fg is forced then only add the annotations where fg is present
+                if not force_fg or (force_fg and np.any(annot[1])):
 
-            segs.append(seg)
+                    annot = np.pad(annot, ((0, 0), (17,17), (17,17), (17, 17)), mode='constant')
+                    annots.append(annot)
+
+                    if use_seg:
+                        seg_path = os.path.join(seg_dir, fname)
+
+                    if use_seg and os.path.isfile(seg_path):
+                        seg_path = os.path.join(seg_dir, fname)
+                        seg = load_image(seg_path)
+                        seg = np.pad(seg, ((17,17), (17,17), (17, 17)), mode='constant')
+                    else:
+                        seg = None
+
+                    segs.append(seg)
+                else:
+                    print('no foreground for ', fname)
+                    pass 
 
         # it's possible the image has a different extenstion
         # so use glob to get it
@@ -276,8 +289,6 @@ def load_train_image_and_annot(dataset_dir, train_seg_dirs, train_annot_dirs, us
         return image, annots, segs, classes, fname
 
     load_random = partial(load_random, train_annot_dirs, train_seg_dirs, dataset_dir)
-
-    
 
     return load_with_retry(load_random, None)
 
