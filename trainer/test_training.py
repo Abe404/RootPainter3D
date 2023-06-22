@@ -99,12 +99,12 @@ def setup_function():
 def test_training():
     import data_utils
     import train_utils
-    in_w = 36 + (4*16)
+    in_w = 36 + (3*16)
     out_w = in_w - 34
     in_d = 52
     out_d = 18
-    num_workers = 0
-    batch_size = 1
+    num_workers = 12
+    batch_size = 6
     classes = ['liver']
 
     train_annot_dirs = [annot_train_dir] # for liver
@@ -119,7 +119,7 @@ def test_training():
                         mode='train',
                         patch_refs=None,
                         use_seg_in_training=False,
-                        length=64)
+                        length=120)
 
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=False,
                         collate_fn=data_utils.collate_fn,
@@ -139,6 +139,6 @@ def test_training():
                                      optimizer=optimizer,
                                      step_callback=None,
                                      stop_fn=None)
-
-    print('train epoch complete time', time.time() - start_time)
+    print('')
+    print('Train epoch complete in', round(time.time() - start_time, 1), 'seconds')
     # pass - epoch runs without error.
