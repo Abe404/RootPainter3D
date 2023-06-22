@@ -272,6 +272,7 @@ def load_train_image_and_annot(dataset_dir, train_seg_dirs, train_annot_dirs, us
         image_path_part = os.path.join(dataset_dir, fname_no_ext)
         image_path = glob.glob(image_path_part + '.*')[0]
         image = load_image(image_path)
+
         #  needs to be swapped to channels first and rotated etc
         # to be consistent with everything else.
         # todo: consider removing this soon.
@@ -281,6 +282,13 @@ def load_train_image_and_annot(dataset_dir, train_seg_dirs, train_annot_dirs, us
         image = image[::-1, :, ::-1]
         # images are no longer padded on disk
         image = np.pad(image, ((17,17), (17,17), (17, 17)), mode='constant')
+
+
+        assert image.shape == annots[0][0].shape, (f'Image shape {image.shape} '
+                f'should match annots[0][0].shape {annots[0][0].shape}. '
+                ' perhaps there is a dimensions mismatch?'
+                ' Dataset images and annotations should be (Depth, Height, Width).')
+
         # also return fname for debugging purposes.
         return image, annots, segs, classes, fname
 
