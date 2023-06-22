@@ -62,8 +62,15 @@ def epoch(model, classes, loader, batch_size,
         total_fg = ''
         for b in batch_items_metrics:
             total_fg += f',{b.total_true()}'
+        total_fg = total_fg[1:] # remove first ','
         
         debug_memory('train epoch step')
+
+        # clear the output to remove residual text before printing again
+        print("\r                                           " 
+              "                                             ",
+              end='', flush=True)
+
         # https://github.com/googlecolab/colabtools/issues/166
         print(f"\rTraining: {(step+1) * batch_size}/"
               f"{len(loader.dataset)} "
