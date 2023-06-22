@@ -151,6 +151,8 @@ class RPDataset(Dataset):
         # start at 90% force fg and go down to 0 by the time 90 images are annotated.
         force_fg_prob = max(0, (90-(num_annots)) / 100) 
         force_fg = force_fg_prob > random.random()
+
+
         (image, annots, segs, classes, fname) = load_train_image_and_annot(self.dataset_dir,
                                                                            self.train_seg_dirs,
                                                                            self.annot_dirs,
@@ -161,6 +163,11 @@ class RPDataset(Dataset):
                                                                         image,
                                                                         fname, force_fg)
         
+
+
+
+
+
         im_patch = img_as_float32(im_patch)
         im_patch = im_utils.normalize_patch(im_patch)
         # ensure image is still 32 bit after normalisation.
@@ -184,12 +191,20 @@ class RPDataset(Dataset):
             backgrounds.append(background)
             # mask is same for all annotations so just return one.
             ignore_mask = np.zeros((self.out_d, self.out_w, self.out_w), dtype=np.uint8)
+            shape_str = f'fname: {fname}, im_patch.shape: {im_patch.shape}, fg: {foreground.shape}'
+            assert im_patch.shape == foreground.shape, shape_str
 
         im_patch = im_patch.astype(np.float32)
         
         # add dimension for input channel
         im_patch = np.expand_dims(im_patch, axis=0)
         assert len(backgrounds) == len(seg_patches)
+
+                
+
+
+
+
         return im_patch, foregrounds, backgrounds, ignore_mask, seg_patches, classes
        
     def get_val_item(self, patch_ref):
