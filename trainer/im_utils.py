@@ -267,7 +267,7 @@ def load_train_image_and_annot(dataset_dir, train_seg_dirs, train_annot_dirs, us
 
                     segs.append(seg)
                 else:
-                    print('no foreground for ', fname)
+                    # print('no foreground for ', fname)
                     pass 
 
         # it's possible the image has a different extenstion
