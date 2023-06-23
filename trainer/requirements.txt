@@ -2,7 +2,7 @@ Pillow==9.0.1
 scikit-image==0.19.3
 nibabel==5.0.0
 pynrrd==0.4.2
-paramiko==2.9.2
+paramiko==3.2.0
 scp==0.14.2
 rp-annot==0.0.4
 numpy==1.23.2
