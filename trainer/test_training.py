@@ -54,46 +54,43 @@ def prep_random_50(dataset_dir):
     # take random 50 images from total segmentor dataset and put them in a folder
     import random
     import shutil
-   
-    if not os.path.isdir(subset_dir_images):
-        print('creating subsets')
-        all_dirs = os.listdir(dataset_dir)
-        all_dirs = [d for d in all_dirs if '50_random' not in d]
-        all_dirs = [d for d in all_dirs if os.path.isdir(os.path.join(dataset_dir, d))]
-        sampled_dirs = random.sample(all_dirs, 50)
+    print('Creating datasets')
+    all_dirs = os.listdir(dataset_dir)
+    all_dirs = [d for d in all_dirs if '50_random' not in d]
+    all_dirs = [d for d in all_dirs if os.path.isdir(os.path.join(dataset_dir, d))]
+    sampled_dirs = random.sample(all_dirs, 50)
 
-        os.makedirs(subset_dir_images)
-        os.makedirs(subset_dir_annots)
-        os.makedirs(annot_train_dir)
+    os.makedirs(subset_dir_images)
+    os.makedirs(subset_dir_annots)
+    os.makedirs(annot_train_dir)
 
-        for d in sampled_dirs:
-            imfpath = os.path.join(dataset_dir, d, 'ct.nii.gz')
-            out_im_fpath = os.path.join(subset_dir_images, d  + '_ct.nii.gz')
-            im = im_utils.load_image(imfpath)
-            img = nib.Nifti1Image(im, np.eye(4))
-            img.to_filename(out_im_fpath)
+    for d in sampled_dirs:
+        imfpath = os.path.join(dataset_dir, d, 'ct.nii.gz')
+        out_im_fpath = os.path.join(subset_dir_images, d  + '_ct.nii.gz')
+        shutil.copyfile(imfpath, out_im_fpath) # images are good to go, no modification required.
 
-            in_annot_fpath = os.path.join(dataset_dir, d, 'segmentations', 'liver.nii.gz')
-            out_annot_fpath = os.path.join(annot_train_dir, d  + '_ct.nii.gz')
+        in_annot_fpath = os.path.join(dataset_dir, d, 'segmentations', 'liver.nii.gz')
+        out_annot_fpath = os.path.join(annot_train_dir, d  + '_ct.nii.gz')
 
-            # convert segmentations (total seg format) to rp3d annotations
-            annot = convert_seg_to_annot(in_annot_fpath)
-            assert im.shape == annot[0].shape
-            annot = nib.Nifti1Image(annot, np.eye(4))
-            annot.to_filename(out_annot_fpath)
-    
+        # convert segmentations (total seg format) to rp3d annotations
+        annot = convert_seg_to_annot(in_annot_fpath)
+        annot = nib.Nifti1Image(annot, np.eye(4))
+        annot.to_filename(out_annot_fpath)
+
+
 def setup_function():
     import urllib.request
     import zipfile
     import shutil
     from test_utils import dl_dir_from_zip
     print('running setup')
-    # prepare training dataset
-    #if not os.path.isdir(datasets_dir):
-    #    os.makedirs(datasets_dir)
-    #total_seg_url = 'https://zenodo.org/record/6802614/files/Totalsegmentator_dataset.zip'
-    #dl_dir_from_zip(total_seg_url, dataset_dir)
-    prep_random_50(total_seg_dataset_dir)
+    if not os.path.isdir(datasets_dir):
+        os.makedirs(datasets_dir)
+    if not os.path.isdir(total_seg_dataset_dir):
+        total_seg_url = 'https://zenodo.org/record/6802614/files/Totalsegmentator_dataset.zip'
+        dl_dir_from_zip(total_seg_url, dataset_dir)
+    if not os.path.isdir(subset_dir_images):
+        prep_random_50(total_seg_dataset_dir)
 
 
 def test_training():
