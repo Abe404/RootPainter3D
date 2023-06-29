@@ -6,7 +6,8 @@ disable=trailing-newlines,
         too-many-locals,
         invalid-name,
         too-many-public-methods,
-        unnecessary-dunder-call
+        unnecessary-dunder-call,
+        consider-using-with
 
 
 
