@@ -162,7 +162,7 @@ def test_training():
 
 def test_validation():
     """ test validation epoch completes without error """
-    in_w = 36 + (3*16)
+    in_w = 36 + (6*16)
     out_w = in_w - 34
     in_d = 52
     out_d = 18
@@ -193,10 +193,12 @@ def test_validation():
 
     model = model_utils.random_model(classes)
 
+    print('Running validation on', len(patch_refs), 'patches from',
+          len(os.listdir(val_annot_dirs[0])), 'images.')
 
-    #assert len(patch_refs) >= os.listdir(val_annot_dirs[0]), (
-    #    f"Should be at least as many patch_refs ({len(patch_refs)}) "
-    #    f" as annotation files {os.listdir(val_annot_dirs[0])}")
+    assert len(patch_refs) >= len(os.listdir(val_annot_dirs[0])), (
+        f"Should be at least as many patch_refs ({len(patch_refs)}) "
+        f" as annotation files {os.listdir(val_annot_dirs[0])}")
 
     val_result = train_utils.val_epoch(model,
                                        classes,
@@ -205,3 +207,6 @@ def test_validation():
                                        step_callback=None,
                                        stop_fn=None)
     assert val_result is not None
+    assert len(val_result) == len(patch_refs)
+
+
