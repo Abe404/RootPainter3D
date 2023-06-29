@@ -16,14 +16,24 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 import os
+import random
+import shutil
+import time
+
 import numpy as np
 import torch
-import time
-import im_utils
 from torch.utils.data import DataLoader
-from datasets import RPDataset
 import nibabel as nib
+
+import im_utils
+from datasets import RPDataset
+import datasets
 import model_utils
+from test_utils import dl_dir_from_zip
+import data_utils
+import train_utils
+
+
 
 # sync directory for use with tests
 sync_dir = os.path.join(os.getcwd(), 'test_rp_sync')
@@ -35,11 +45,14 @@ subset_dir_images = os.path.join(total_seg_dataset_dir, '50_random_images')
 subset_dir_annots = os.path.join(total_seg_dataset_dir, '50_random_annots')
 
 annot_train_dir = os.path.join(subset_dir_annots, 'liver', 'train')
+annot_val_dir = os.path.join(subset_dir_annots, 'liver', 'val')
 
 timeout_ms = 20000
 
 
 def convert_seg_to_annot(in_fpath):
+    """ load the seg file from `in_fpath` 
+        convert to rp annot format (numpy) and return """
     seg = im_utils.load_image(in_fpath)
     assert len(seg.shape) == 3, 'should be 3d binary mask, shape: ' + str(seg.shape)
     seg_bg = seg == 0
@@ -51,26 +64,34 @@ def convert_seg_to_annot(in_fpath):
 
 
 def prep_random_50(dataset_dir):
-    # take random 50 images from total segmentor dataset and put them in a folder
-    import random
-    import shutil
+    """ take random 50 images from total segmentor dataset and put them in a folder
+    """
     print('Creating datasets')
     all_dirs = os.listdir(dataset_dir)
     all_dirs = [d for d in all_dirs if '50_random' not in d]
     all_dirs = [d for d in all_dirs if os.path.isdir(os.path.join(dataset_dir, d))]
-    sampled_dirs = random.sample(all_dirs, 50)
+
+    subset_size = 50
+    sampled_dirs = random.sample(all_dirs, subset_size)
 
     os.makedirs(subset_dir_images)
     os.makedirs(subset_dir_annots)
     os.makedirs(annot_train_dir)
+    os.makedirs(annot_val_dir)
 
-    for d in sampled_dirs:
+    for i, d in enumerate(sampled_dirs):
         imfpath = os.path.join(dataset_dir, d, 'ct.nii.gz')
         out_im_fpath = os.path.join(subset_dir_images, d  + '_ct.nii.gz')
         shutil.copyfile(imfpath, out_im_fpath) # images are good to go, no modification required.
 
         in_annot_fpath = os.path.join(dataset_dir, d, 'segmentations', 'liver.nii.gz')
-        out_annot_fpath = os.path.join(annot_train_dir, d  + '_ct.nii.gz')
+       
+        # copy first 80% to train
+        if i <= (subset_size * 0.8):
+            out_annot_fpath = os.path.join(annot_train_dir, d  + '_ct.nii.gz')
+        else:
+            # and the last 20% to validation
+            out_annot_fpath = os.path.join(annot_val_dir, d  + '_ct.nii.gz')
 
         # convert segmentations (total seg format) to rp3d annotations
         annot = convert_seg_to_annot(in_annot_fpath)
@@ -79,23 +100,19 @@ def prep_random_50(dataset_dir):
 
 
 def setup_function():
-    import urllib.request
-    import zipfile
-    import shutil
-    from test_utils import dl_dir_from_zip
+    """ download and prepare files required for the tests """
     print('running setup')
     if not os.path.isdir(datasets_dir):
         os.makedirs(datasets_dir)
     if not os.path.isdir(total_seg_dataset_dir):
         total_seg_url = 'https://zenodo.org/record/6802614/files/Totalsegmentator_dataset.zip'
-        dl_dir_from_zip(total_seg_url, dataset_dir)
+        dl_dir_from_zip(total_seg_url, datasets_dir)
     if not os.path.isdir(subset_dir_images):
         prep_random_50(total_seg_dataset_dir)
 
 
 def test_training():
-    import data_utils
-    import train_utils
+    """ test training can run one epoch without error """
     in_w = 36 + (3*16)
     out_w = in_w - 34
     in_d = 52
@@ -113,10 +130,10 @@ def test_training():
                         out_w=out_w,
                         in_d=in_d,
                         out_d=out_d,
-                        mode='train',
+                        mode=datasets.Modes.TRAIN,
                         patch_refs=None,
                         use_seg_in_training=False,
-                        length=120)
+                        length=batch_size*4)
 
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=False,
                         collate_fn=data_utils.collate_fn,
@@ -136,6 +153,55 @@ def test_training():
                                      optimizer=optimizer,
                                      step_callback=None,
                                      stop_fn=None)
+    assert train_result
     print('')
     print('Train epoch complete in', round(time.time() - start_time, 1), 'seconds')
     # pass - epoch runs without error.
+
+
+
+def test_validation():
+    """ test validation epoch completes without error """
+    in_w = 36 + (3*16)
+    out_w = in_w - 34
+    in_d = 52
+    out_d = 18
+    classes = ['liver']
+
+    val_annot_dirs = [annot_val_dir] # for liver
+
+    # should be some files in the annot dir for this test to work
+    assert os.path.isdir(val_annot_dirs[0])
+    assert os.listdir(val_annot_dirs[0])
+
+    patch_refs = im_utils.get_val_patch_refs(
+        val_annot_dirs,
+        [],
+        out_shape=(out_d, out_w, out_w))
+ 
+
+    dataset = RPDataset(val_annot_dirs,
+                        None, # train_seg_dirs
+                        dataset_dir=subset_dir_images,
+                        # only specifying w and d as h is always same as w
+                        in_w=in_w,
+                        out_w=out_w,
+                        in_d=in_d,
+                        out_d=out_d,
+                        mode=datasets.Modes.VAL, 
+                        patch_refs=patch_refs)
+
+    model = model_utils.random_model(classes)
+
+
+    #assert len(patch_refs) >= os.listdir(val_annot_dirs[0]), (
+    #    f"Should be at least as many patch_refs ({len(patch_refs)}) "
+    #    f" as annotation files {os.listdir(val_annot_dirs[0])}")
+
+    val_result = train_utils.val_epoch(model,
+                                       classes,
+                                       dataset,
+                                       patch_refs,
+                                       step_callback=None,
+                                       stop_fn=None)
+    assert val_result is not None

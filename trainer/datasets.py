@@ -20,6 +20,7 @@ import math
 import os
 from pathlib import Path
 from file_utils import ls
+from enum import Enum
 
 import torch
 import numpy as np
@@ -28,6 +29,10 @@ from torch.utils.data import Dataset
 
 from im_utils import load_train_image_and_annot
 import im_utils
+
+class Modes(Enum):
+    TRAIN = 1
+    VAL = 2
 
 def rnd():
     """ Give higher than random chance to select the edges """
@@ -55,6 +60,7 @@ class RPDataset(Dataset):
             When the data is 3D the raw channels (for each class)
             are saved and the RGB values are not necessary.
         """
+        assert mode in Modes
         self.mode = mode
         self.in_w = in_w
         self.out_w = out_w
@@ -71,14 +77,14 @@ class RPDataset(Dataset):
         self.use_seg = use_seg_in_training
 
     def __len__(self):
-        if self.mode == 'val':
+        if self.mode == Modes.Val:
             return len(self.patch_refs)
         if self.patch_refs is not None:
             return len(self.patch_refs)
         return self.length
 
     def __getitem__(self, i):
-        if self.mode == 'val':
+        if self.mode == Modes.VAL:
             return self.get_val_item(self.patch_refs[i])
         if self.patch_refs is not None:
             return self.get_train_item(self.patch_refs)

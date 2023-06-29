@@ -33,6 +33,7 @@ from torch.utils.data import DataLoader
 from metrics import Metrics
 from instructions import fix_config_paths
 from datasets import RPDataset
+import datasets
 
 import model_utils
 from model_utils import load_model_then_segment_3d
@@ -270,7 +271,7 @@ class Trainer():
                             self.train_config['out_w'],
                             self.train_config['in_d'],
                             self.train_config['out_d'],
-                            'val', # FIXME: mode should be an enum.
+                            datasets.Modes.VAL,
                             val_patch_refs)
 
 
@@ -305,7 +306,7 @@ class Trainer():
                             self.train_config['out_w'],
                             self.train_config['in_d'],
                             self.train_config['out_d'],
-                            'train',
+                            datasets.Modes.TRAIN,
                             None,
                             self.use_seg_in_training,
                             length=length)
