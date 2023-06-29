@@ -147,13 +147,13 @@ def test_training():
 
     start_time = time.time()
 
-    train_result = train_utils.epoch(model,
-                                     classes,
-                                     loader,
-                                     batch_size,
-                                     optimizer=optimizer,
-                                     step_callback=None,
-                                     stop_fn=None)
+    train_result = train_utils.train_epoch(model,
+                                           classes,
+                                           loader,
+                                           batch_size,
+                                           optimizer=optimizer,
+                                           step_callback=None,
+                                           stop_fn=None)
     assert train_result
     print('')
     print('Train epoch complete in', round(time.time() - start_time, 1), 'seconds')
@@ -243,7 +243,7 @@ def test_training_converges():
     model = model_utils.random_model(classes)
     optimizer = torch.optim.SGD(model.parameters(), lr=0.01,
                                 momentum=0.99, nesterov=True)
-    for i in range(10):
+    for _ in range(10):
         start_time = time.time()
         train_result = train_utils.train_epoch(model,
                                                classes,
