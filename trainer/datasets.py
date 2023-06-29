@@ -77,7 +77,7 @@ class RPDataset(Dataset):
         self.use_seg = use_seg_in_training
 
     def __len__(self):
-        if self.mode == Modes.Val:
+        if self.mode == Modes.VAL:
             return len(self.patch_refs)
         if self.patch_refs is not None:
             return len(self.patch_refs)
@@ -103,7 +103,7 @@ class RPDataset(Dataset):
         right_lim = image.shape[2] - self.in_w
 
         attempts = 0 
-        warn_after_attempts = 100
+        warn_after_attempts = 1000
         
         while True:
             attempts += 1
@@ -125,7 +125,6 @@ class RPDataset(Dataset):
                     seg_patches.append(seg[z_in:z_in+self.in_d,
                                          y_in:y_in+self.in_w,
                                          x_in:x_in+self.in_w])
-
 
 
             # we only want annotations with defiend regions in the output area.
