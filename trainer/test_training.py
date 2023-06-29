@@ -32,6 +32,7 @@ import model_utils
 from test_utils import dl_dir_from_zip
 import data_utils
 import train_utils
+from metrics import Metrics
 
 
 
@@ -210,3 +211,52 @@ def test_validation():
     assert len(val_result) == len(patch_refs)
 
 
+def test_training_converges():
+    """ test training can get to a model with training dice of 0.6 """
+    in_w = 36 + (3*16)
+    out_w = in_w - 34
+    in_d = 52
+    out_d = 18
+    num_workers = 12
+    batch_size = 6
+    classes = ['liver']
+
+    train_annot_dirs = [annot_train_dir] # for liver
+
+    dataset = RPDataset(train_annot_dirs,
+                        train_seg_dirs=[None] * len(train_annot_dirs),
+                        dataset_dir=subset_dir_images,
+                        in_w=in_w,
+                        out_w=out_w,
+                        in_d=in_d,
+                        out_d=out_d,
+                        mode=datasets.Modes.TRAIN,
+                        patch_refs=None,
+                        use_seg_in_training=False,
+                        length=batch_size*64)
+
+    loader = DataLoader(dataset, batch_size=batch_size, shuffle=False,
+                        collate_fn=data_utils.collate_fn,
+                        num_workers=num_workers,
+                        drop_last=False, pin_memory=True)
+
+    model = model_utils.random_model(classes)
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.01,
+                                momentum=0.99, nesterov=True)
+    for i in range(10):
+        start_time = time.time()
+        train_result = train_utils.train_epoch(model,
+                                               classes,
+                                               loader,
+                                               batch_size,
+                                               optimizer=optimizer,
+                                               step_callback=None,
+                                               stop_fn=None)
+        assert train_result
+        print('')
+        print('Train epoch complete in', round(time.time() - start_time, 1), 'seconds')
+        train_metrics = Metrics.sum(train_result)
+        if train_metrics.dice() > 0.6:
+            return # test passes.
+        print('Metrics', train_metrics.__str__(to_use=['dice']))
+    raise Exception('Dice did not get to 0.6 in 10 epochs')
