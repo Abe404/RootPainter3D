@@ -32,6 +32,7 @@ def train_epoch(model, classes, loader, batch_size,
     """ One training epoch """
     assert isinstance(classes, list), f'classes should be list, classes:{classes}'
     model.train()
+    torch.set_grad_enabled(True)
 
     epoch_start = time.time()
     epoch_items_metrics = []  
