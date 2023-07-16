@@ -45,8 +45,12 @@ total_seg_dataset_dir = os.path.join(datasets_dir, 'total_seg')
 subset_dir_images = os.path.join(total_seg_dataset_dir, '50_random_images')
 subset_dir_annots = os.path.join(total_seg_dataset_dir, '50_random_annots')
 
-annot_train_dir = os.path.join(subset_dir_annots, 'liver', 'train')
-annot_val_dir = os.path.join(subset_dir_annots, 'liver', 'val')
+liver_annot_train_dir = os.path.join(subset_dir_annots, 'liver', 'train')
+liver_annot_val_dir = os.path.join(subset_dir_annots, 'liver', 'val')
+
+spleen_annot_train_dir = os.path.join(subset_dir_annots, 'spleen', 'train')
+spleen_annot_val_dir = os.path.join(subset_dir_annots, 'spleen', 'val')
+
 
 timeout_ms = 20000
 
@@ -77,27 +81,39 @@ def prep_random_50(dataset_dir):
 
     os.makedirs(subset_dir_images)
     os.makedirs(subset_dir_annots)
-    os.makedirs(annot_train_dir)
-    os.makedirs(annot_val_dir)
+    os.makedirs(liver_annot_train_dir)
+    os.makedirs(liver_annot_val_dir)
+
+    os.makedirs(spleen_annot_train_dir)
+    os.makedirs(spleen_annot_val_dir)
+
+
 
     for i, d in enumerate(sampled_dirs):
         imfpath = os.path.join(dataset_dir, d, 'ct.nii.gz')
         out_im_fpath = os.path.join(subset_dir_images, d  + '_ct.nii.gz')
         shutil.copyfile(imfpath, out_im_fpath) # images are good to go, no modification required.
 
-        in_annot_fpath = os.path.join(dataset_dir, d, 'segmentations', 'liver.nii.gz')
+        liver_in_annot_fpath = os.path.join(dataset_dir, d, 'segmentations', 'liver.nii.gz')
+        spleen_in_annot_fpath = os.path.join(dataset_dir, d, 'segmentations', 'spleen.nii.gz')
        
         # copy first 80% to train
         if i <= (subset_size * 0.8):
-            out_annot_fpath = os.path.join(annot_train_dir, d  + '_ct.nii.gz')
+            liver_out_annot_fpath = os.path.join(liver_annot_train_dir, d  + '_ct.nii.gz')
+            spleen_out_annot_fpath = os.path.join(spleen_annot_train_dir, d  + '_ct.nii.gz')
         else:
             # and the last 20% to validation
-            out_annot_fpath = os.path.join(annot_val_dir, d  + '_ct.nii.gz')
+            liver_out_annot_fpath = os.path.join(liver_annot_val_dir, d  + '_ct.nii.gz')
+            spleen_out_annot_fpath = os.path.join(spleen_annot_val_dir, d  + '_ct.nii.gz')
 
         # convert segmentations (total seg format) to rp3d annotations
-        annot = convert_seg_to_annot(in_annot_fpath)
-        annot = nib.Nifti1Image(annot, np.eye(4))
-        annot.to_filename(out_annot_fpath)
+        liver_annot = convert_seg_to_annot(liver_in_annot_fpath)
+        liver_annot = nib.Nifti1Image(liver_annot, np.eye(4))
+        liver_annot.to_filename(liver_out_annot_fpath)
+
+        spleen_annot = convert_seg_to_annot(spleen_in_annot_fpath)
+        spleen_annot = nib.Nifti1Image(spleen_annot, np.eye(4))
+        spleen_annot.to_filename(spleen_out_annot_fpath)
 
 
 def setup_function():
@@ -122,7 +138,7 @@ def test_training():
     batch_size = 6
     classes = ['liver']
 
-    train_annot_dirs = [annot_train_dir] # for liver
+    train_annot_dirs = [liver_annot_train_dir] # for liver
 
     dataset = RPDataset(train_annot_dirs,
                         train_seg_dirs=[None] * len(train_annot_dirs),
@@ -169,7 +185,7 @@ def test_validation():
     out_d = 18
     classes = ['liver']
 
-    val_annot_dirs = [annot_val_dir] # for liver
+    val_annot_dirs = [liver_annot_val_dir] # for liver
 
     # should be some files in the annot dir for this test to work
     assert os.path.isdir(val_annot_dirs[0])
@@ -221,7 +237,7 @@ def test_training_converges():
     batch_size = 6
     classes = ['liver']
 
-    train_annot_dirs = [annot_train_dir] # for liver
+    train_annot_dirs = [liver_annot_train_dir] # for liver
 
     dataset = RPDataset(train_annot_dirs,
                         train_seg_dirs=[None] * len(train_annot_dirs),
@@ -272,8 +288,8 @@ def test_training_converges_on_validation():
     batch_size = 6
     classes = ['liver']
 
-    train_annot_dirs = [annot_train_dir] # for liver
-    val_annot_dirs = [annot_val_dir] # for liver
+    train_annot_dirs = [liver_annot_train_dir] # for liver
+    val_annot_dirs = [liver_annot_val_dir] # for liver
 
     dataset = RPDataset(train_annot_dirs,
                         train_seg_dirs=[None] * len(train_annot_dirs),
@@ -344,6 +360,51 @@ def test_training_converges_on_validation():
     raise Exception('Validation Dice did not get to 0.6 in 40 epochs')
 
 
+def test_multiclass_validation():
+    """ test validation does not throw exception when multiple classes used.
+        Dont train - only validate the initial random model """
+    in_w = 36 + (3*16)
+    out_w = in_w - 34
+    in_d = 52
+    out_d = 18
+    num_workers = 12
+    batch_size = 6
+    classes = ['liver', 'spleen']
 
+    val_annot_dirs = [liver_annot_val_dir, spleen_annot_val_dir]
 
+    model = model_utils.random_model(classes)
+
+    # should be some files in the annot dir for this test to work
+    assert os.path.isdir(val_annot_dirs[0])
+    assert os.listdir(val_annot_dirs[0])
+    assert os.path.isdir(val_annot_dirs[1])
+    assert os.listdir(val_annot_dirs[1])
+
+    patch_refs = im_utils.get_val_patch_refs(
+        val_annot_dirs,
+        [],
+        out_shape=(out_d, out_w, out_w))
+ 
+    val_dataset = RPDataset(val_annot_dirs,
+                            None, # train_seg_dirs
+                            dataset_dir=subset_dir_images,
+                            # only specifying w and d as h is always same as w
+                            in_w=in_w,
+                            out_w=out_w,
+                            in_d=in_d,
+                            out_d=out_d,
+                            mode=datasets.Modes.VAL, 
+                            patch_refs=patch_refs)
+
+    start_time = time.time()
+    val_result = train_utils.val_epoch(model,
+                                       classes,
+                                       val_dataset,
+                                       patch_refs,
+                                       step_callback=None,
+                                       stop_fn=None)
+    val_metrics = Metrics.sum(val_result)
+    print('val metrics dice', val_metrics.dice())
+    assert val_metrics.dice() > 0.000001
 
