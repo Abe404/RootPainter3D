@@ -288,12 +288,12 @@ class RPDataset(Dataset):
         annots = []
         for annot_dir in self.annot_dirs:
             annot_path = os.path.join(annot_dir, annot_fname)
-
-            annot = im_utils.load_with_retry(im_utils.load_image, annot_path)
-            classes.append(Path(annot_dir).parts[-2])
-            
-            # pad to provide annotation at same size as input image.
-            annot = np.pad(annot, ((0, 0), (17, 17), (17, 17), (17, 17)), mode='constant')
-            annots.append(annot)
+            if os.path.isfile(annot_path):
+                annot = im_utils.load_with_retry(im_utils.load_image, annot_path)
+                classes.append(Path(annot_dir).parts[-2])
+                
+                # pad to provide annotation at same size as input image.
+                annot = np.pad(annot, ((0, 0), (17, 17), (17, 17), (17, 17)), mode='constant')
+                annots.append(annot)
         return annots, classes
 
