@@ -503,9 +503,63 @@ def test_get_val_patch_refs():
 
 
 def test_training_patch_size_bigger_than_image():
-    """ test that validation does not fail when the patch size
+    """ test that training does not error when the patch size
         for the neural network is bigger than the images. """
-    pass
+    larger_in_w = 36 + (40*16)
+    out_w = larger_in_w - 34
+    in_d = 52
+    out_d = 18
+    num_workers = 12
+    batch_size = 6
+    classes = ['liver']
+
+    train_annot_dirs = [liver_annot_train_dir] # for liver
+
+    fnames = os.listdir(subset_dir_images)
+
+    # we will try training on images that are all smaller than the patch width.
+    for f in fnames:
+        fpath = os.path.join(subset_dir_images, f)
+        im = im_utils.load_image(fpath)
+        assert im.shape[1] < larger_in_w
+
+    dataset = RPDataset(train_annot_dirs,
+                        train_seg_dirs=[None] * len(train_annot_dirs),
+                        dataset_dir=subset_dir_images,
+                        in_w=larger_in_w,
+                        out_w=out_w,
+                        in_d=in_d,
+                        out_d=out_d,
+                        mode=datasets.Modes.TRAIN,
+                        patch_refs=None,
+                        use_seg_in_training=False,
+                        length=batch_size*4)
+
+    loader = DataLoader(dataset, batch_size=batch_size, shuffle=False,
+                        collate_fn=data_utils.collate_fn,
+                        num_workers=num_workers,
+                        drop_last=False, pin_memory=True)
+
+    model = model_utils.random_model(classes)
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.01,
+                                momentum=0.99, nesterov=True)
+
+    start_time = time.time()
+
+    train_result = train_utils.train_epoch(model,
+                                           classes,
+                                           loader,
+                                           batch_size,
+                                           optimizer=optimizer,
+                                           step_callback=None,
+                                           stop_fn=None)
+    assert train_result
+    print('')
+    print('Train epoch complete in', round(time.time() - start_time, 1), 'seconds')
+    # pass - epoch runs without error.
+
+
+
 
 
 
