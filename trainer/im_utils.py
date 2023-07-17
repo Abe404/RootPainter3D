@@ -163,8 +163,8 @@ def load_image_and_annot_for_seg(dataset_dir, train_annot_dirs, fname):
         annots = []
 
         for annot_dir in annot_dirs:
-            annot_path = os.path.join(annot_dir, fname)
-            annot = load_image(annot_path)
+            annot_fpath = os.path.join(annot_dir, fname)
+            annot = load_image(annot_fpath)
             # Why would we have annotations without content?
             assert np.sum(annot) > 0
             annot = np.pad(annot, ((0, 0), (17,17), (17,17), (17, 17)), mode='constant')
@@ -243,8 +243,8 @@ def load_train_image_and_annot(dataset_dir, train_seg_dirs, train_annot_dirs, us
             segs = []
 
             for annot_dir, seg_dir in zip(annot_dirs, seg_dirs): # for each of the classes.
-                annot_path = os.path.join(annot_dir, fname)
-                annot = load_image(annot_path).astype(int)
+                annot_fpath = os.path.join(annot_dir, fname)
+                annot = load_image(annot_fpath).astype(int)
 
                 # Why would we have annotations without content?
                 assert np.any(annot)
@@ -323,66 +323,67 @@ def get_val_patch_refs(annot_dirs, prev_patch_refs, out_shape):
     #  make a large list of classes that corresponds to all the file names. Ive done this elsewhere.
 
     # This might take ages, profile and optimize
-    cur_annot_fnames = []
-    # each annotation corresponds to an individual class.
-    all_classes = []
-    all_dirs = []
+
+
+    # create a list of annotation file paths to check
+    # this should include all current annotation files on disk
+    # and any in the prev_patch_refs (as these need removing)
+
+    annot_fpaths_to_check = []
 
     for annot_dir in annot_dirs:
         annot_fnames = ls(annot_dir)
         if annot_fnames:
-            cur_annot_fnames += annot_fnames
-            # Assuming class name is in annotation path
-            # i.e annotations/{class_name}/train/annot1.png,annot2.png..
-            class_name = Path(annot_dir).parts[-2]
-            all_classes += [class_name] * len(annot_fnames)
-            all_dirs += [annot_dir] * len(annot_fnames)
+            for a in annot_fnames:
+                annot_fpaths_to_check.append(os.path.join(annot_dir, a))
     
-    prev_annot_fnames = [r.annot_fname for r in prev_patch_refs]
-    all_annot_fnames = set(cur_annot_fnames + prev_annot_fnames)
+    for prev in prev_patch_refs:
+        annot_fpaths_to_check.append(prev.annot_fpath())
 
-    for annot_dir, annot_fname in zip(all_dirs, all_annot_fnames):
+    # no need to check the same file twice if it is in both
+    # the current file system and the prev refs
+    annot_fpaths_to_check = set(annot_fpaths_to_check)
+
+    for annot_fpath in annot_fpaths_to_check:
         # get existing coord refs for this image
-        prev_refs = [r for r in prev_patch_refs if r.annot_fname == annot_fname]
+        prev_refs = [r for r in prev_patch_refs if r.annot_fpath() == annot_fpath]
         prev_mtimes = [r.mtime for r in prev_refs]
         need_new_refs = False
         # if no refs for this image then check again
         if not prev_refs:
             need_new_refs = True
         else:
-            annot_path = os.path.join(annot_dir, annot_fname)
             # if the file no longer exists then we do need new refs
             # surprisingly this did happen, I presume the file list was somehow out of date
             # and the removal of the file was only detected when trying to read it.
-            if not os.path.isfile(annot_path):
+            if not os.path.isfile(annot_fpath):
                 need_new_refs = True
             else:
                 # otherwise check the modified time of the refs against the file.
                 prev_mtime = prev_mtimes[0]
-                cur_mtime = os.path.getmtime(os.path.join(annot_dir, annot_fname))
+                cur_mtime = os.path.getmtime(annot_fpath)
 
                 # if file has been updated then get new refs
                 if cur_mtime > prev_mtime:
                     need_new_refs = True
         if need_new_refs:
-            new_file_refs = get_val_patch_refs_for_annot_3d(annot_dir, annot_fname, out_shape)
+            new_file_refs = get_val_patch_refs_for_annot_3d(annot_fpath, out_shape)
             patch_refs += new_file_refs
         else:
             patch_refs += prev_refs
     return patch_refs
 
 
-def get_val_patch_refs_for_annot_3d(annot_dir, annot_fname, out_shape):
+def get_val_patch_refs_for_annot_3d(annot_fpath, out_shape):
     """
     """
-    annot_path = os.path.join(annot_dir, annot_fname)
-    if not os.path.isfile(annot_path):
+    if not os.path.isfile(annot_fpath):
         return []
-    annot = load_image(annot_path)
+    annot = load_image(annot_fpath)
     new_file_refs = []
     annot_shape = annot.shape[1:]
     coords = get_coords_3d(annot_shape, out_patch_shape=out_shape)
-    mtime = os.path.getmtime(annot_path)
+    mtime = os.path.getmtime(annot_fpath)
 
     # which regions to ignore because they already exist in another patch
     full_ignore_mask = np.zeros(list(annot.shape)[1:]) 
@@ -397,8 +398,8 @@ def get_val_patch_refs_for_annot_3d(annot_dir, annot_fname, out_shape):
         if np.any(annot_patch):
             # fname, [x, y, z], mtime, prev model metrics i.e [tp, tn, fp, fn] or None
             
-            new_ref = PatchRef(annot_dir=annot_dir,
-                               annot_fname=annot_fname,
+            new_ref = PatchRef(annot_dir=os.path.dirname(annot_fpath),
+                               annot_fname=os.path.basename(annot_fpath),
                                x=x, y=y, z=z, mtime=mtime,
                                ignore_mask=ignore_mask)
             new_file_refs.append(new_ref)

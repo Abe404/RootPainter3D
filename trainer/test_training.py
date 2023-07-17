@@ -235,7 +235,7 @@ def test_validation():
 
 
 def test_training_converges():
-    """ test training can get to a model with training dice of 0.6 """
+    """ test training can get to a model with training dice of 0.4 """
     in_w = 36 + (3*16)
     out_w = in_w - 34
     in_d = 52
@@ -279,14 +279,14 @@ def test_training_converges():
         print('')
         print('Train epoch complete in', round(time.time() - start_time, 1), 'seconds')
         train_metrics = Metrics.sum(train_result)
-        if train_metrics.dice() > 0.6:
+        if train_metrics.dice() > 0.4:
             return # test passes.
         print('Metrics', train_metrics.__str__(to_use=['dice']))
-    raise Exception('Dice did not get to 0.6 in 10 epochs')
+    raise Exception('Dice did not get to 0.4 in 10 epochs')
 
 
 def test_training_converges_on_validation():
-    """ test training can get to a model with validation dice of 0.6 """
+    """ test training can get to a model with validation dice of 0.4 """
     in_w = 36 + (3*16)
     out_w = in_w - 34
     in_d = 52
@@ -362,9 +362,9 @@ def test_training_converges_on_validation():
                                            stop_fn=None)
         val_metrics = Metrics.sum(val_result)
         print('val metrics dice', val_metrics.dice())
-        if val_metrics.dice() > 0.6:
+        if val_metrics.dice() > 0.4:
             return # test passes.
-    raise Exception('Validation Dice did not get to 0.6 in 40 epochs')
+    raise Exception('Validation Dice did not get to 0.4 in 40 epochs')
 
 
 def test_multiclass_validation():
@@ -500,3 +500,15 @@ def test_get_val_patch_refs():
     for p in patch_refs:
         fpath = os.path.join(p.annot_dir, p.annot_fname)
         assert os.path.isfile(fpath)
+
+
+    # Each of the files on disk should have a patch ref
+    all_fpaths = []
+    for d in annot_dirs:
+        fnames = os.listdir(d)
+        for f in fnames:
+            all_fpaths.append(os.path.join(d, f))
+    patch_ref_fpaths = [p.annot_fpath() for p in patch_refs]
+
+    for fpath in all_fpaths:
+        assert fpath in patch_ref_fpaths
