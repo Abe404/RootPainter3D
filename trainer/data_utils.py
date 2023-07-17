@@ -2,7 +2,7 @@
 """
 Form a batch
 
-Copyright (C) 2021 Abraham George Smith
+Copyright (C) 2021-2023 Abraham George Smith
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -17,6 +17,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 import numpy as np
+import im_utils
 
 def collate_fn(batch):
     num_items = len(batch)
@@ -26,7 +27,6 @@ def collate_fn(batch):
     batch_segs = []
     batch_classes = []
     ignore_masks = []
-
     for i in range(num_items):
         item = batch[i]
         class_data = {}
@@ -37,5 +37,38 @@ def collate_fn(batch):
         batch_segs.append(item[4])
         batch_classes.append(item[5])
 
-    im_patches = np.array(im_patches)
-    return im_patches, batch_fgs, batch_bgs, ignore_masks, batch_segs, batch_classes
+    max_d = max(i.shape[1] for i in im_patches)
+    max_h = max(i.shape[2] for i in im_patches)
+    max_w = max(i.shape[3] for i in im_patches)
+    
+    im_patches_padded = []
+    for im_patch in im_patches:
+        new_im_patch, was_padded = im_utils.maybe_pad_image_to_pad_size(
+            im_patch[0], (max_d, max_h, max_w))
+        # add channel dimension back as it is expected.
+        im_patches_padded.append(np.expand_dims(new_im_patch, 0)) 
+    im_patches = np.array(im_patches_padded)
+
+    batch_fgs_padded = []
+    for fgs in batch_fgs:
+        new_fgs = []
+        for fg_patch in fgs:
+            new_fg_patch, was_padded = im_utils.maybe_pad_image_to_pad_size(
+                fg_patch, (max_d, max_h, max_w))
+            new_fgs.append(new_fg_patch)
+        # append all fg patches for this image to the list for the batch
+        batch_fgs_padded.append(new_fgs) 
+
+    batch_bgs_padded = []
+    for bgs in batch_bgs:
+        new_bgs = []
+        for fg_patch in bgs:
+            new_fg_patch, was_padded = im_utils.maybe_pad_image_to_pad_size(
+                fg_patch, (max_d, max_h, max_w))
+            new_bgs.append(new_fg_patch)
+        # append all bg patches for this image to the list for the batch
+        batch_bgs_padded.append(new_bgs) 
+
+    im_patches = np.array(im_patches_padded)
+    
+    return im_patches, batch_fgs_padded, batch_bgs_padded, ignore_masks, batch_segs, batch_classes

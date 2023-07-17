@@ -33,7 +33,7 @@ from test_utils import dl_dir_from_zip
 import data_utils
 import train_utils
 from metrics import Metrics
-
+from data_utils import collate_fn
 
 
 # sync directory for use with tests
@@ -509,7 +509,7 @@ def test_training_patch_size_bigger_than_image():
     out_w = larger_in_w - 34
     in_d = 52
     out_d = 18
-    num_workers = 12
+    num_workers = 0
     batch_size = 6
     classes = ['liver']
 
@@ -560,6 +560,48 @@ def test_training_patch_size_bigger_than_image():
 
 
 
+def test_collate_pad_image_patches_to_largest():
+    """ test that the collate_fn will pad the 
+        items to the largest dimensions found.
 
+    """
+    mock_items = []
+    mock_items.append([
+        np.zeros((1, 52, 253, 64)), # im_patch 
+        [np.zeros(torch.Size([52, 253, 64]))], # fg patches
+        [np.zeros(torch.Size([52, 253, 64]))], # bg patches
+        np.zeros((18, 642, 642)),# ignore_mask shape 
+        None, # seg 
+        ['liver'], # class
+    ])
+    mock_items.append([
+        np.zeros((1, 52, 192, 271)),# im_patch 
+        [np.zeros(torch.Size([52, 192, 271]))], # fg patches
+        [np.zeros(torch.Size([52, 192, 271]))], # bg patches
+        np.zeros((18, 642, 642)),# ignore_mask shape 
+        None, # seg 
+        ['liver'], # class
+    ])
+    mock_items.append([
+        np.zeros((1, 52, 253, 113)),# im_patch 
+        [np.zeros(torch.Size([52, 253, 113]))], # fg patches
+        [np.zeros(torch.Size([52, 253, 113]))], # bg patches
+        np.zeros((18, 642, 642)),# ignore_mask shape 
+        None, # seg 
+        ['liver'], # class
+    ])
+    collated = collate_fn(mock_items)
 
+    (patches, batch_fgs, batch_bgs,
+     ignore_masks, batch_segs, batch_classes) = collated
 
+    assert len(patches) == len(mock_items)
+    assert len(batch_fgs) == len(mock_items)
+
+    expected_im_shape = (1, 52, 253, 271)
+    for p in patches:
+        assert p.shape == expected_im_shape
+
+    expected_annot_shape = (52, 253, 271)
+    for a in batch_fgs + batch_bgs:
+        assert a[0].shape == expected_annot_shape
