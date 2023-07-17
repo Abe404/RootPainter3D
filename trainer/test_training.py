@@ -472,3 +472,31 @@ def test_multiclass_validation_missing_annotations():
     print('val metrics dice', val_metrics.dice())
     assert val_metrics.dice() > 0.000001
 
+
+
+
+def test_get_val_patch_refs():
+    """ get val patch refs should return a
+        list of patches for each folder in the annotation directory.
+    """
+
+    in_w = 36 + (3*16)
+    out_w = in_w - 34
+    in_d = 52
+    out_d = 18
+    out_shape = (out_d, out_w, out_w)
+    prev_patch_refs = []
+
+    annot_dirs = [liver_annot_val_dir, partial_spleen_annot_val_dir]
+    patch_refs = im_utils.get_val_patch_refs(annot_dirs, prev_patch_refs, out_shape)
+    
+    # the patch refs should contain items for both directories.
+    patch_ref_dirs = set(p.annot_dir for p in patch_refs)
+
+    for d in annot_dirs:
+        assert d in patch_ref_dirs
+
+    # Each of the patch refs should refer to actual files on disk
+    for p in patch_refs:
+        fpath = os.path.join(p.annot_dir, p.annot_fname)
+        assert os.path.isfile(fpath)
