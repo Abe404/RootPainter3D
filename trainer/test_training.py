@@ -42,8 +42,8 @@ annot_dir = os.path.join(sync_dir, 'projects', 'total_seg_test', 'annotations')
 datasets_dir = os.path.join(sync_dir, 'datasets')
 total_seg_dataset_dir = os.path.join(datasets_dir, 'total_seg')
 
-subset_dir_images = os.path.join(total_seg_dataset_dir, '50_random_images')
-subset_dir_annots = os.path.join(total_seg_dataset_dir, '50_random_annots')
+subset_dir_images = os.path.join(total_seg_dataset_dir, '100_random_images')
+subset_dir_annots = os.path.join(total_seg_dataset_dir, '100_random_annots')
 
 liver_annot_train_dir = os.path.join(subset_dir_annots, 'liver', 'train')
 liver_annot_val_dir = os.path.join(subset_dir_annots, 'liver', 'val')
@@ -52,6 +52,8 @@ spleen_annot_train_dir = os.path.join(subset_dir_annots, 'spleen', 'train')
 spleen_annot_val_dir = os.path.join(subset_dir_annots, 'spleen', 'val')
 partial_spleen_annot_val_dir = os.path.join(subset_dir_annots, 'spleen_partial', 'val')
 
+    
+in_w = 36 + (3*16)
 
 timeout_ms = 20000
 
@@ -69,15 +71,15 @@ def convert_seg_to_annot(in_fpath):
     return annot
 
 
-def prep_random_50(dataset_dir):
-    """ take random 50 images from total segmentor dataset and put them in a folder
+def prep_random_100(dataset_dir):
+    """ take random 100 images from total segmentor dataset and put them in a folder
     """
     print('Creating datasets')
     all_dirs = os.listdir(dataset_dir)
-    all_dirs = [d for d in all_dirs if '50_random' not in d]
+    all_dirs = [d for d in all_dirs if '100_random' not in d]
     all_dirs = [d for d in all_dirs if os.path.isdir(os.path.join(dataset_dir, d))]
 
-    subset_size = 50
+    subset_size = 100
     sampled_dirs = random.sample(all_dirs, subset_size)
 
     os.makedirs(subset_dir_images)
@@ -106,7 +108,8 @@ def prep_random_50(dataset_dir):
             # and the last 20% to validation
             liver_out_annot_fpath = os.path.join(liver_annot_val_dir, d  + '_ct.nii.gz')
             spleen_out_annot_fpath = os.path.join(spleen_annot_val_dir, d  + '_ct.nii.gz')
-            partial_spleen_out_annot_fpath = os.path.join(partial_spleen_annot_val_dir, d + '_ct.nii.gz')
+            partial_spleen_out_annot_fpath = os.path.join(partial_spleen_annot_val_dir,
+                                                          d + '_ct.nii.gz')
 
         # convert segmentations (total seg format) to rp3d annotations
         liver_annot = convert_seg_to_annot(liver_in_annot_fpath)
@@ -132,12 +135,11 @@ def setup_function():
         total_seg_url = 'https://zenodo.org/record/6802614/files/Totalsegmentator_dataset.zip'
         dl_dir_from_zip(total_seg_url, datasets_dir)
     if not os.path.isdir(subset_dir_images):
-        prep_random_50(total_seg_dataset_dir)
+        prep_random_100(total_seg_dataset_dir)
 
 
 def test_training():
     """ test training can run one epoch without error """
-    in_w = 36 + (3*16)
     out_w = in_w - 34
     in_d = 52
     out_d = 18
@@ -186,7 +188,6 @@ def test_training():
 
 def test_validation():
     """ test validation epoch completes without error """
-    in_w = 36 + (6*16)
     out_w = in_w - 34
     in_d = 52
     out_d = 18
@@ -236,7 +237,6 @@ def test_validation():
 
 def test_training_converges():
     """ test training can get to a model with training dice of 0.4 """
-    in_w = 36 + (3*16)
     out_w = in_w - 34
     in_d = 52
     out_d = 18
@@ -287,7 +287,6 @@ def test_training_converges():
 
 def test_training_converges_on_validation():
     """ test training can get to a model with validation dice of 0.4 """
-    in_w = 36 + (3*16)
     out_w = in_w - 34
     in_d = 52
     out_d = 18
@@ -370,12 +369,9 @@ def test_training_converges_on_validation():
 def test_multiclass_validation():
     """ test validation does not throw exception when multiple classes used.
         Dont train - only validate the initial random model """
-    in_w = 36 + (3*16)
     out_w = in_w - 34
     in_d = 52
     out_d = 18
-    num_workers = 12
-    batch_size = 6
     classes = ['liver', 'spleen']
 
     val_annot_dirs = [liver_annot_val_dir, spleen_annot_val_dir]
@@ -404,7 +400,6 @@ def test_multiclass_validation():
                             mode=datasets.Modes.VAL, 
                             patch_refs=patch_refs)
 
-    start_time = time.time()
     val_result = train_utils.val_epoch(model,
                                        classes,
                                        val_dataset,
@@ -427,12 +422,9 @@ def test_multiclass_validation_missing_annotations():
         The aim is to reproduce a reported bug:
         https://github.com/Abe404/RootPainter3D/issues/32
     """
-    in_w = 36 + (3*16)
     out_w = in_w - 34
     in_d = 52
     out_d = 18
-    num_workers = 12
-    batch_size = 6
     classes = ['liver', 'partial_spleen']
 
     val_annot_dirs = [liver_annot_val_dir, partial_spleen_annot_val_dir]
@@ -461,7 +453,6 @@ def test_multiclass_validation_missing_annotations():
                             mode=datasets.Modes.VAL, 
                             patch_refs=patch_refs)
 
-    start_time = time.time()
     val_result = train_utils.val_epoch(model,
                                        classes,
                                        val_dataset,
@@ -473,16 +464,12 @@ def test_multiclass_validation_missing_annotations():
     assert val_metrics.dice() > 0.000001
 
 
-
-
 def test_get_val_patch_refs():
     """ get val patch refs should return a
         list of patches for each folder in the annotation directory.
     """
 
-    in_w = 36 + (3*16)
     out_w = in_w - 34
-    in_d = 52
     out_d = 18
     out_shape = (out_d, out_w, out_w)
     prev_patch_refs = []
@@ -512,3 +499,13 @@ def test_get_val_patch_refs():
 
     for fpath in all_fpaths:
         assert fpath in patch_ref_fpaths
+
+
+
+def test_training_patch_size_bigger_than_image():
+    """ test that validation does not fail when the patch size
+        for the neural network is bigger than the images. """
+    pass
+
+
+
