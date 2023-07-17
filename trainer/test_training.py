@@ -50,6 +50,7 @@ liver_annot_val_dir = os.path.join(subset_dir_annots, 'liver', 'val')
 
 spleen_annot_train_dir = os.path.join(subset_dir_annots, 'spleen', 'train')
 spleen_annot_val_dir = os.path.join(subset_dir_annots, 'spleen', 'val')
+partial_spleen_annot_val_dir = os.path.join(subset_dir_annots, 'spleen_partial', 'val')
 
 
 timeout_ms = 20000
@@ -86,8 +87,7 @@ def prep_random_50(dataset_dir):
 
     os.makedirs(spleen_annot_train_dir)
     os.makedirs(spleen_annot_val_dir)
-
-
+    os.makedirs(partial_spleen_annot_val_dir)
 
     for i, d in enumerate(sampled_dirs):
         imfpath = os.path.join(dataset_dir, d, 'ct.nii.gz')
@@ -101,10 +101,12 @@ def prep_random_50(dataset_dir):
         if i <= (subset_size * 0.8):
             liver_out_annot_fpath = os.path.join(liver_annot_train_dir, d  + '_ct.nii.gz')
             spleen_out_annot_fpath = os.path.join(spleen_annot_train_dir, d  + '_ct.nii.gz')
+            partial_spleen_out_annot_fpath = None # we dont need train for this test.
         else:
             # and the last 20% to validation
             liver_out_annot_fpath = os.path.join(liver_annot_val_dir, d  + '_ct.nii.gz')
             spleen_out_annot_fpath = os.path.join(spleen_annot_val_dir, d  + '_ct.nii.gz')
+            partial_spleen_out_annot_fpath = os.path.join(partial_spleen_annot_val_dir, d + '_ct.nii.gz')
 
         # convert segmentations (total seg format) to rp3d annotations
         liver_annot = convert_seg_to_annot(liver_in_annot_fpath)
@@ -114,6 +116,11 @@ def prep_random_50(dataset_dir):
         spleen_annot = convert_seg_to_annot(spleen_in_annot_fpath)
         spleen_annot = nib.Nifti1Image(spleen_annot, np.eye(4))
         spleen_annot.to_filename(spleen_out_annot_fpath)
+        
+        # only copy have of the spleens to the partial dataset.
+        if i % 2 == 0 and partial_spleen_out_annot_fpath is not None:
+            spleen_annot.to_filename(partial_spleen_out_annot_fpath)
+            
 
 
 def setup_function():
@@ -372,6 +379,63 @@ def test_multiclass_validation():
     classes = ['liver', 'spleen']
 
     val_annot_dirs = [liver_annot_val_dir, spleen_annot_val_dir]
+
+    model = model_utils.random_model(classes)
+
+    # should be some files in the annot dir for this test to work
+    assert os.path.isdir(val_annot_dirs[0])
+    assert os.listdir(val_annot_dirs[0])
+    assert os.path.isdir(val_annot_dirs[1])
+    assert os.listdir(val_annot_dirs[1])
+
+    patch_refs = im_utils.get_val_patch_refs(
+        val_annot_dirs,
+        [],
+        out_shape=(out_d, out_w, out_w))
+ 
+    val_dataset = RPDataset(val_annot_dirs,
+                            None, # train_seg_dirs
+                            dataset_dir=subset_dir_images,
+                            # only specifying w and d as h is always same as w
+                            in_w=in_w,
+                            out_w=out_w,
+                            in_d=in_d,
+                            out_d=out_d,
+                            mode=datasets.Modes.VAL, 
+                            patch_refs=patch_refs)
+
+    start_time = time.time()
+    val_result = train_utils.val_epoch(model,
+                                       classes,
+                                       val_dataset,
+                                       patch_refs,
+                                       step_callback=None,
+                                       stop_fn=None)
+    val_metrics = Metrics.sum(val_result)
+    print('val metrics dice', val_metrics.dice())
+    assert val_metrics.dice() > 0.000001
+
+
+
+def test_multiclass_validation_missing_annotations():
+    """ test validation does not throw exception when multiple classes used.
+        Dont train - only validate the initial random model
+
+        This test uses a folder that only contains validation
+        annotations for some of the images for the spleen dataset.
+        
+        The aim is to reproduce a reported bug:
+        https://github.com/Abe404/RootPainter3D/issues/32
+    """
+    in_w = 36 + (3*16)
+    out_w = in_w - 34
+    in_d = 52
+    out_d = 18
+    num_workers = 12
+    batch_size = 6
+    classes = ['liver', 'partial_spleen']
+
+    val_annot_dirs = [liver_annot_val_dir, partial_spleen_annot_val_dir]
 
     model = model_utils.random_model(classes)
 
