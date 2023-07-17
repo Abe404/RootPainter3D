@@ -397,7 +397,8 @@ def get_val_patch_refs_for_annot_3d(annot_dir, annot_fname, out_shape):
         if np.any(annot_patch):
             # fname, [x, y, z], mtime, prev model metrics i.e [tp, tn, fp, fn] or None
             
-            new_ref = PatchRef(annot_fname=annot_fname,
+            new_ref = PatchRef(annot_dir=annot_dir,
+                               annot_fname=annot_fname,
                                x=x, y=y, z=z, mtime=mtime,
                                ignore_mask=ignore_mask)
             new_file_refs.append(new_ref)

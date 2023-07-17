@@ -6,6 +6,7 @@ from typing import Optional # supporting python3.8
 
 @dataclass
 class PatchRef:
+    annot_dir: str
     annot_fname: str
     # patch origin position relative to annotation
     # for addressing the location within the padded image
