@@ -19,7 +19,6 @@ import random
 import math
 import os
 from pathlib import Path
-from file_utils import ls
 from enum import Enum
 
 import torch
@@ -27,6 +26,7 @@ import numpy as np
 from skimage import img_as_float32
 from torch.utils.data import Dataset
 
+from file_utils import ls
 from im_utils import load_train_image_and_annot
 import im_utils
 
@@ -86,8 +86,6 @@ class RPDataset(Dataset):
     def __getitem__(self, i):
         if self.mode == Modes.VAL:
             return self.get_val_item(self.patch_refs[i])
-        if self.patch_refs is not None:
-            return self.get_train_item(self.patch_refs)
         return self.get_train_item()
 
     def get_train_item(self):
