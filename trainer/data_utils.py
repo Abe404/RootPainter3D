@@ -17,6 +17,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 import numpy as np
+import torch
 import im_utils
 
 def collate_fn(batch):
@@ -43,8 +44,11 @@ def collate_fn(batch):
     
     im_patches_padded = []
     for im_patch in im_patches:
+        old_patch = im_patch[0]
+        if torch.is_tensor(old_patch):
+            old_patch = old_patch.numpy()
         new_im_patch, was_padded = im_utils.maybe_pad_image_to_pad_size(
-            im_patch[0], (max_d, max_h, max_w))
+            old_patch, (max_d, max_h, max_w))
         # add channel dimension back as it is expected.
         im_patches_padded.append(np.expand_dims(new_im_patch, 0)) 
     im_patches = np.array(im_patches_padded)
@@ -53,6 +57,8 @@ def collate_fn(batch):
     for fgs in batch_fgs:
         new_fgs = []
         for fg_patch in fgs:
+            if torch.is_tensor(fg_patch):
+                fg_patch = fg_patch.numpy()
             new_fg_patch, was_padded = im_utils.maybe_pad_image_to_pad_size(
                 fg_patch, (max_d, max_h, max_w))
             new_fgs.append(new_fg_patch)
@@ -62,13 +68,14 @@ def collate_fn(batch):
     batch_bgs_padded = []
     for bgs in batch_bgs:
         new_bgs = []
-        for fg_patch in bgs:
-            new_fg_patch, was_padded = im_utils.maybe_pad_image_to_pad_size(
-                fg_patch, (max_d, max_h, max_w))
-            new_bgs.append(new_fg_patch)
+        for bg_patch in bgs:
+            if torch.is_tensor(bg_patch):
+                bg_patch = bg_patch.numpy()
+            new_bg_patch, was_padded = im_utils.maybe_pad_image_to_pad_size(
+                bg_patch, (max_d, max_h, max_w))
+            new_bgs.append(new_bg_patch)
         # append all bg patches for this image to the list for the batch
         batch_bgs_padded.append(new_bgs) 
 
     im_patches = np.array(im_patches_padded)
-    
     return im_patches, batch_fgs_padded, batch_bgs_padded, ignore_masks, batch_segs, batch_classes
