@@ -30,14 +30,10 @@ import torch.nn.functional as F
 def pad_to_next_largest_valid(size):
     """ return how much to pad the size to get it to the
         next valid size for the network input """
-
     min_input = 36
- 
-    if size < min_input:
-        total_pad = min_input - size
-    else:
-        # size should be a multiple of 16 above the min. 
-        total_pad = (16 - (size - min_input)) % 16
+    assert size >= min_input
+    # size should be a multiple of 16 above the min. 
+    total_pad = (16 - (size - min_input)) % 16
     pad_start = total_pad // 2
     pad_end = total_pad - pad_start
     return pad_start, pad_end
@@ -47,10 +43,14 @@ def pad_to_valid_size(x):
     d_pad_start, d_pad_end = pad_to_next_largest_valid(x.shape[2])
     h_pad_start, h_pad_end = pad_to_next_largest_valid(x.shape[3])
     w_pad_start, w_pad_end = pad_to_next_largest_valid(x.shape[4])
-    pad_settings = (d_pad_start, d_pad_end,
+    pad_settings = (w_pad_start, w_pad_end,
                     h_pad_start, h_pad_end,
-                    w_pad_start, w_pad_end)
+                    d_pad_start, d_pad_end)
     x = F.pad(x, pad_settings)
+    valid_sizes = sorted([36 + (x*16) for x in range(30)], reverse=True)
+    assert x.shape[4] in valid_sizes
+    assert x.shape[3] in valid_sizes
+    assert x.shape[2] in valid_sizes
     return x, pad_settings
 
 
@@ -58,14 +58,17 @@ def crop_away_padding(x, pad_settings):
     """ crop to remove any additional padding 
         added to the input by the 'pad_to_valid_size' method.
     """
-    (d_pad_start, d_pad_end,
+    (w_pad_start, w_pad_end,
      h_pad_start, h_pad_end,
-     w_pad_start, w_pad_end) = pad_settings
-
+     d_pad_start, d_pad_end) = pad_settings
+    
+    d_pad_end = x.shape[2] - d_pad_end
+    h_pad_end = x.shape[3] - h_pad_end
+    w_pad_end = x.shape[4] - w_pad_end
     cropped_x = x[:, :, 
-                  d_pad_start:-d_pad_end,
-                  h_pad_start:-h_pad_end,
-                  w_pad_start:-w_pad_end]
+                  d_pad_start:d_pad_end,
+                  h_pad_start:h_pad_end,
+                  w_pad_start:w_pad_end]
     return cropped_x
 
 
@@ -170,6 +173,8 @@ class UNet3D(nn.Module):
         )
 
     def forward(self, x):
+        x, pad_settings = pad_to_valid_size(x)
+
         out1 = self.conv_in(x)
         out2 = self.down1(out1)
         out3 = self.down2(out2)
@@ -180,4 +185,7 @@ class UNet3D(nn.Module):
         out = self.up3(out, out2)
         out = self.up4(out, out1)
         out = self.conv_out(out)
+
+
+        out = crop_away_padding(out, pad_settings)
         return out

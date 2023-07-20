@@ -33,15 +33,17 @@ def test_segment_mixed_sizes():
     model.to(device)
     random_tries = 60 
     for _ in range(random_tries):
-        d = random.randint(1, 220)
-        h = random.randint(1, 220)
-        w = random.randint(1, 220)
+        # never smaller than 35 because 35 is an input of one channel padded with 17 on each side.
+        # which is the smallest input we could expect.
+        d = random.randint(36, 220)
+        h = random.randint(36, 220)
+        w = random.randint(36, 220)
         try:
             inputs = torch.zeros((1, 1, d, h, w)).to(device)
             outputs = model(inputs)
         except Exception as _e:
             print(_e, 'When trying with', d, h, w)
-            assert not _e
+            raise _e
 
         for idx in [2,3,4]:
             debug_str = f'\noutput_shape: {outputs.shape}, \ninput_shape: {inputs.shape}. \n'
@@ -57,7 +59,8 @@ def test_net_padding():
     """ test network padding function can return a pad size
         that will take the input up to the next valid size """
     valid_sizes = sorted([36 + (x*16) for x in range(30)], reverse=True)
-    for i in range(1, 300):
-        to_pad = pad_to_next_largest_valid(i)
+    for i in range(36, 150):
+        to_pad_start, to_pad_end = pad_to_next_largest_valid(i)
+        to_pad = to_pad_start + to_pad_end
         new_size = to_pad + i
         assert new_size in valid_sizes, f'{new_size} (padded up from {i}) not in {valid_sizes}'
