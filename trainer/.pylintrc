@@ -9,7 +9,8 @@ disable=trailing-newlines,
         too-many-public-methods,
         unnecessary-dunder-call,
         consider-using-with,
-        import-error
+        import-error,
+        broad-except
 
 
 
