@@ -51,8 +51,13 @@ def train_epoch(model, classes, loader, batch_size,
 
         for im_fg_patches in batch_fg_patches:
             for class_fg_patch in im_fg_patches:
-                shape_str = f'output: {outputs.shape[2:]}, fg: {class_fg_patch.shape}'
+
                 cropped_annot_shape = [a-34 for a in list(class_fg_patch.shape)]
+
+                shape_str = f'output: {outputs.shape[2:]}'
+                shape_str += f'expected output (to match cropped annot): {cropped_annot_shape}'
+                shape_str += f'fg annot shape: {class_fg_patch.shape}'
+
                 assert list(outputs.shape[2:]) == cropped_annot_shape, shape_str
         
         (batch_loss, batch_items_metrics) = get_batch_loss(
