@@ -10,7 +10,11 @@ disable=trailing-newlines,
         unnecessary-dunder-call,
         consider-using-with,
         import-error,
-        broad-except
+        broad-except,
+        missing-function-docstring,
+        missing-class-docstring,
+        too-many-instance-attributes,
+
 
 
 
@@ -20,3 +24,4 @@ disable=trailing-newlines,
 # system, and so shouldn't trigger E1101 when accessed. Python regular
 # expressions are accepted.
 generated-members=numpy.*,torch.*
+
