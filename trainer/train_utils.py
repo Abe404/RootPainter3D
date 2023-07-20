@@ -41,6 +41,7 @@ def train_epoch(model, classes, loader, batch_size,
                batch_bg_patches, batch_ignore_masks,
                batch_seg_patches, batch_classes) in enumerate(loader):
 
+        batch_im_patches = np.expand_dims(batch_im_patches, 1) # add channel dimension
         batch_im_patches = torch.from_numpy(np.array(batch_im_patches)).cuda()
         optimizer.zero_grad()
        
