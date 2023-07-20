@@ -30,7 +30,6 @@ def collate_fn(batch):
     ignore_masks = []
     for i in range(num_items):
         item = batch[i]
-        class_data = {}
         im_patches.append(item[0])
         batch_fgs.append(item[1])
         batch_bgs.append(item[2])
@@ -47,7 +46,7 @@ def collate_fn(batch):
         old_patch = im_patch[0]
         if torch.is_tensor(old_patch):
             old_patch = old_patch.numpy()
-        new_im_patch, was_padded = im_utils.maybe_pad_image_to_pad_size(
+        new_im_patch, _was_padded = im_utils.maybe_pad_image_to_pad_size(
             old_patch, (max_d, max_h, max_w))
         # add channel dimension back as it is expected.
         im_patches_padded.append(np.expand_dims(new_im_patch, 0)) 
@@ -59,7 +58,7 @@ def collate_fn(batch):
         for fg_patch in fgs:
             if torch.is_tensor(fg_patch):
                 fg_patch = fg_patch.numpy()
-            new_fg_patch, was_padded = im_utils.maybe_pad_image_to_pad_size(
+            new_fg_patch, _was_padded = im_utils.maybe_pad_image_to_pad_size(
                 fg_patch, (max_d, max_h, max_w))
             new_fgs.append(new_fg_patch)
         # append all fg patches for this image to the list for the batch
@@ -71,7 +70,7 @@ def collate_fn(batch):
         for bg_patch in bgs:
             if torch.is_tensor(bg_patch):
                 bg_patch = bg_patch.numpy()
-            new_bg_patch, was_padded = im_utils.maybe_pad_image_to_pad_size(
+            new_bg_patch, _was_padded = im_utils.maybe_pad_image_to_pad_size(
                 bg_patch, (max_d, max_h, max_w))
             new_bgs.append(new_bg_patch)
         # append all bg patches for this image to the list for the batch
