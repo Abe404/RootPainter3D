@@ -163,16 +163,10 @@ class RPDataset(Dataset):
                                                                            self.annot_dirs,
                                                                            self.use_seg,
                                                                            force_fg)
-              
         annot_patches, seg_patches, im_patch = self.get_random_patch_3d(annots, segs,
                                                                         image,
                                                                         fname, force_fg)
         
-
-
-
-
-
         im_patch = img_as_float32(im_patch)
         im_patch = im_utils.normalize_patch(im_patch)
         # ensure image is still 32 bit after normalisation.
@@ -194,8 +188,14 @@ class RPDataset(Dataset):
             background = background.astype(np.int64)
             background = torch.from_numpy(background)
             backgrounds.append(background)
+
             # mask is same for all annotations so just return one.
-            ignore_mask = np.zeros((self.out_d, self.out_w, self.out_w), dtype=np.uint8)
+            im_d = im_patch.shape[0]
+            im_h = im_patch.shape[1]
+            im_w = im_patch.shape[2]
+            # output is 34 less than input. igmore mask only concerns output
+            ignore_mask = np.zeros((im_d - 34, im_h - 34, im_w - 34), dtype=np.uint8)
+
             shape_str = f'fname: {fname}, im_patch.shape: {im_patch.shape}, fg: {foreground.shape}'
             assert im_patch.shape == foreground.shape, shape_str
 
@@ -204,11 +204,6 @@ class RPDataset(Dataset):
         # add dimension for input channel
         im_patch = np.expand_dims(im_patch, axis=0)
         assert len(backgrounds) == len(seg_patches)
-
-                
-
-
-
 
         return im_patch, foregrounds, backgrounds, ignore_mask, seg_patches, classes
        
