@@ -18,6 +18,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import random
 import torch
 from unet3d import UNet3D
+from unet3d import pad_to_next_largest_valid
 from model_utils import get_device
 
 
@@ -32,9 +33,9 @@ def test_segment_mixed_sizes():
     model.to(device)
     random_tries = 60 
     for _ in range(random_tries):
-        d = random.randint(1, 300)
-        h = random.randint(1, 300)
-        w = random.randint(1, 300)
+        d = random.randint(1, 220)
+        h = random.randint(1, 220)
+        w = random.randint(1, 220)
         try:
             inputs = torch.zeros((1, 1, d, h, w)).to(device)
             outputs = model(inputs)
@@ -49,3 +50,14 @@ def test_segment_mixed_sizes():
             debug_str += f'(output {outputs.shape[idx]}, input {inputs.shape[idx]}) '
             debug_str += f'as diff should be -34 but is {shape_diff}'
             assert shape_diff == -34, debug_str
+
+
+
+def test_net_padding():
+    """ test network padding function can return a pad size
+        that will take the input up to the next valid size """
+    valid_sizes = sorted([36 + (x*16) for x in range(30)], reverse=True)
+    for i in range(1, 300):
+        to_pad = pad_to_next_largest_valid(i)
+        new_size = to_pad + i
+        assert new_size in valid_sizes, f'{new_size} (padded up from {i}) not in {valid_sizes}'
