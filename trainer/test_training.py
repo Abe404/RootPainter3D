@@ -510,7 +510,7 @@ def test_training_patch_size_bigger_than_image():
     in_d = 52
     out_d = 18
     num_workers = 0
-    batch_size = 6
+    batch_size = 2
     classes = ['liver']
 
     train_annot_dirs = [liver_annot_train_dir] # for liver
