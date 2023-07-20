@@ -161,10 +161,10 @@ class RPDataset(Dataset):
                                                                            self.annot_dirs,
                                                                            self.use_seg,
                                                                            force_fg)
+
         annot_patches, seg_patches, im_patch = self.get_random_patch_3d(annots, segs,
                                                                         image,
                                                                         fname, force_fg)
-        
         im_patch = img_as_float32(im_patch)
         im_patch = im_utils.normalize_patch(im_patch)
         # ensure image is still 32 bit after normalisation.
@@ -199,10 +199,7 @@ class RPDataset(Dataset):
 
         im_patch = im_patch.astype(np.float32)
         
-        # add dimension for input channel
-        im_patch = np.expand_dims(im_patch, axis=0)
         assert len(backgrounds) == len(seg_patches)
-
         return im_patch, foregrounds, backgrounds, ignore_mask, seg_patches, classes
        
     def get_val_item(self, patch_ref):
