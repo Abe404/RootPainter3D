@@ -593,7 +593,7 @@ def test_collate_pad_image_patches_to_largest():
     collated = collate_fn(mock_items)
 
     (patches, batch_fgs, batch_bgs,
-     ignore_masks, batch_segs, batch_classes) = collated
+     _ignore_masks, _batch_segs, _batch_classes) = collated
 
     assert len(patches) == len(mock_items)
     assert len(batch_fgs) == len(mock_items)
