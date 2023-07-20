@@ -34,38 +34,23 @@ def pad_to_next_largest_valid(size):
     min_input = 36
  
     if size < min_input:
-        return min_input - size
-
-    # size should be a multiple of 16 above the min. 
-    return (16 - (size - min_input)) % 16
-
+        total_pad = min_input - size
+    else:
+        # size should be a multiple of 16 above the min. 
+        total_pad = (16 - (size - min_input)) % 16
+    pad_start = total_pad // 2
+    pad_end = total_pad - pad_start
+    return pad_start, pad_end
+ 
 
 def pad_to_valid_size(x):
-
-    depth = x.shape[2]
-
-    height = x.shape[3]
-    width = x.shape[4]
-
-    depth_pad = pad_to_next_largest_valid(depth)
-    height_pad = pad_to_next_largest_valid(height)
-    width_pad = pad_to_next_largest_valid(width)
-    
-    d_pad_start = depth_pad // 2
-    d_pad_end = depth_pad - d_pad_start
-    
-    h_pad_start = height_pad // 2
-    h_pad_end = height_pad - h_pad_start
-    
-    w_pad_start = width_pad // 2
-    w_pad_end = width_pad - w_pad_start
-    
+    d_pad_start, d_pad_end = pad_to_next_largest_valid(x.shape[2])
+    h_pad_start, h_pad_end = pad_to_next_largest_valid(x.shape[3])
+    w_pad_start, w_pad_end = pad_to_next_largest_valid(x.shape[4])
     pad_settings = (d_pad_start, d_pad_end,
                     h_pad_start, h_pad_end,
                     w_pad_start, w_pad_end)
-
     x = F.pad(x, pad_settings)
-    
     return x, pad_settings
 
 
