@@ -53,7 +53,7 @@ spleen_annot_val_dir = os.path.join(subset_dir_annots, 'spleen', 'val')
 partial_spleen_annot_val_dir = os.path.join(subset_dir_annots, 'spleen_partial', 'val')
 
     
-in_w = 36 + (3*16)
+in_w = 36 + (5*16) # patch size of 116
 
 timeout_ms = 20000
 
@@ -559,7 +559,6 @@ def test_training_patch_size_bigger_than_image():
     # pass - epoch runs without error.
 
 
-
 def test_collate_pad_image_patches_to_largest():
     """ test that the collate_fn will pad the 
         items to the largest dimensions found.
@@ -567,40 +566,47 @@ def test_collate_pad_image_patches_to_largest():
     """
     mock_items = []
     mock_items.append([
-        np.zeros((1, 52, 253, 64)), # im_patch 
+        np.zeros((52, 253, 64)), # im_patch 
         [np.zeros(torch.Size([52, 253, 64]))], # fg patches
         [np.zeros(torch.Size([52, 253, 64]))], # bg patches
-        np.zeros((18, 642, 642)),# ignore_mask shape 
+        np.zeros((18, 253-34, 64-34)),# ignore_mask shape 
         None, # seg 
         ['liver'], # class
     ])
     mock_items.append([
-        np.zeros((1, 52, 192, 271)),# im_patch 
+        np.zeros((52, 192, 271)),# im_patch 
         [np.zeros(torch.Size([52, 192, 271]))], # fg patches
         [np.zeros(torch.Size([52, 192, 271]))], # bg patches
-        np.zeros((18, 642, 642)),# ignore_mask shape 
+        np.zeros((18, 192-34, 271-34)),# ignore_mask shape 
         None, # seg 
         ['liver'], # class
     ])
     mock_items.append([
-        np.zeros((1, 52, 253, 113)),# im_patch 
+        np.zeros((52, 253, 113)),# im_patch 
         [np.zeros(torch.Size([52, 253, 113]))], # fg patches
         [np.zeros(torch.Size([52, 253, 113]))], # bg patches
-        np.zeros((18, 642, 642)),# ignore_mask shape 
+        np.zeros((18, 253-34, 113-34)),# ignore_mask shape 
         None, # seg 
         ['liver'], # class
     ])
     collated = collate_fn(mock_items)
 
     (patches, batch_fgs, batch_bgs,
-     _ignore_masks, _batch_segs, _batch_classes) = collated
+     ignore_masks, _batch_segs, _batch_classes) = collated
 
     assert len(patches) == len(mock_items)
     assert len(batch_fgs) == len(mock_items)
 
-    expected_im_shape = (1, 52, 253, 271)
-    for p in patches:
+    expected_im_shape = (52, 253, 271)
+    for p, fg, bg, ig in zip(patches, batch_fgs, batch_bgs, ignore_masks):
         assert p.shape == expected_im_shape
+        assert fg[0].shape == expected_im_shape
+        assert bg[0].shape == expected_im_shape
+        # ignore mask should be size of output
+        # as ignore mask is only relevant to predicted region.
+        assert ig.shape == (expected_im_shape[0] - 34,
+                            expected_im_shape[1] - 34,
+                            expected_im_shape[2] - 34)
 
     expected_annot_shape = (52, 253, 271)
     for a in batch_fgs + batch_bgs:
