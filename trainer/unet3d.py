@@ -48,9 +48,9 @@ def pad_to_valid_size(x):
                     d_pad_start, d_pad_end)
     x = F.pad(x, pad_settings)
     valid_sizes = sorted([36 + (x*16) for x in range(30)], reverse=True)
-    assert x.shape[4] in valid_sizes
-    assert x.shape[3] in valid_sizes
-    assert x.shape[2] in valid_sizes
+    assert x.shape[4] in valid_sizes, f'{x.shape}, {valid_sizes}'
+    assert x.shape[3] in valid_sizes, f'{x.shape}, {valid_sizes}'
+    assert x.shape[2] in valid_sizes, f'{x.shape}, {valid_sizes}'
     return x, pad_settings
 
 
