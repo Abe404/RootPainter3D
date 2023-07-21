@@ -53,6 +53,7 @@ spleen_annot_val_dir = os.path.join(subset_dir_annots, 'spleen', 'val')
 partial_spleen_annot_val_dir = os.path.join(subset_dir_annots, 'spleen_partial', 'val')
 
     
+num_workers = 12
 in_w = 36 + (6*16) # patch size of 116
 
 timeout_ms = 20000
@@ -143,8 +144,7 @@ def test_training():
     out_w = in_w - 34
     in_d = 52
     out_d = 18
-    num_workers = 12
-    batch_size = 6
+    batch_size = 2
     classes = ['liver']
 
     train_annot_dirs = [liver_annot_train_dir] # for liver
@@ -240,8 +240,7 @@ def test_training_converges():
     out_w = in_w - 34
     in_d = 52
     out_d = 18
-    num_workers = 12
-    batch_size = 6
+    batch_size = 2
     classes = ['liver']
 
     train_annot_dirs = [liver_annot_train_dir] # for liver
@@ -290,8 +289,7 @@ def test_training_converges_on_validation():
     out_w = in_w - 34
     in_d = 52
     out_d = 18
-    num_workers = 12
-    batch_size = 6
+    batch_size = 2
     classes = ['liver']
 
     train_annot_dirs = [liver_annot_train_dir] # for liver
@@ -509,7 +507,6 @@ def test_training_patch_size_bigger_than_image():
     out_w = larger_in_w - 34
     in_d = 52
     out_d = 18
-    num_workers = 0
     batch_size = 1
     classes = ['liver']
 
