@@ -36,10 +36,12 @@ def test_get_random_patch_even_fg():
     # set half the image to be foreground i.e bottom half
     annot[1][im_shape[0]//2:, :, :] = 1
     # the bg in this reason should be 0
-    annot[1][im_shape[0]//2:, :, :] = 0
+    annot[0][im_shape[0]//2:, :, :] = 0
 
     # the bg in the top half should be 1
     annot[0][:im_shape[0]//2, :, :] = 1
+
+    im_percent_fg = (np.sum(annot[1]) / annot[1].size) * 100
     
     # pad the annotation to be consistent with the image.
     annot = np.pad(annot, ((0, 0), (17,17), (17,17), (17, 17)), mode='constant')
@@ -47,11 +49,15 @@ def test_get_random_patch_even_fg():
     annots = [annot]
     fname = 'fake_data'
     
-    in_d = 50
-    in_w = 60
+    in_d = 52 
+    in_w = 36 + (16*4)
     force_fg = False
 
-    for _ in range(20):
+    total_fg = 0
+    total_bg = 0
+    total_vox = 0
+
+    for _ in range(1220):
         (annot_patches,
          _seg_patches,
          im_patch)  = im_utils.get_random_patch_3d(annots, segs,
@@ -63,10 +69,20 @@ def test_get_random_patch_even_fg():
         assert im_patch.shape == (in_d, in_w, in_w)
         assert len(annot_patches) == 1
         assert annot_patches[0].shape == (2, in_d, in_w, in_w)
-        # TODO: fg sum should be approximately 50% on average for these patches.
+        annot_patch = annot_patches[0][:, 17:-17, 17:-17, 17:-17]
+        total_vox += annot_patch[0].size
+        total_bg += np.sum(annot_patch[0])
+        total_fg += np.sum(annot_patch[0])
 
+    total_fg_percent = (total_fg/total_vox) * 100
+    total_bg_percent = (total_bg/total_vox) * 100
 
+    # should be close to 50% for both image and sampled patch average
+    assert im_percent_fg == 50, im_percent_fg
+    assert abs(total_bg_percent - 50) < 3, total_bg_percent
+    assert abs(total_fg_percent - 50) < 3, total_fg_percent
 
+    
 
 def test_get_random_patch_big():
     """ test that get_random_patch handles patch sizes larger than image
@@ -95,7 +111,7 @@ def test_get_random_patch_big():
     in_w = 40
     force_fg = False
 
-    for i in range(20):
+    for _ in range(20):
         (annot_patches,
          _seg_patches,
          im_patch)  = im_utils.get_random_patch_3d(annots, segs,
