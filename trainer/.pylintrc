@@ -3,6 +3,7 @@
 
 disable=trailing-newlines,
         too-many-arguments,
+        too-many-statements,
         trailing-whitespace,
         too-many-locals,
         invalid-name,
