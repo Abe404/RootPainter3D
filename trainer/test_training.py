@@ -518,13 +518,13 @@ def test_training_patch_size_bigger_than_image():
     fnames = os.listdir(subset_dir_images)
 
     # we will try training on images that are mostly smaller than the patch width.
-    bigger_im = 0
+    bigger_patch = 0
     for f in fnames:
         fpath = os.path.join(subset_dir_images, f)
         im = im_utils.load_image(fpath)
         if (im.shape[0] < in_d or im.shape[1] < larger_in_w or im.shape[2] < larger_in_w):
-            bigger_im += 1
-    assert bigger_im > len(fnames) // 2, f'Only {bigger_im} in {len(fnames)}'
+            bigger_patch += 1
+    assert bigger_patch > len(fnames) // 2, f'Only {bigger_patch} in {len(fnames)}'
 
     dataset = RPDataset(train_annot_dirs,
                         train_seg_dirs=[None] * len(train_annot_dirs),
