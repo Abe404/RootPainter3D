@@ -18,22 +18,81 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 # pylint: disable=C0111,E1102,C0103,W0703,W0511,E1136
 import os
 import glob
+import math
 import shutil
 import time
 from functools import partial
 from math import ceil
+import traceback
 import random
+from pathlib import Path
+
 import numpy as np
-import skimage.util as skim_util
 from skimage.exposure import rescale_intensity
 import nibabel as nib
-from file_utils import ls
 import nrrd
-from pathlib import Path
-import traceback
 
+from file_utils import ls
 from patch_ref import PatchRef
 
+
+def get_random_patch_3d(annots, segs, image, fname,
+                        force_fg, in_d, in_w):
+    """ return a patch with random location with specified size
+        from the supplied annots, segs, and image.
+        If force_fg is true then make sure the patch contains foreground.
+    """
+    def rnd():
+        """ Give higher than random chance to select the edges """
+        return max(0, min(1, (1.2 * random.random()) - 0.1))
+
+    def annot_patch_has_fg(annot):
+        return np.any(annot[1][17:-17,17:-17,17:-17])
+
+    # Limits for possible sampling locations from image (based on size of image)
+    depth_lim = image.shape[0] - in_d
+    bottom_lim = image.shape[1] - in_w
+    right_lim = image.shape[2] - in_w
+
+    attempts = 0 
+    warn_after_attempts = 1000
+    
+    while True:
+        attempts += 1
+        x_in = math.floor(rnd() * right_lim)
+        y_in = math.floor(rnd() * bottom_lim)
+        z_in = math.floor(rnd() * depth_lim)
+
+        annot_patches = []
+        seg_patches = []
+        for seg, annot in zip(segs, annots):
+            # Get the corresponding region of the annotation after network crop
+            annot_patches.append(annot[:,
+                                       z_in:z_in+in_d,
+                                       y_in:y_in+in_w,
+                                       x_in:x_in+in_w])
+            if seg is None:
+                seg_patches.append(None)
+            else:
+                seg_patches.append(seg[z_in:z_in+in_d,
+                                       y_in:y_in+in_w,
+                                       x_in:x_in+in_w])
+
+        # we only want annotations with defiend regions in the output area.
+        # Otherwise we will have nothing to update the loss.
+        if np.any([np.any(a) for a in annot_patches]):
+            # if force fg is true then make sure fg is defined.
+            if not force_fg or np.any([annot_patch_has_fg(a) for a in annot_patches]):
+                # ok we have some annotation for this
+                # part of the image so let's return the patch.
+                im_patch = image[z_in:z_in+in_d,
+                                 y_in:y_in+in_w,
+                                 x_in:x_in+in_w]
+
+                return annot_patches, seg_patches, im_patch
+        if attempts > warn_after_attempts:
+            print(f'Warning {attempts} attempts to get random patch from {fname}')
+            warn_after_attempts *= 10
 
 
 def maybe_pad_image_to_pad_size(image, in_patch_shape):
@@ -218,7 +277,7 @@ def load_train_image_and_annot(dataset_dir, train_seg_dirs, train_annot_dirs, us
             all_annot_dirs += [train_annot_dir] * len(annot_fnames)
             all_seg_dirs += [train_seg_dir] * len(annot_fnames)
         
-        assert len(fnames), 'should be at least one fname'
+        assert fnames, 'should be at least one fname'
 
        
         tries = 0
@@ -375,8 +434,6 @@ def get_val_patch_refs(annot_dirs, prev_patch_refs, out_shape):
 
 
 def get_val_patch_refs_for_annot_3d(annot_fpath, out_shape):
-    """
-    """
     if not os.path.isfile(annot_fpath):
         return []
     annot = load_image(annot_fpath)

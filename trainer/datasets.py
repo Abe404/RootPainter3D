@@ -16,7 +16,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
 import random
-import math
 import os
 from pathlib import Path
 from enum import Enum
@@ -91,56 +90,6 @@ class RPDataset(Dataset):
     def get_train_item(self):
         return self.get_train_item_3d()
 
-    def get_random_patch_3d(self, annots, segs, image, fname, force_fg):
-        # this will find something eventually as we know
-        # all annotation contain labels somewhere
-
-        # Limits for possible sampling locations from image (based on size of image)
-        depth_lim = image.shape[0] - self.in_d
-        bottom_lim = image.shape[1] - self.in_w
-        right_lim = image.shape[2] - self.in_w
-
-        attempts = 0 
-        warn_after_attempts = 1000
-        
-        while True:
-            attempts += 1
-            x_in = math.floor(rnd() * right_lim)
-            y_in = math.floor(rnd() * bottom_lim)
-            z_in = math.floor(rnd() * depth_lim)
-
-            annot_patches = []
-            seg_patches = []
-            for seg, annot in zip(segs, annots):
-                # Get the corresponding region of the annotation after network crop
-                annot_patches.append(annot[:,
-                                         z_in:z_in+self.in_d,
-                                         y_in:y_in+self.in_w,
-                                         x_in:x_in+self.in_w])
-                if seg is None:
-                    seg_patches.append(None)
-                else:
-                    seg_patches.append(seg[z_in:z_in+self.in_d,
-                                         y_in:y_in+self.in_w,
-                                         x_in:x_in+self.in_w])
-
-
-            # we only want annotations with defiend regions in the output area.
-            # Otherwise we will have nothing to update the loss.
-            if np.any([np.any(a) for a in annot_patches]):
-                # if force fg is true then make sure fg is defined.
-                if not force_fg or np.any([annot_patch_has_fg(a) for a in annot_patches]):
-                    # ok we have some annotation for this
-                    # part of the image so let's return the patch.
-                    im_patch = image[z_in:z_in+self.in_d,
-                                     y_in:y_in+self.in_w,
-                                     x_in:x_in+self.in_w]
-
-                    return annot_patches, seg_patches, im_patch
-            if attempts > warn_after_attempts:
-                print(f'Warning {attempts} attempts to get random patch from {fname}')
-                warn_after_attempts *= 10
-
     def get_train_item_3d(self):
         # When patch_ref is specified we use these coordinates to get
         # the input patch. Otherwise we will sample randomly
@@ -162,9 +111,10 @@ class RPDataset(Dataset):
                                                                            self.use_seg,
                                                                            force_fg)
 
-        annot_patches, seg_patches, im_patch = self.get_random_patch_3d(annots, segs,
-                                                                        image,
-                                                                        fname, force_fg)
+        annot_patches, seg_patches, im_patch = im_utils.get_random_patch_3d(annots, segs,
+                                                                            image,
+                                                                            fname, force_fg,
+                                                                            self.in_d, self.in_w)
         im_patch = img_as_float32(im_patch)
         im_patch = im_utils.normalize_patch(im_patch)
         # ensure image is still 32 bit after normalisation.
