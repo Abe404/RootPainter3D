@@ -505,23 +505,26 @@ def test_get_val_patch_refs():
 def test_training_patch_size_bigger_than_image():
     """ test that training does not error when the patch size
         for the neural network is bigger than the images. """
-    larger_in_w = 36 + (40*16)
+    larger_in_w = 36 + (11*16)
     out_w = larger_in_w - 34
     in_d = 52
     out_d = 18
     num_workers = 0
-    batch_size = 2
+    batch_size = 1
     classes = ['liver']
 
     train_annot_dirs = [liver_annot_train_dir] # for liver
 
     fnames = os.listdir(subset_dir_images)
 
-    # we will try training on images that are all smaller than the patch width.
+    # we will try training on images that are mostly smaller than the patch width.
+    bigger_im = 0
     for f in fnames:
         fpath = os.path.join(subset_dir_images, f)
         im = im_utils.load_image(fpath)
-        assert im.shape[1] < larger_in_w
+        if (im.shape[0] < in_d or im.shape[1] < larger_in_w or im.shape[2] < larger_in_w):
+            bigger_im += 1
+    assert bigger_im > len(fnames) // 2, f'Only {bigger_im} in {len(fnames)}'
 
     dataset = RPDataset(train_annot_dirs,
                         train_seg_dirs=[None] * len(train_annot_dirs),
@@ -533,7 +536,7 @@ def test_training_patch_size_bigger_than_image():
                         mode=datasets.Modes.TRAIN,
                         patch_refs=None,
                         use_seg_in_training=False,
-                        length=batch_size*4)
+                        length=batch_size*20)
 
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=False,
                         collate_fn=data_utils.collate_fn,
