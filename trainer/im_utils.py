@@ -50,9 +50,9 @@ def get_random_patch_3d(annots, segs, image, fname,
         return np.any(annot[1][17:-17,17:-17,17:-17])
 
     # Limits for possible sampling locations from image (based on size of image)
-    depth_lim = image.shape[0] - in_d
-    bottom_lim = image.shape[1] - in_w
-    right_lim = image.shape[2] - in_w
+    depth_lim = image.shape[0] - min(in_d, image.shape[0])
+    bottom_lim = image.shape[1] - min(in_w, image.shape[1])
+    right_lim = image.shape[2] - min(in_w, image.shape[2])
 
     attempts = 0 
     warn_after_attempts = 1000
