@@ -33,16 +33,6 @@ class Modes(Enum):
     TRAIN = 1
     VAL = 2
 
-def rnd():
-    """ Give higher than random chance to select the edges """
-    return max(0, min(1, (1.2 * random.random()) - 0.1))
-
-
-
-def annot_patch_has_fg(annot):
-    return np.any(annot[1][17:-17,17:-17,17:-17])
-
-
 class RPDataset(Dataset):
     def __init__(self, annot_dirs, train_seg_dirs, dataset_dir, in_w, out_w,
                  in_d, out_d, mode, patch_refs=None,
