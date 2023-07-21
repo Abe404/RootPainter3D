@@ -53,7 +53,7 @@ spleen_annot_val_dir = os.path.join(subset_dir_annots, 'spleen', 'val')
 partial_spleen_annot_val_dir = os.path.join(subset_dir_annots, 'spleen_partial', 'val')
 
     
-in_w = 36 + (5*16) # patch size of 116
+in_w = 36 + (6*16) # patch size of 116
 
 timeout_ms = 20000
 
