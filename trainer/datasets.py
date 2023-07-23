@@ -188,12 +188,19 @@ class RPDataset(Dataset):
                         patch_ref.y:patch_ref.y + self.in_w,
                         patch_ref.x:patch_ref.x + self.in_w]
 
-        assert im_patch.shape == (self.in_d, self.in_w, self.in_w), (
-            f" shape is {im_patch.shape}")
+        # patch will either be the specified in_d/in_w or the image dimension.
+        # whichever is smaller.
+        expected_patch_d = min(image.shape[0], self.in_d)
+        expected_patch_h = min(image.shape[1], self.in_w)
+        expected_patch_w = min(image.shape[2], self.in_w)
+        expected_shape = (expected_patch_d, expected_patch_h, expected_patch_w)
 
-        assert annot_patch.shape[1:] == (self.in_d, self.in_w, self.in_w), (
-            f" annot is {annot_patch.shape}, and "
-            f" should be ({self.in_d},{self.in_w},{self.in_w})")
+        assert im_patch.shape == expected_shape, (
+            f" shape is {im_patch.shape} but expected shape is {expected_shape}")
+
+        assert annot_patch.shape[1:] == expected_shape, (
+            f" annot.shape[1:] is {annot_patch.shape}, and "
+            f" should be {expected_shape}")
 
         foregrounds = []
         backgrounds = []
