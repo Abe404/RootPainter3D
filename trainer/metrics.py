@@ -19,12 +19,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 # pylint: disable=C0111,R0913
 from datetime import datetime
-from collections import namedtuple
-import numpy as np
-from dataclasses import dataclass
-from datetime import datetime
 import time
-from collections import namedtuple
+from dataclasses import dataclass
+
 import numpy as np
 import torch
 
@@ -45,7 +42,8 @@ def metrics_from_binary_masks(seg, gt):
             fp=torch.sum((gt == 0) * (seg == 1)).cpu().numpy(),
             fn=torch.sum((gt == 1) * (seg == 0)).cpu().numpy()
         )
-    elif isinstance(seg, np.ndarray):
+
+    if isinstance(seg, np.ndarray):
         # FIXME: why is this being converted to int? 
         # Is it required for the comparison or is it to improve performance?
         # Please explain with a comment or remove the conversion
@@ -58,8 +56,8 @@ def metrics_from_binary_masks(seg, gt):
             fp=(np.sum((gt == 0) * (seg == 1))),
             fn=(np.sum((gt == 1) * (seg == 0)))
         )
-    else:
-        raise Exception(f'Unhandled type {seg}, {gt}')
+
+    raise Exception(f'Unhandled type {seg}, {gt}')
 
 
 @dataclass
@@ -106,6 +104,9 @@ class Metrics:
 
     def total_pred(self):
         return self.fp + self.tp
+
+    def pred_mean(self):
+        return (self.fp + self.tp) / self.total()
 
     def __add__(self, other):
         return Metrics(tp=self.tp+other.tp, 
