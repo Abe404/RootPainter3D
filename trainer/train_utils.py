@@ -24,11 +24,12 @@ import torch
 from patch_seg import handle_patch_update_in_epoch_step
 from model_utils import debug_memory
 from loss import get_batch_loss
-
+from viz import save_patches_image
 
 def train_epoch(model, classes, loader, batch_size,
           optimizer, patch_update_enabled=False,
-          step_callback=None, stop_fn=None):
+          step_callback=None, stop_fn=None,
+          debug_dir=None):
     """ One training epoch """
     assert isinstance(classes, list), f'classes should be list, classes:{classes}'
     model.train()
@@ -60,7 +61,16 @@ def train_epoch(model, classes, loader, batch_size,
                 shape_str += f'fg annot shape: {class_fg_patch.shape}'
 
                 assert list(outputs.shape[2:]) == cropped_annot_shape, shape_str
-        
+
+        if debug_dir:
+            num_saved = save_patches_image(
+                [batch_im_patches[0][0].cpu().numpy(),
+                batch_fg_patches[0][0],
+                outputs[0][1]],
+                ['im', 'fg', 'pred'],
+                debug_dir)
+            print('saved', num_saved, 'debug images')
+
         (batch_loss, batch_items_metrics) = get_batch_loss(
              outputs, batch_fg_patches, batch_bg_patches, 
              batch_ignore_masks, batch_seg_patches,
