@@ -80,21 +80,17 @@ class RPDataset(Dataset):
     def get_train_item(self):
         return self.get_train_item_3d()
 
-    def get_train_item_3d(self):
-        # When patch_ref is specified we use these coordinates to get
-        # the input patch. Otherwise we will sample randomly
-        # if patch_ref:
-        #     raise Exception('not using these')
-        #     im_patch, foregrounds, backgrounds, classes = self.get_patch_from_ref_3d(patch_ref)
-        #     # For now just return the patch. We plan to add augmentation here.
-        #     return im_patch, foregrounds, backgrounds, classes
-        
+
+    def should_force_fg(self):
         num_annots = len(ls(self.annot_dirs[0])) # estimate num annotations from first class 
         # start at 90% force fg and go down to 0 by the time 90 images are annotated.
         force_fg_prob = max(0, (90-(num_annots)) / 100) 
         force_fg = force_fg_prob > random.random()
+        return force_fg
 
 
+    def get_train_item_3d(self):
+        force_fg = self.should_force_fg()
         (image, annots, segs, classes, fname) = load_train_image_and_annot(self.dataset_dir,
                                                                            self.train_seg_dirs,
                                                                            self.annot_dirs,
