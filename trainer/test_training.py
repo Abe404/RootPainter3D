@@ -510,15 +510,13 @@ def test_training_patch_size_bigger_than_image():
     classes = ['liver']
 
     train_annot_dirs = [liver_annot_train_dir] # for liver
-    val_annot_dirs = [liver_annot_val_dir]
-
-    fnames = os.listdir(subset_dir_images)
 
     # we will try training on images that are mostly smaller than the patch width.
     """
     This check allows us to confirm that the dataset used for testing has some images
     that are smaller than the patch size. We don't need to run it every time.
     bigger_patch = 0
+    fnames = os.listdir(subset_dir_images)
     for f in fnames:
         fpath = os.path.join(subset_dir_images, f)
         im = im_utils.load_image(fpath)
@@ -571,10 +569,8 @@ def test_validation_patch_size_bigger_than_image():
     out_w = larger_in_w - 34
     in_d = 52
     out_d = 18
-    batch_size = 1
     classes = ['liver']
     val_annot_dirs = [liver_annot_val_dir]
-    fnames = os.listdir(subset_dir_images)
 
     model = model_utils.random_model(classes)
 
