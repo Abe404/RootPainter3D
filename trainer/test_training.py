@@ -55,7 +55,6 @@ partial_spleen_annot_val_dir = os.path.join(subset_dir_annots, 'spleen_partial',
     
 num_workers = 12
 in_w = 36 + (6*16) # patch size of 116
-
 timeout_ms = 20000
 
 
@@ -144,7 +143,7 @@ def test_training():
     out_w = in_w - 34
     in_d = 52
     out_d = 18
-    batch_size = 2
+    batch_size = 4
     classes = ['liver']
 
     train_annot_dirs = [liver_annot_train_dir] # for liver
@@ -240,7 +239,7 @@ def test_training_converges():
     out_w = in_w - 34
     in_d = 52
     out_d = 18
-    batch_size = 2
+    batch_size = 4
     classes = ['liver']
 
     train_annot_dirs = [liver_annot_train_dir] # for liver
@@ -289,7 +288,7 @@ def test_training_converges_on_validation():
     out_w = in_w - 34
     in_d = 52
     out_d = 18
-    batch_size = 2
+    batch_size = 4
     classes = ['liver']
 
     train_annot_dirs = [liver_annot_train_dir] # for liver
@@ -511,10 +510,14 @@ def test_training_patch_size_bigger_than_image():
     classes = ['liver']
 
     train_annot_dirs = [liver_annot_train_dir] # for liver
+    val_annot_dirs = [liver_annot_val_dir]
 
     fnames = os.listdir(subset_dir_images)
 
     # we will try training on images that are mostly smaller than the patch width.
+    """
+    This check allows us to confirm that the dataset used for testing has some images
+    that are smaller than the patch size. We don't need to run it every time.
     bigger_patch = 0
     for f in fnames:
         fpath = os.path.join(subset_dir_images, f)
@@ -522,6 +525,7 @@ def test_training_patch_size_bigger_than_image():
         if (im.shape[0] < in_d or im.shape[1] < larger_in_w or im.shape[2] < larger_in_w):
             bigger_patch += 1
     assert bigger_patch > len(fnames) // 2, f'Only {bigger_patch} in {len(fnames)}'
+    """
 
     dataset = RPDataset(train_annot_dirs,
                         train_seg_dirs=[None] * len(train_annot_dirs),
@@ -533,7 +537,7 @@ def test_training_patch_size_bigger_than_image():
                         mode=datasets.Modes.TRAIN,
                         patch_refs=None,
                         use_seg_in_training=False,
-                        length=batch_size*20)
+                        length=batch_size*10)
 
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=False,
                         collate_fn=data_utils.collate_fn,
@@ -554,9 +558,50 @@ def test_training_patch_size_bigger_than_image():
                                            step_callback=None,
                                            stop_fn=None)
     assert train_result
-    print('')
+
     print('Train epoch complete in', round(time.time() - start_time, 1), 'seconds')
-    # pass - epoch runs without error.
+    train_metrics = Metrics.sum(train_result)
+    assert train_metrics.dice() > 0.000001
+
+
+def test_validation_patch_size_bigger_than_image():
+    """ test that validation does not error when the patch size
+        for the neural network is bigger than the images. """
+    larger_in_w = 36 + (11*16)
+    out_w = larger_in_w - 34
+    in_d = 52
+    out_d = 18
+    batch_size = 1
+    classes = ['liver']
+    val_annot_dirs = [liver_annot_val_dir]
+    fnames = os.listdir(subset_dir_images)
+
+    model = model_utils.random_model(classes)
+
+    patch_refs = im_utils.get_val_patch_refs(
+        val_annot_dirs,
+        [],
+        out_shape=(out_d, out_w, out_w))
+ 
+    val_dataset = RPDataset(val_annot_dirs,
+                            None, # train_seg_dirs
+                            dataset_dir=subset_dir_images,
+                            # only specifying w and d as h is always same as w
+                            in_w=larger_in_w,
+                            out_w=out_w,
+                            in_d=in_d,
+                            out_d=out_d,
+                            mode=datasets.Modes.VAL, 
+                            patch_refs=patch_refs)
+
+    val_result = train_utils.val_epoch(model,
+                                       classes,
+                                       val_dataset,
+                                       patch_refs,
+                                       step_callback=None,
+                                       stop_fn=None)
+    val_metrics = Metrics.sum(val_result)
+    assert val_metrics.dice() > 0.000001
 
 
 def test_collate_pad_image_patches_to_largest():
