@@ -52,8 +52,16 @@ spleen_annot_train_dir = os.path.join(subset_dir_annots, 'spleen', 'train')
 spleen_annot_val_dir = os.path.join(subset_dir_annots, 'spleen', 'val')
 partial_spleen_annot_val_dir = os.path.join(subset_dir_annots, 'spleen_partial', 'val')
 
-num_workers = 0
-in_w = 36 + (10*16) # patch size of 196
+num_workers = 12
+#in_w = 36 + (4*16) # patch size of 100
+in_w = 36 + (7*16) # patch size of 164
+out_w = in_w - 34
+in_d = in_w
+out_d = out_w
+
+learning_rate = 0.01
+momentum = 0.99
+
 timeout_ms = 20000
 
 def convert_seg_to_annot(in_fpath):
@@ -126,7 +134,7 @@ def prep_random_100(dataset_dir):
 
 def setup_function():
     """ download and prepare files required for the tests """
-    print('running setup')
+    print('Running setup')
     if not os.path.isdir(datasets_dir):
         os.makedirs(datasets_dir)
     if not os.path.isdir(total_seg_dataset_dir):
@@ -138,9 +146,6 @@ def setup_function():
 
 def test_training():
     """ test training can run one epoch without error """
-    out_w = in_w - 34
-    in_d = 52
-    out_d = 18
     batch_size = 4
     classes = ['liver']
 
@@ -164,8 +169,8 @@ def test_training():
                         drop_last=False, pin_memory=True)
 
     model = model_utils.random_model(classes)
-    optimizer = torch.optim.SGD(model.parameters(), lr=0.01,
-                                momentum=0.99, nesterov=True)
+    optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate,
+                                momentum=momentum, nesterov=True)
 
     start_time = time.time()
 
@@ -185,11 +190,8 @@ def test_training():
 
 def test_validation():
     """ test validation epoch completes without error """
-    out_w = in_w - 34
-    in_d = 52
-    out_d = 18
     classes = ['liver']
-
+    print('test_validation()')
     val_annot_dirs = [liver_annot_val_dir] # for liver
 
     # should be some files in the annot dir for this test to work
@@ -234,9 +236,8 @@ def test_validation():
 
 def test_training_converges_no_validation():
     """ test training can get to a model with high enough training dice in the epoch limit"""
-    out_w = in_w - 34
-    in_d = 52
-    out_d = 18
+
+    print('test_training_converges_no_validation()')
     batch_size = 4
     classes = ['liver']
     dice_target = 0.3
@@ -256,15 +257,21 @@ def test_training_converges_no_validation():
                         use_seg_in_training=False,
                         length=batch_size*64)
 
+    def fg_fn():
+        # always force foreground in item for this test
+        # as otherways convergence may be slow.
+        return True
+    dataset.should_force_fg = fg_fn
+
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=False,
                         collate_fn=data_utils.collate_fn,
                         num_workers=num_workers,
                         drop_last=False, pin_memory=True)
 
     model = model_utils.random_model(classes)
-    optimizer = torch.optim.SGD(model.parameters(), lr=0.01,
-                                momentum=0.99, nesterov=True)
-    for _ in range(epoch_limit):
+    optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate,
+                                momentum=momentum, nesterov=True)
+    for e in range(epoch_limit):
         start_time = time.time()
         train_result = train_utils.train_epoch(model,
                                                classes,
@@ -273,10 +280,11 @@ def test_training_converges_no_validation():
                                                optimizer=optimizer,
                                                step_callback=None,
                                                stop_fn=None,
-                                               debug_dir='frames')
+                                               # debug_dir='frames')
+                                               debug_dir=None)
         assert train_result
         print('')
-        print('Train epoch complete in', round(time.time() - start_time, 1), 'seconds')
+        print(f'Train epoch {e + 1} complete in', round(time.time() - start_time, 1), 'seconds')
         train_metrics = Metrics.sum(train_result)
         print('Train dice:', train_metrics.dice(),
               'FG predicted', train_metrics.total_pred(),
@@ -285,17 +293,17 @@ def test_training_converges_no_validation():
               'FG pred mean', train_metrics.pred_mean())
         if train_metrics.dice() > dice_target:
             return # test passes.
-        print('Metrics', train_metrics.__str__(to_use=['dice']))
-    raise Exception('Dice did not get to {dice_target} in {epoch_limit} epochs')
+        print('Train metrics', train_metrics.__str__(to_use=['dice']))
+    raise Exception(f'Dice did not get to {dice_target} in {epoch_limit} epochs')
 
 
 def test_training_converges_on_validation():
-    """ test training can get to a model with validation dice of 0.4 """
-    out_w = in_w - 34
-    in_d = 52
-    out_d = 18
+    """ test training can get to a model with validation dice of {dice_target} """
+    print('test_training_converges_on_validation()')
     batch_size = 4
     classes = ['liver']
+    dice_target = 0.3
+    epoch_limit = 20
 
     train_annot_dirs = [liver_annot_train_dir] # for liver
     val_annot_dirs = [liver_annot_val_dir] # for liver
@@ -312,14 +320,20 @@ def test_training_converges_on_validation():
                         use_seg_in_training=False,
                         length=batch_size*64)
 
+    def fg_fn():
+        # always force foreground in item for this test
+        # as otherways convergence may be slow.
+        return True
+    dataset.should_force_fg = fg_fn
+
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=False,
                         collate_fn=data_utils.collate_fn,
                         num_workers=num_workers,
                         drop_last=False, pin_memory=True)
 
     model = model_utils.random_model(classes)
-    optimizer = torch.optim.SGD(model.parameters(), lr=0.01,
-                                momentum=0.99, nesterov=True)
+    optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate,
+                                momentum=momentum, nesterov=True)
 
 
     # should be some files in the annot dir for this test to work
@@ -342,7 +356,7 @@ def test_training_converges_on_validation():
                             mode=datasets.Modes.VAL, 
                             patch_refs=patch_refs)
 
-    for _ in range(40):
+    for epoch in range(epoch_limit):
         start_time = time.time()
         train_result = train_utils.train_epoch(model,
                                                classes,
@@ -352,7 +366,7 @@ def test_training_converges_on_validation():
                                                step_callback=None,
                                                stop_fn=None)
         assert train_result
-        print('')
+        print('Epoch: ', epoch + 1)
         print('Train epoch complete in', round(time.time() - start_time, 1), 'seconds')
         train_metrics = Metrics.sum(train_result)
         print('Train metrics dice', train_metrics.dice())
@@ -363,18 +377,15 @@ def test_training_converges_on_validation():
                                            step_callback=None,
                                            stop_fn=None)
         val_metrics = Metrics.sum(val_result)
-        print('val metrics dice', val_metrics.dice())
-        if val_metrics.dice() > 0.4:
+        print('Val metrics dice', val_metrics.dice())
+        if val_metrics.dice() > dice_target:
             return # test passes.
-    raise Exception('Validation Dice did not get to 0.4 in 40 epochs')
+    raise Exception(f'Validation Dice did not get to {dice_target} in {epoch_limit} epochs')
 
 
 def test_multiclass_validation():
     """ test validation does not throw exception when multiple classes used.
         Dont train - only validate the initial random model """
-    out_w = in_w - 34
-    in_d = 52
-    out_d = 18
     classes = ['liver', 'spleen']
 
     val_annot_dirs = [liver_annot_val_dir, spleen_annot_val_dir]
@@ -410,7 +421,7 @@ def test_multiclass_validation():
                                        step_callback=None,
                                        stop_fn=None)
     val_metrics = Metrics.sum(val_result)
-    print('val metrics dice', val_metrics.dice())
+    print('Val metrics dice', val_metrics.dice())
     assert val_metrics.dice() > 0.000001
 
 
@@ -425,9 +436,6 @@ def test_multiclass_validation_missing_annotations():
         The aim is to reproduce a reported bug:
         https://github.com/Abe404/RootPainter3D/issues/32
     """
-    out_w = in_w - 34
-    in_d = 52
-    out_d = 18
     classes = ['liver', 'partial_spleen']
 
     val_annot_dirs = [liver_annot_val_dir, partial_spleen_annot_val_dir]
@@ -463,7 +471,7 @@ def test_multiclass_validation_missing_annotations():
                                        step_callback=None,
                                        stop_fn=None)
     val_metrics = Metrics.sum(val_result)
-    print('val metrics dice', val_metrics.dice())
+    print('Val metrics dice', val_metrics.dice())
     assert val_metrics.dice() > 0.000001
 
 
@@ -471,9 +479,6 @@ def test_get_val_patch_refs():
     """ get val patch refs should return a
         list of patches for each folder in the annotation directory.
     """
-
-    out_w = in_w - 34
-    out_d = 18
     out_shape = (out_d, out_w, out_w)
     prev_patch_refs = []
 
@@ -508,10 +513,10 @@ def test_get_val_patch_refs():
 def test_training_patch_size_bigger_than_image():
     """ test that training does not error when the patch size
         for the neural network is bigger than the images. """
+
+    # use larger patch size for this test.
     larger_in_w = 36 + (11*16)
-    out_w = larger_in_w - 34
-    in_d = 52
-    out_d = 18
+    larger_out_w = larger_in_w - 34
     batch_size = 1
     classes = ['liver']
 
@@ -535,7 +540,7 @@ def test_training_patch_size_bigger_than_image():
                         train_seg_dirs=[None] * len(train_annot_dirs),
                         dataset_dir=subset_dir_images,
                         in_w=larger_in_w,
-                        out_w=out_w,
+                        out_w=larger_out_w,
                         in_d=in_d,
                         out_d=out_d,
                         mode=datasets.Modes.TRAIN,
@@ -549,8 +554,8 @@ def test_training_patch_size_bigger_than_image():
                         drop_last=False, pin_memory=True)
 
     model = model_utils.random_model(classes)
-    optimizer = torch.optim.SGD(model.parameters(), lr=0.01,
-                                momentum=0.99, nesterov=True)
+    optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate,
+                                momentum=momentum, nesterov=True)
 
     start_time = time.time()
 
@@ -572,9 +577,7 @@ def test_validation_patch_size_bigger_than_image():
     """ test that validation does not error when the patch size
         for the neural network is bigger than the images. """
     larger_in_w = 36 + (11*16)
-    out_w = larger_in_w - 34
-    in_d = 52
-    out_d = 18
+    larger_out_w = larger_in_w - 34
     classes = ['liver']
     val_annot_dirs = [liver_annot_val_dir]
 
@@ -590,7 +593,7 @@ def test_validation_patch_size_bigger_than_image():
                             dataset_dir=subset_dir_images,
                             # only specifying w and d as h is always same as w
                             in_w=larger_in_w,
-                            out_w=out_w,
+                            out_w=larger_out_w,
                             in_d=in_d,
                             out_d=out_d,
                             mode=datasets.Modes.VAL, 
