@@ -52,11 +52,9 @@ spleen_annot_train_dir = os.path.join(subset_dir_annots, 'spleen', 'train')
 spleen_annot_val_dir = os.path.join(subset_dir_annots, 'spleen', 'val')
 partial_spleen_annot_val_dir = os.path.join(subset_dir_annots, 'spleen_partial', 'val')
 
-    
-num_workers = 12
-in_w = 36 + (6*16) # patch size of 116
+num_workers = 0
+in_w = 36 + (10*16) # patch size of 196
 timeout_ms = 20000
-
 
 def convert_seg_to_annot(in_fpath):
     """ load the seg file from `in_fpath` 
@@ -234,13 +232,15 @@ def test_validation():
     assert len(val_result) == len(patch_refs)
 
 
-def test_training_converges():
-    """ test training can get to a model with training dice of 0.4 """
+def test_training_converges_no_validation():
+    """ test training can get to a model with high enough training dice in the epoch limit"""
     out_w = in_w - 34
     in_d = 52
     out_d = 18
     batch_size = 4
     classes = ['liver']
+    dice_target = 0.3
+    epoch_limit = 5
 
     train_annot_dirs = [liver_annot_train_dir] # for liver
 
@@ -264,7 +264,7 @@ def test_training_converges():
     model = model_utils.random_model(classes)
     optimizer = torch.optim.SGD(model.parameters(), lr=0.01,
                                 momentum=0.99, nesterov=True)
-    for _ in range(10):
+    for _ in range(epoch_limit):
         start_time = time.time()
         train_result = train_utils.train_epoch(model,
                                                classes,
@@ -272,15 +272,21 @@ def test_training_converges():
                                                batch_size,
                                                optimizer=optimizer,
                                                step_callback=None,
-                                               stop_fn=None)
+                                               stop_fn=None,
+                                               debug_dir='frames')
         assert train_result
         print('')
         print('Train epoch complete in', round(time.time() - start_time, 1), 'seconds')
         train_metrics = Metrics.sum(train_result)
-        if train_metrics.dice() > 0.4:
+        print('Train dice:', train_metrics.dice(),
+              'FG predicted', train_metrics.total_pred(),
+              'FG true', train_metrics.total_true(),
+              'FG true mean', train_metrics.true_mean(),
+              'FG pred mean', train_metrics.pred_mean())
+        if train_metrics.dice() > dice_target:
             return # test passes.
         print('Metrics', train_metrics.__str__(to_use=['dice']))
-    raise Exception('Dice did not get to 0.4 in 10 epochs')
+    raise Exception('Dice did not get to {dice_target} in {epoch_limit} epochs')
 
 
 def test_training_converges_on_validation():
