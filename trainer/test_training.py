@@ -19,7 +19,6 @@ import os
 import random
 import shutil
 import time
-
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
@@ -54,7 +53,7 @@ partial_spleen_annot_val_dir = os.path.join(subset_dir_annots, 'spleen_partial',
 
 num_workers = 12
 #in_w = 36 + (4*16) # patch size of 100
-in_w = 36 + (7*16) # patch size of 164
+in_w = 36 + (7*16) 
 out_w = in_w - 34
 in_d = in_w
 out_d = out_w
