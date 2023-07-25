@@ -123,20 +123,7 @@ def get_seg_metrics(seg_dir, gt_dir, fname):
 
     gt = im_utils.load_seg(os.path.join(gt_dir, fname))
     gt = gt.astype(bool).astype(int)
-
-    # if they dont match in shape assume the gt needs the depth moving from last to first
-    if gt.shape != seg.shape:
-        # these transformmations are taken from the server code that
-        # loads and segments an image. 
-        # here we assume the gt has the same orientation as the original image
-        # hence the same transofmrations need to be applied to get the gt
-        # to align to the segmented image.
-
-        # FIXME TODO: Consider removing this soon.
-        gt = np.rot90(gt, k=3)
-        gt = np.moveaxis(gt, -1, 0) # depth moved to beginning
-        # reverse lr and ud
-        gt = gt[::-1, :, ::-1]
+    assert gt.shape == seg.shape
     m = metrics_from_binary_masks(seg, gt)
     m.fname = fname
     return m

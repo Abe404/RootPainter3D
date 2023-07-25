@@ -52,11 +52,6 @@ def load_image_with_header(image_path):
     header = image.header
     affine = image.affine
     image = np.array(image.dataobj)
-    
-    image = np.rot90(image, k=3)
-    image = np.moveaxis(image, -1, 0) # depth moved to beginning
-    # reverse lr and ud
-    image = image[::-1, :, ::-1]
     return image.astype(int), affine, header
 
 def load_image(image_path):
@@ -66,16 +61,8 @@ def load_image(image_path):
     if image_path.endswith('.nii.gz'):
         image = nib.load(image_path)
         image = np.array(image.dataobj)
-        image = np.rot90(image, k=3)
-        image = np.moveaxis(image, -1, 0) # depth moved to beginning
-        # reverse lr and ud
-        image = image[::-1, :, ::-1]
     elif image_path.endswith('.nrrd'):
         image, _header = nrrd.read(image_path)
-        image = np.rot90(image, k=3)
-        image = np.moveaxis(image, -1, 0) # depth moved to beginning
-        # reverse lr and ud
-        image = image[::-1, :, ::-1]
     else:
         raise Exception(f"Unhandled file ending {image_path}")
     image = image.astype(int)
@@ -284,14 +271,6 @@ def save_corrected_segmentation_from_data(seg_data, annot_data, image_affine,
     annot_plus = (annot_data[1] > 0).astype(int)
     annot_minus = (annot_data[0] > 0).astype(int)
     corrected = (((seg_map + annot_plus) - annot_minus) > 0)
-
-    # These operations are the inverse of what is done to an image when it is
-    # loaded. I am performing them to make the segmentation algin with the 
-    # original image.
-    corrected = corrected[::-1, :, ::-1] # reverse lr and ud
-    corrected = np.moveaxis(corrected, 0, -1) # depth moved to end
-    corrected = np.rot90(corrected, k=1) # rotate 90.
-
     corrected_nifty = nib.Nifti1Image(corrected.astype(np.int8),
                                       image_affine, image_header)
     output_dir = os.path.dirname(output_path)
