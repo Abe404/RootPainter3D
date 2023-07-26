@@ -112,6 +112,12 @@ def annot_slice_to_pixmap(slice_np):
 
 
 def get_outline_pixmap(seg_slice, annot_slice):
+
+    assert seg_slice.shape == annot_slice[0].shape, (
+        'get_outline_pixmap: '
+        f'seg_slice shape {seg_slice.shape} should match '
+        f' annot_slice shape {annot_slice.shape}')
+
     seg_map = (seg_slice > 0).astype(int)
     annot_plus = (annot_slice[1] > 0).astype(int)
     annot_minus = (annot_slice[0] > 0).astype(int)
@@ -136,7 +142,7 @@ def seg_slice_to_pixmap(slice_np):
     return QtGui.QPixmap.fromImage(q_image)
 
 def get_slice(volume, slice_idx, mode):
-    if mode == 'axial':
+    if mode == 'sagittal':
         if len(volume.shape) > 3:
             slice_idx = (volume.shape[1] - slice_idx) - 1
             # if more than 3 presume first is channel dimension
@@ -151,7 +157,7 @@ def get_slice(volume, slice_idx, mode):
         #    slice_data = volume[:, :, :, slice_idx]
         #else:
         #    slice_data = volume[:, slice_idx, :]
-    elif mode == 'sagittal':
+    elif mode == 'axial':
         if len(volume.shape) > 3:
             # if more than 3 presume first is channel dimension
             slice_data = volume[:, :, :, slice_idx]
@@ -159,6 +165,7 @@ def get_slice(volume, slice_idx, mode):
             slice_data = volume[:, :, slice_idx]
     else:
         raise Exception(f"Unhandled slice mode: {mode}")
+    # not sure why I had to rot90. Based on visual inspection
     return slice_data
 
 
@@ -170,7 +177,9 @@ def store_annot_slice(annot_pixmap, annot_data, slice_idx, mode):
     slice_rgb_np = np.array(qimage2ndarray.rgb_view(annot_pixmap.toImage()))
     fg = slice_rgb_np[:, :, 0] > 0
     bg = slice_rgb_np[:, :, 1] > 0
-    if mode == 'axial': 
+    
+
+    if mode == 'sagittal': 
         slice_idx = (annot_data.shape[1] - slice_idx) - 1
         annot_data[0, slice_idx] = bg
         annot_data[1, slice_idx] = fg
@@ -178,7 +187,7 @@ def store_annot_slice(annot_pixmap, annot_data, slice_idx, mode):
         raise Exception("not yet implemented")
         # annot_data[0, :, slice_idx, :] = bg
         # annot_data[1, :, slice_idx, :] = fg
-    elif mode == 'sagittal':
+    elif mode == 'axial':
         #slice_idx = (annot_data.shape[3] - slice_idx) - 1
         annot_data[0, :, :, slice_idx] = bg
         annot_data[1, :, :, slice_idx] = fg
