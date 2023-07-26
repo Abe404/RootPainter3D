@@ -36,11 +36,11 @@ class SliceNav(QtWidgets.QWidget):
         """ update range of slices based on shape of input image
             and view mode """
         if mode == 'axial':
-            slice_count = new_image.shape[0]
+            slice_count = new_image.shape[-1]
         elif mode == 'coronal':
             slice_count = new_image.shape[1]
         elif mode == 'sagittal':
-            slice_count = new_image.shape[2]
+            slice_count = new_image.shape[0]
         else: 
             raise Exception(f"Unhandled mode:{mode}")
 
