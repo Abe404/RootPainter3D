@@ -15,14 +15,12 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 import numpy as np
 import torch
-
-from trainer import Trainer
-from startup import startup_setup
 from metrics import Metrics
+from model_utils import random_model, pad_then_segment_3d
+from loss import get_batch_loss
 
 
 def test_segmentation_001():
-    from model_utils import segment_3d, random_model, pad_then_segment_3d
     image_shape = (72, 412, 412)  # depth, height, width, (z, y, x)
     image = np.random.random(image_shape)
     in_patch_shape = (64, 256, 256)
@@ -50,7 +48,6 @@ def test_batch_loss_handles_overlapping_patches():
         as the patch size is fixed and some images 
         do not divide evenly by the patch size """
 
-    from loss import get_batch_loss
     batch_size = 2
 
     # selected arbitrarily, with depth slightly bigger than 1 patch
@@ -82,10 +79,11 @@ def test_batch_loss_handles_overlapping_patches():
 
     # move to torch tensor as tested loss function requires this.
     # FIXME split apart the tested function so metrics computation is seperate and not on GPU.
-    for i in range(len(fg_patches)):
-        fg_patches[i][0] = torch.tensor(fg_patches[i][0])
-    for i in range(len(bg_patches)):
-        bg_patches[i][0] = torch.tensor(bg_patches[i][0])
+    for i, fg_patch in enumerate(fg_patches):
+        fg_patches[i][0] = torch.tensor(fg_patch[0])
+
+    for i, bg_patch in enumerate(bg_patches):
+        bg_patches[i][0] = torch.tensor(bg_patch[0])
 
     network_output = np.zeros(batch_out_shape)
     # network predicts 1 for background.
@@ -130,7 +128,7 @@ def test_batch_loss_handles_overlapping_patches():
     # for each instance in batch, have list of classes present for that instance.
     batch_classes = batch_size * [['structure_of_interest']]
     
-    (loss, metrics_list) = get_batch_loss(
+    (_loss, metrics_list) = get_batch_loss(
          network_output, fg_patches, bg_patches, 
          ignore_masks, seg_patches,
          batch_classes, project_classes,

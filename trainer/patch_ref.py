@@ -19,9 +19,11 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import os
 from dataclasses import dataclass
-import numpy as np
-from metrics import Metrics
 from typing import Optional # supporting python3.8
+
+import numpy as np
+
+from metrics import Metrics
 
 
 @dataclass
