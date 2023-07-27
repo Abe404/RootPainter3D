@@ -1,0 +1,30 @@
+
+[MESSAGES CONTROL]
+
+disable=trailing-newlines,
+        too-many-arguments,
+        too-many-statements,
+        trailing-whitespace,
+        too-many-locals,
+        invalid-name,
+        too-many-public-methods,
+        unnecessary-dunder-call,
+        consider-using-with,
+        import-error,
+        broad-except,
+        missing-function-docstring,
+        missing-class-docstring,
+        too-many-instance-attributes,
+        wrong-import-position,
+        too-many-branches
+
+
+
+
+[TYPECHECK]
+
+# List of members which are set dynamically and missed by pylint inference
+# system, and so shouldn't trigger E1101 when accessed. Python regular
+# expressions are accepted.
+generated-members=numpy.*,torch.*
+

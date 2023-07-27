@@ -18,22 +18,81 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 # pylint: disable=C0111,E1102,C0103,W0703,W0511,E1136
 import os
 import glob
+import math
 import shutil
 import time
 from functools import partial
 from math import ceil
+import traceback
 import random
+from pathlib import Path
+
 import numpy as np
-import skimage.util as skim_util
 from skimage.exposure import rescale_intensity
 import nibabel as nib
-from file_utils import ls
 import nrrd
-from pathlib import Path
-import traceback
 
+from file_utils import ls
 from patch_ref import PatchRef
 
+
+def get_random_patch_3d(annots, segs, image, fname,
+                        force_fg, in_d, in_w):
+    """ return a patch with random location with specified size
+        from the supplied annots, segs, and image.
+        If force_fg is true then make sure the patch contains foreground.
+    """
+    def rnd():
+        """ Give higher than random chance to select the edges """
+        return max(0, min(1, (1.2 * random.random()) - 0.1))
+
+    def annot_patch_has_fg(annot):
+        return np.any(annot[1][17:-17,17:-17,17:-17])
+
+    # Limits for possible sampling locations from image (based on size of image)
+    depth_lim = image.shape[0] - min(in_d, image.shape[0])
+    bottom_lim = image.shape[1] - min(in_w, image.shape[1])
+    right_lim = image.shape[2] - min(in_w, image.shape[2])
+
+    attempts = 0 
+    warn_after_attempts = 1000
+    
+    while True:
+        attempts += 1
+        x_in = math.floor(rnd() * right_lim)
+        y_in = math.floor(rnd() * bottom_lim)
+        z_in = math.floor(rnd() * depth_lim)
+
+        annot_patches = []
+        seg_patches = []
+        for seg, annot in zip(segs, annots):
+            # Get the corresponding region of the annotation after network crop
+            annot_patches.append(annot[:,
+                                       z_in:z_in+in_d,
+                                       y_in:y_in+in_w,
+                                       x_in:x_in+in_w])
+            if seg is None:
+                seg_patches.append(None)
+            else:
+                seg_patches.append(seg[z_in:z_in+in_d,
+                                       y_in:y_in+in_w,
+                                       x_in:x_in+in_w])
+
+        # we only want annotations with defiend regions in the output area.
+        # Otherwise we will have nothing to update the loss.
+        if np.any([np.any(a) for a in annot_patches]):
+            # if force fg is true then make sure fg is defined.
+            if not force_fg or np.any([annot_patch_has_fg(a) for a in annot_patches]):
+                # ok we have some annotation for this
+                # part of the image so let's return the patch.
+                im_patch = image[z_in:z_in+in_d,
+                                 y_in:y_in+in_w,
+                                 x_in:x_in+in_w]
+
+                return annot_patches, seg_patches, im_patch
+        if attempts > warn_after_attempts:
+            print(f'Warning {attempts} attempts to get random patch from {fname}')
+            warn_after_attempts *= 10
 
 
 def maybe_pad_image_to_pad_size(image, in_patch_shape):
@@ -163,8 +222,8 @@ def load_image_and_annot_for_seg(dataset_dir, train_annot_dirs, fname):
         annots = []
 
         for annot_dir in annot_dirs:
-            annot_path = os.path.join(annot_dir, fname)
-            annot = load_image(annot_path)
+            annot_fpath = os.path.join(annot_dir, fname)
+            annot = load_image(annot_fpath)
             # Why would we have annotations without content?
             assert np.sum(annot) > 0
             annot = np.pad(annot, ((0, 0), (17,17), (17,17), (17, 17)), mode='constant')
@@ -176,15 +235,6 @@ def load_image_and_annot_for_seg(dataset_dir, train_annot_dirs, fname):
         image_path_part = os.path.join(dataset_dir, fname_no_ext)
         image_path = glob.glob(image_path_part + '.*')[0]
         image = load_image(image_path)
-
-        #  needs to be swapped to channels first and rotated etc
-        # to be consistent with everything else.
-        # todo: consider removing this soon.
-        image = np.rot90(image, k=3)
-        image = np.moveaxis(image, -1, 0) # depth moved to beginning
-        # reverse lr and ud
-        image = image[::-1, :, ::-1]
-
         # also return fname for debugging purposes.
         return image, annots, classes, fname
 
@@ -227,40 +277,57 @@ def load_train_image_and_annot(dataset_dir, train_seg_dirs, train_annot_dirs, us
             all_annot_dirs += [train_annot_dir] * len(annot_fnames)
             all_seg_dirs += [train_seg_dir] * len(annot_fnames)
         
-        assert len(fnames), 'should be at least one fname'
+        assert fnames, 'should be at least one fname'
 
-        fname = random.sample(fnames, 1)[0]
-
-        # triggers retry if assertion fails
-        assert is_image(fname), f'{fname} is not a valid image'
-
-        # annots and classes associated with fname
-        indices = [i for i, f in enumerate(fnames) if f == fname]
-        classes = [all_classes[i] for i in indices]
-        annot_dirs = [all_annot_dirs[i] for i in indices]
-        seg_dirs = [all_seg_dirs[i] for i in indices]
-        annots = []
-        segs = []
-
-        for annot_dir, seg_dir in zip(annot_dirs, seg_dirs): # for each of the classes.
-            annot_path = os.path.join(annot_dir, fname)
-            annot = load_image(annot_path)
-            # Why would we have annotations without content?
-            assert np.any(annot)
+       
+        tries = 0
+        annots = None
+        # retry - because we may have force_fg=True and an annotation without fg
+        while not annots:
+            if tries >= 100:
+                raise Exception(f'Tried to find an annotation {tries} times, '
+                                'perhaps none have foreground?')
+            tries += 1
+            fname = random.sample(fnames, 1)[0]
             
-            if force_fg: # make sure foreground present.
-                assert np.any(annot[1])
+            # triggers retry if assertion fails
+            assert is_image(fname), f'{fname} is not a valid image'
 
-            annot = np.pad(annot, ((0, 0), (17,17), (17,17), (17, 17)), mode='constant')
-            annots.append(annot)
+            # annots and classes associated with fname
+            indices = [i for i, f in enumerate(fnames) if f == fname]
+            classes = [all_classes[i] for i in indices]
+            annot_dirs = [all_annot_dirs[i] for i in indices]
+            seg_dirs = [all_seg_dirs[i] for i in indices]
+            annots = []
+            segs = []
 
-            seg_path = os.path.join(seg_dir, fname)
-            if use_seg and os.path.isfile(seg_path):
-                seg = load_image(seg_path)
-                seg = np.pad(seg, ((17,17), (17,17), (17, 17)), mode='constant')
-            else:
-                seg = None
-            segs.append(seg)
+            for annot_dir, seg_dir in zip(annot_dirs, seg_dirs): # for each of the classes.
+                annot_fpath = os.path.join(annot_dir, fname)
+                annot = load_image(annot_fpath).astype(int)
+
+                # Why would we have annotations without content?
+                assert np.any(annot)
+               
+                # if fg is forced then only add the annotations where fg is present
+                if not force_fg or (force_fg and np.any(annot[1])):
+
+                    annot = np.pad(annot, ((0, 0), (17,17), (17,17), (17, 17)), mode='constant')
+                    annots.append(annot)
+
+                    if use_seg:
+                        seg_path = os.path.join(seg_dir, fname)
+
+                    if use_seg and os.path.isfile(seg_path):
+                        seg_path = os.path.join(seg_dir, fname)
+                        seg = load_image(seg_path)
+                        seg = np.pad(seg, ((17,17), (17,17), (17, 17)), mode='constant')
+                    else:
+                        seg = None
+
+                    segs.append(seg)
+                else:
+                    # print('no foreground for ', fname)
+                    pass 
 
         # it's possible the image has a different extenstion
         # so use glob to get it
@@ -268,21 +335,19 @@ def load_train_image_and_annot(dataset_dir, train_seg_dirs, train_annot_dirs, us
         image_path_part = os.path.join(dataset_dir, fname_no_ext)
         image_path = glob.glob(image_path_part + '.*')[0]
         image = load_image(image_path)
-        #  needs to be swapped to channels first and rotated etc
-        # to be consistent with everything else.
-        # todo: consider removing this soon.
-        image = np.rot90(image, k=3)
-        image = np.moveaxis(image, -1, 0) # depth moved to beginning
-        # reverse lr and ud
-        image = image[::-1, :, ::-1]
         # images are no longer padded on disk
         image = np.pad(image, ((17,17), (17,17), (17, 17)), mode='constant')
+
+
+        assert image.shape == annots[0][0].shape, (f'Image shape {image.shape} '
+                f'should match annots[0][0].shape {annots[0][0].shape}. '
+                ' perhaps there is a dimensions mismatch?'
+                ' Dataset images and annotations should be (Depth, Height, Width).')
+
         # also return fname for debugging purposes.
         return image, annots, segs, classes, fname
 
     load_random = partial(load_random, train_annot_dirs, train_seg_dirs, dataset_dir)
-
-    
 
     return load_with_retry(load_random, None)
 
@@ -317,66 +382,65 @@ def get_val_patch_refs(annot_dirs, prev_patch_refs, out_shape):
     #  make a large list of classes that corresponds to all the file names. Ive done this elsewhere.
 
     # This might take ages, profile and optimize
-    cur_annot_fnames = []
-    # each annotation corresponds to an individual class.
-    all_classes = []
-    all_dirs = []
+
+
+    # create a list of annotation file paths to check
+    # this should include all current annotation files on disk
+    # and any in the prev_patch_refs (as these need removing)
+
+    annot_fpaths_to_check = []
 
     for annot_dir in annot_dirs:
         annot_fnames = ls(annot_dir)
         if annot_fnames:
-            cur_annot_fnames += annot_fnames
-            # Assuming class name is in annotation path
-            # i.e annotations/{class_name}/train/annot1.png,annot2.png..
-            class_name = Path(annot_dir).parts[-2]
-            all_classes += [class_name] * len(annot_fnames)
-            all_dirs += [annot_dir] * len(annot_fnames)
+            for a in annot_fnames:
+                annot_fpaths_to_check.append(os.path.join(annot_dir, a))
     
-    prev_annot_fnames = [r.annot_fname for r in prev_patch_refs]
-    all_annot_fnames = set(cur_annot_fnames + prev_annot_fnames)
+    for prev in prev_patch_refs:
+        annot_fpaths_to_check.append(prev.annot_fpath())
 
-    for annot_dir, annot_fname in zip(all_dirs, all_annot_fnames):
+    # no need to check the same file twice if it is in both
+    # the current file system and the prev refs
+    annot_fpaths_to_check = set(annot_fpaths_to_check)
+
+    for annot_fpath in annot_fpaths_to_check:
         # get existing coord refs for this image
-        prev_refs = [r for r in prev_patch_refs if r.annot_fname == annot_fname]
+        prev_refs = [r for r in prev_patch_refs if r.annot_fpath() == annot_fpath]
         prev_mtimes = [r.mtime for r in prev_refs]
         need_new_refs = False
         # if no refs for this image then check again
         if not prev_refs:
             need_new_refs = True
         else:
-            annot_path = os.path.join(annot_dir, annot_fname)
             # if the file no longer exists then we do need new refs
             # surprisingly this did happen, I presume the file list was somehow out of date
             # and the removal of the file was only detected when trying to read it.
-            if not os.path.isfile(annot_path):
+            if not os.path.isfile(annot_fpath):
                 need_new_refs = True
             else:
                 # otherwise check the modified time of the refs against the file.
                 prev_mtime = prev_mtimes[0]
-                cur_mtime = os.path.getmtime(os.path.join(annot_dir, annot_fname))
+                cur_mtime = os.path.getmtime(annot_fpath)
 
                 # if file has been updated then get new refs
                 if cur_mtime > prev_mtime:
                     need_new_refs = True
         if need_new_refs:
-            new_file_refs = get_val_patch_refs_for_annot_3d(annot_dir, annot_fname, out_shape)
+            new_file_refs = get_val_patch_refs_for_annot_3d(annot_fpath, out_shape)
             patch_refs += new_file_refs
         else:
             patch_refs += prev_refs
     return patch_refs
 
 
-def get_val_patch_refs_for_annot_3d(annot_dir, annot_fname, out_shape):
-    """
-    """
-    annot_path = os.path.join(annot_dir, annot_fname)
-    if not os.path.isfile(annot_path):
+def get_val_patch_refs_for_annot_3d(annot_fpath, out_shape):
+    if not os.path.isfile(annot_fpath):
         return []
-    annot = load_image(annot_path)
+    annot = load_image(annot_fpath)
     new_file_refs = []
     annot_shape = annot.shape[1:]
     coords = get_coords_3d(annot_shape, out_patch_shape=out_shape)
-    mtime = os.path.getmtime(annot_path)
+    mtime = os.path.getmtime(annot_fpath)
 
     # which regions to ignore because they already exist in another patch
     full_ignore_mask = np.zeros(list(annot.shape)[1:]) 
@@ -391,7 +455,8 @@ def get_val_patch_refs_for_annot_3d(annot_dir, annot_fname, out_shape):
         if np.any(annot_patch):
             # fname, [x, y, z], mtime, prev model metrics i.e [tp, tn, fp, fn] or None
             
-            new_ref = PatchRef(annot_fname=annot_fname,
+            new_ref = PatchRef(annot_dir=os.path.dirname(annot_fpath),
+                               annot_fname=os.path.basename(annot_fpath),
                                x=x, y=y, z=z, mtime=mtime,
                                ignore_mask=ignore_mask)
             new_file_refs.append(new_ref)

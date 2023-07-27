@@ -52,11 +52,6 @@ def load_image_with_header(image_path):
     header = image.header
     affine = image.affine
     image = np.array(image.dataobj)
-    
-    image = np.rot90(image, k=3)
-    image = np.moveaxis(image, -1, 0) # depth moved to beginning
-    # reverse lr and ud
-    image = image[::-1, :, ::-1]
     return image.astype(int), affine, header
 
 def load_image(image_path):
@@ -66,16 +61,8 @@ def load_image(image_path):
     if image_path.endswith('.nii.gz'):
         image = nib.load(image_path)
         image = np.array(image.dataobj)
-        image = np.rot90(image, k=3)
-        image = np.moveaxis(image, -1, 0) # depth moved to beginning
-        # reverse lr and ud
-        image = image[::-1, :, ::-1]
     elif image_path.endswith('.nrrd'):
         image, _header = nrrd.read(image_path)
-        image = np.rot90(image, k=3)
-        image = np.moveaxis(image, -1, 0) # depth moved to beginning
-        # reverse lr and ud
-        image = image[::-1, :, ::-1]
     else:
         raise Exception(f"Unhandled file ending {image_path}")
     image = image.astype(int)
@@ -125,6 +112,12 @@ def annot_slice_to_pixmap(slice_np):
 
 
 def get_outline_pixmap(seg_slice, annot_slice):
+
+    assert seg_slice.shape == annot_slice[0].shape, (
+        'get_outline_pixmap: '
+        f'seg_slice shape {seg_slice.shape} should match '
+        f' annot_slice shape {annot_slice.shape}')
+
     seg_map = (seg_slice > 0).astype(int)
     annot_plus = (annot_slice[1] > 0).astype(int)
     annot_minus = (annot_slice[0] > 0).astype(int)
@@ -149,7 +142,7 @@ def seg_slice_to_pixmap(slice_np):
     return QtGui.QPixmap.fromImage(q_image)
 
 def get_slice(volume, slice_idx, mode):
-    if mode == 'axial':
+    if mode == 'sagittal':
         if len(volume.shape) > 3:
             slice_idx = (volume.shape[1] - slice_idx) - 1
             # if more than 3 presume first is channel dimension
@@ -164,7 +157,7 @@ def get_slice(volume, slice_idx, mode):
         #    slice_data = volume[:, :, :, slice_idx]
         #else:
         #    slice_data = volume[:, slice_idx, :]
-    elif mode == 'sagittal':
+    elif mode == 'axial':
         if len(volume.shape) > 3:
             # if more than 3 presume first is channel dimension
             slice_data = volume[:, :, :, slice_idx]
@@ -172,6 +165,7 @@ def get_slice(volume, slice_idx, mode):
             slice_data = volume[:, :, slice_idx]
     else:
         raise Exception(f"Unhandled slice mode: {mode}")
+    # not sure why I had to rot90. Based on visual inspection
     return slice_data
 
 
@@ -183,7 +177,9 @@ def store_annot_slice(annot_pixmap, annot_data, slice_idx, mode):
     slice_rgb_np = np.array(qimage2ndarray.rgb_view(annot_pixmap.toImage()))
     fg = slice_rgb_np[:, :, 0] > 0
     bg = slice_rgb_np[:, :, 1] > 0
-    if mode == 'axial': 
+    
+
+    if mode == 'sagittal': 
         slice_idx = (annot_data.shape[1] - slice_idx) - 1
         annot_data[0, slice_idx] = bg
         annot_data[1, slice_idx] = fg
@@ -191,7 +187,7 @@ def store_annot_slice(annot_pixmap, annot_data, slice_idx, mode):
         raise Exception("not yet implemented")
         # annot_data[0, :, slice_idx, :] = bg
         # annot_data[1, :, slice_idx, :] = fg
-    elif mode == 'sagittal':
+    elif mode == 'axial':
         #slice_idx = (annot_data.shape[3] - slice_idx) - 1
         annot_data[0, :, :, slice_idx] = bg
         annot_data[1, :, :, slice_idx] = fg
@@ -284,14 +280,6 @@ def save_corrected_segmentation_from_data(seg_data, annot_data, image_affine,
     annot_plus = (annot_data[1] > 0).astype(int)
     annot_minus = (annot_data[0] > 0).astype(int)
     corrected = (((seg_map + annot_plus) - annot_minus) > 0)
-
-    # These operations are the inverse of what is done to an image when it is
-    # loaded. I am performing them to make the segmentation algin with the 
-    # original image.
-    corrected = corrected[::-1, :, ::-1] # reverse lr and ud
-    corrected = np.moveaxis(corrected, 0, -1) # depth moved to end
-    corrected = np.rot90(corrected, k=1) # rotate 90.
-
     corrected_nifty = nib.Nifti1Image(corrected.astype(np.int8),
                                       image_affine, image_header)
     output_dir = os.path.dirname(output_path)

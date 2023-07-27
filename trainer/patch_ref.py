@@ -1,11 +1,34 @@
+""" 
+Dataclass to help with caching validation information
+
+Copyright (C) 2023 Abraham George Smith
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""
+
+
+import os
 from dataclasses import dataclass
-import numpy as np
-from metrics import Metrics
 from typing import Optional # supporting python3.8
+
+import numpy as np
+
+from metrics import Metrics
 
 
 @dataclass
 class PatchRef:
+    annot_dir: str
     annot_fname: str
     # patch origin position relative to annotation
     # for addressing the location within the padded image
@@ -33,6 +56,9 @@ class PatchRef:
     # These metrics are the cached performance for this patch 
     # with previous (current best) model.
     metrics: Optional[Metrics] = None
+
+    def annot_fpath(self):
+        return os.path.join(self.annot_dir, self.annot_fname)
     
     def has_metrics(self):
         return self.metrics is not None

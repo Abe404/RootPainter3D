@@ -27,27 +27,27 @@ from datetime import datetime
 import copy
 import multiprocessing
 
-from metrics import Metrics
-
-import numpy as np
 import torch
 from torch.utils.data import DataLoader
-from loss import get_batch_loss
-from instructions import fix_config_paths
 
+from metrics import Metrics
+from instructions import fix_config_paths
 from datasets import RPDataset
+import datasets
+
+import model_utils
 from model_utils import load_model_then_segment_3d
 from model_utils import add_config_shape
 from model_utils import create_first_model_with_random_weights
 from model_utils import random_model
-import model_utils
 from model_utils import save_if_better, save_model
+from model_utils import debug_memory
+
 import data_utils
-from patch_seg import handle_patch_update_in_epoch_step
 from im_utils import is_image, load_image, save
 import im_utils
 from file_utils import ls
-from model_utils import debug_memory
+import train_utils
 
 metrics_to_print = ['dice', 'precision', 'recall', 'total_true', 'total_pred']
 
@@ -174,7 +174,7 @@ class Trainer():
         if name in [i.__name__ for i in self.valid_instructions]:
             print('execute_instruction', name)
             try:
-                with open(fpath, 'r') as json_file:
+                with open(fpath, 'r', encoding='utf-8') as json_file:
                     contents = json_file.read()
                     config = fix_config_paths(self.sync_dir, json.loads(contents))
                     getattr(self, name)(config)
@@ -263,10 +263,6 @@ class Trainer():
         Compute the metrics for a given
             model, annotation directory and dataset (image directory).
         """
-        debug_memory('val epoch start')
-        torch.set_grad_enabled(False)
-
-
         dataset = RPDataset(self.train_config['val_annot_dirs'],
                             None, # train_seg_dirs
                             self.train_config['dataset_dir'],
@@ -275,63 +271,22 @@ class Trainer():
                             self.train_config['out_w'],
                             self.train_config['in_d'],
                             self.train_config['out_d'],
-                            'val', # FIXME: mode should be an enum.
+                            datasets.Modes.VAL,
                             val_patch_refs)
 
-        fnames = {r.annot_fname for r in val_patch_refs}
 
-        epoch_items_metrics = []
-        epoch_start = time.time()
- 
-        step = 0
-        val_cnn = copy.deepcopy(model)
-        val_cnn.half()
-        for fname in fnames:
-            # FiXME: We assume image has same extension as annotation.
-            #        Is this always the case?
-            image = dataset.load_im(fname)
-            annots, classes = dataset.get_annots_for_image(fname)
-            refs = [r for r in val_patch_refs if r.annot_fname == fname]
+        return train_utils.val_epoch(model,
+                                     self.train_config['classes'],
+                                     dataset,
+                                     val_patch_refs,
+                                     self.patch_update_enabled,
+                                     self.epoch_step_callback,
+                                     self.epoch_stop_fn)
 
-            for ref in refs:
-                (im_patch, fg_patches,
-                 bg_patches, _segs) = dataset.get_patch_from_image(image, annots, ref)            
-                ignore_mask = ref.ignore_mask
-
-                self.check_for_instructions()
-                batch_im_patches = torch.from_numpy(np.array([im_patch])).cuda()
-
-                if self.patch_update_enabled:
-                    batch_im_patches = handle_patch_update_in_epoch_step(batch_im_patches, mode='val')
-                batch_im_patches = batch_im_patches.half()
-                outputs = val_cnn(batch_im_patches)
-                (_, batch_items_metrics) = get_batch_loss(
-                    outputs,
-                    [fg_patches],
-                    [bg_patches],
-                    [ignore_mask],
-                    None,
-                    [classes],
-                    self.train_config['classes'],
-                    compute_loss=False)
-
-                epoch_items_metrics += batch_items_metrics
-
-                self.check_for_instructions() # could update training parameter
-                if not self.training: # in this context we consider validation part of training.
-                    return None # a way to stop validation quickly if user specifies
-
-                debug_memory('val epoch step')
-                # https://github.com/googlecolab/colabtools/issues/166
-                print(f"\rValidation: {(step+1)}/{len(val_patch_refs)}", end='', flush=True)
-                step += 1
-
-        duration = round(time.time() - epoch_start, 3)
-        print('')
-        print('Validation epoch duration', duration, 'time per instance',
-               round((time.time() - epoch_start) / len(epoch_items_metrics), 3))
-        return epoch_items_metrics
-
+    def epoch_stop_fn(self):
+        return not self.training
+    def epoch_step_callback(self):
+        self.check_for_instructions()
 
     def train_epoch(self, model, length=None):
         if not self.train_annotation_exists():
@@ -351,7 +306,7 @@ class Trainer():
                             self.train_config['out_w'],
                             self.train_config['in_d'],
                             self.train_config['out_d'],
-                            'train',
+                            datasets.Modes.TRAIN,
                             None,
                             self.use_seg_in_training,
                             length=length)
@@ -360,54 +315,13 @@ class Trainer():
                             collate_fn=data_utils.collate_fn,
                             num_workers=self.num_workers,
                             drop_last=False, pin_memory=True)
-        model.train()
-        epoch_start = time.time()
 
-        epoch_items_metrics = []  
-        loss_sum = 0
-        for step, (batch_im_patches, batch_fg_patches,
-                   batch_bg_patches, batch_ignore_masks,
-                   batch_seg_patches, batch_classes) in enumerate(loader):
+        epoch_items_metrics = train_utils.train_epoch(
+            model, self.train_config['classes'], loader,
+            self.batch_size, self.optimizer, self.patch_update_enabled,
+            self.epoch_step_callback, self.epoch_stop_fn)
 
-            self.check_for_instructions()
-            batch_im_patches = torch.from_numpy(np.array(batch_im_patches)).cuda()
-            self.optimizer.zero_grad()
-            
-            if self.patch_update_enabled:
-                batch_im_patches = handle_patch_update_in_epoch_step(batch_im_patches, 'train')
 
-            outputs = model(batch_im_patches)
-
-            (batch_loss, batch_items_metrics) = get_batch_loss(
-                 outputs, batch_fg_patches, batch_bg_patches, 
-                 batch_ignore_masks, batch_seg_patches,
-                 batch_classes, self.train_config['classes'],
-                 compute_loss=True)
-
-            epoch_items_metrics += batch_items_metrics 
-            loss_sum += batch_loss.item() # float
-            batch_loss.backward()
-            self.optimizer.step()
-        
-            total_fg = ''
-            for b in batch_items_metrics:
-                total_fg += f',{b.total_true()}'
-            
-            debug_memory('train epoch step')
-            # https://github.com/googlecolab/colabtools/issues/166
-            print(f"\rTraining: {(step+1) * self.batch_size}/"
-                  f"{len(loader.dataset)} "
-                  f" loss={round(batch_loss.item(), 3)}, fg={total_fg}",
-                  end='', flush=True)
-
-            self.check_for_instructions() # could update training parameter
-            if not self.training: # in this context we consider validation part of training.
-                return None # understood as training stopping early
-
-        duration = round(time.time() - epoch_start, 3)
-        print('')
-        print('Training epoch duration', duration, 'time per instance',
-              round((time.time() - epoch_start) / len(epoch_items_metrics), 3))
         return epoch_items_metrics
 
     def assign_metrics_to_refs(self, metrics_list):
@@ -431,8 +345,8 @@ class Trainer():
             # write headers if file didn't exist
             print('date_time,true_positives,false_positives,true_negatives,'
                   'false_negatives,precision,recall,dice',
-                  file=open(fpath, 'w+'))
-        with open(fpath, 'a+') as log_file:
+                  file=open(fpath, 'w+', encoding='utf-8'))
+        with open(fpath, 'a+', encoding='utf-8') as log_file:
             log_file.write(metrics.csv_row())
             log_file.flush()
 
@@ -446,10 +360,15 @@ class Trainer():
         model_dir = self.train_config['model_dir']
         prev_model, prev_path = model_utils.get_prev_model(model_dir,
                                                            self.train_config['classes'])
+        
+
 
         # this could include some of the prevous patches refs 
         # (if annotation has not changed etc)
         self.val_patch_refs = self.get_new_val_patches_refs()
+
+
+
 
         if not self.val_patch_refs:
             # if we don't yet have any validation data
@@ -539,7 +458,8 @@ class Trainer():
         self.training = True
 
     def log(self, message):
-        with open(os.path.join(self.sync_dir, 'server_log.txt'), 'a+') as log_file:
+        log_fpath = os.path.join(self.sync_dir, 'server_log.txt')
+        with open(log_fpath, 'a+', encoding='utf-8') as log_file:
             log_file.write(f"{datetime.now()}|{time.time()}|{message}\n")
             log_file.flush()
 
@@ -651,7 +571,8 @@ class Trainer():
         out_paths = []
         if len(classes) > 1:
             for c in classes:
-                out_fname = fname.replace('.nrrd', '.nii.gz') # output to nii.gz regardless of input format.
+                # output to nii.gz regardless of input format.
+                out_fname = fname.replace('.nrrd', '.nii.gz') 
                 out_paths.append(os.path.join(seg_dir, c, out_fname))
         else:
             # segment to nifty as they don't get loaded repeatedly in training.
@@ -667,11 +588,6 @@ class Trainer():
             raise Exception(f'Cannot segment as missing file {fpath}')
         try:
             im = load_image(fpath)
-            # TODO: Consider removing this soon
-            im = np.rot90(im, k=3)
-            im = np.moveaxis(im, -1, 0) # depth moved to beginning
-            # reverse lr and ud
-            im = im[::-1, :, ::-1]
         except Exception as e:
             # Could be temporary issues reading the image.
             # its ok just skip it.

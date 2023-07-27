@@ -20,7 +20,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import os
 from pathlib import Path
 import json
-import copy
 
 def startup_setup(settings_path, sync_dir=None):
     """

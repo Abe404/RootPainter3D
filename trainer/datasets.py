@@ -16,28 +16,22 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
 import random
-import math
 import os
 from pathlib import Path
-from file_utils import ls
+from enum import Enum
 
 import torch
 import numpy as np
 from skimage import img_as_float32
 from torch.utils.data import Dataset
 
+from file_utils import ls
 from im_utils import load_train_image_and_annot
 import im_utils
 
-def rnd():
-    """ Give higher than random chance to select the edges """
-    return max(0, min(1, (1.2 * random.random()) - 0.1))
-
-
-
-def annot_patch_has_fg(annot):
-    return np.any(annot[1][17:-17,17:-17,17:-17])
-
+class Modes(Enum):
+    TRAIN = 1
+    VAL = 2
 
 class RPDataset(Dataset):
     def __init__(self, annot_dirs, train_seg_dirs, dataset_dir, in_w, out_w,
@@ -55,6 +49,7 @@ class RPDataset(Dataset):
             When the data is 3D the raw channels (for each class)
             are saved and the RGB values are not necessary.
         """
+        assert mode in Modes
         self.mode = mode
         self.in_w = in_w
         self.out_w = out_w
@@ -71,96 +66,41 @@ class RPDataset(Dataset):
         self.use_seg = use_seg_in_training
 
     def __len__(self):
-        if self.mode == 'val':
+        if self.mode == Modes.VAL:
             return len(self.patch_refs)
         if self.patch_refs is not None:
             return len(self.patch_refs)
         return self.length
 
     def __getitem__(self, i):
-        if self.mode == 'val':
+        if self.mode == Modes.VAL:
             return self.get_val_item(self.patch_refs[i])
-        if self.patch_refs is not None:
-            return self.get_train_item(self.patch_refs)
         return self.get_train_item()
 
     def get_train_item(self):
         return self.get_train_item_3d()
 
-    def get_random_patch_3d(self, annots, segs, image, fname, force_fg):
-        # this will find something eventually as we know
-        # all annotation contain labels somewhere
 
-        # Limits for possible sampling locations from image (based on size of image)
-        depth_lim = image.shape[0] - self.in_d
-        bottom_lim = image.shape[1] - self.in_w
-        right_lim = image.shape[2] - self.in_w
-
-        attempts = 0 
-        warn_after_attempts = 100
-        
-        while True:
-            attempts += 1
-            x_in = math.floor(rnd() * right_lim)
-            y_in = math.floor(rnd() * bottom_lim)
-            z_in = math.floor(rnd() * depth_lim)
-
-            annot_patches = []
-            seg_patches = []
-            for seg, annot in zip(segs, annots):
-                # Get the corresponding region of the annotation after network crop
-                annot_patches.append(annot[:,
-                                         z_in:z_in+self.in_d,
-                                         y_in:y_in+self.in_w,
-                                         x_in:x_in+self.in_w])
-                if seg is None:
-                    seg_patches.append(None)
-                else:
-                    seg_patches.append(seg[z_in:z_in+self.in_d,
-                                         y_in:y_in+self.in_w,
-                                         x_in:x_in+self.in_w])
-
-
-
-            # we only want annotations with defiend regions in the output area.
-            # Otherwise we will have nothing to update the loss.
-            if np.any([np.any(a) for a in annot_patches]):
-                # if force fg is true then make sure fg is defined.
-                if not force_fg or np.any([annot_patch_has_fg(a) for a in annot_patches]):
-                    # ok we have some annotation for this
-                    # part of the image so let's return the patch.
-                    im_patch = image[z_in:z_in+self.in_d,
-                                     y_in:y_in+self.in_w,
-                                     x_in:x_in+self.in_w]
-
-                    return annot_patches, seg_patches, im_patch
-            if attempts > warn_after_attempts:
-                print(f'Warning {attempts} attempts to get random patch from {fname}')
-                warn_after_attempts *= 10
-
-    def get_train_item_3d(self):
-        # When patch_ref is specified we use these coordinates to get
-        # the input patch. Otherwise we will sample randomly
-        # if patch_ref:
-        #     raise Exception('not using these')
-        #     im_patch, foregrounds, backgrounds, classes = self.get_patch_from_ref_3d(patch_ref)
-        #     # For now just return the patch. We plan to add augmentation here.
-        #     return im_patch, foregrounds, backgrounds, classes
-        
+    def should_force_fg(self):
         num_annots = len(ls(self.annot_dirs[0])) # estimate num annotations from first class 
         # start at 90% force fg and go down to 0 by the time 90 images are annotated.
         force_fg_prob = max(0, (90-(num_annots)) / 100) 
         force_fg = force_fg_prob > random.random()
+        return force_fg
+
+
+    def get_train_item_3d(self):
+        force_fg = self.should_force_fg()
         (image, annots, segs, classes, fname) = load_train_image_and_annot(self.dataset_dir,
                                                                            self.train_seg_dirs,
                                                                            self.annot_dirs,
                                                                            self.use_seg,
                                                                            force_fg)
-              
-        annot_patches, seg_patches, im_patch = self.get_random_patch_3d(annots, segs,
-                                                                        image,
-                                                                        fname, force_fg)
-        
+
+        annot_patches, seg_patches, im_patch = im_utils.get_random_patch_3d(annots, segs,
+                                                                            image,
+                                                                            fname, force_fg,
+                                                                            self.in_d, self.in_w)
         im_patch = img_as_float32(im_patch)
         im_patch = im_utils.normalize_patch(im_patch)
         # ensure image is still 32 bit after normalisation.
@@ -182,13 +122,19 @@ class RPDataset(Dataset):
             background = background.astype(np.int64)
             background = torch.from_numpy(background)
             backgrounds.append(background)
+
             # mask is same for all annotations so just return one.
-            ignore_mask = np.zeros((self.out_d, self.out_w, self.out_w), dtype=np.uint8)
+            im_d = im_patch.shape[0]
+            im_h = im_patch.shape[1]
+            im_w = im_patch.shape[2]
+            # output is 34 less than input. igmore mask only concerns output
+            ignore_mask = np.zeros((im_d - 34, im_h - 34, im_w - 34), dtype=np.uint8)
+
+            shape_str = f'fname: {fname}, im_patch.shape: {im_patch.shape}, fg: {foreground.shape}'
+            assert im_patch.shape == foreground.shape, shape_str
 
         im_patch = im_patch.astype(np.float32)
         
-        # add dimension for input channel
-        im_patch = np.expand_dims(im_patch, axis=0)
         assert len(backgrounds) == len(seg_patches)
         return im_patch, foregrounds, backgrounds, ignore_mask, seg_patches, classes
        
@@ -201,13 +147,6 @@ class RPDataset(Dataset):
         if not os.path.isfile(image_path):
             image_path = image_path.replace('.nii.gz', '.nrrd')
         image = im_utils.load_with_retry(im_utils.load_image, image_path)
-        #  needs to be swapped to channels first and rotated etc
-        # to be consistent with everything else.
-        # todo: consider removing this soon.
-        image = np.rot90(image, k=3)
-        image = np.moveaxis(image, -1, 0) # depth moved to beginning
-        # reverse lr and ud
-        image = image[::-1, :, ::-1]
         # FiXME: Consider moving padding to the GPU. See:
         # https://pytorch.org/docs/stable/generated/torch.nn.ReflectionPad3d.html#torch.nn.ReflectionPad3d
         # pad so seg will be size of input image
@@ -245,12 +184,19 @@ class RPDataset(Dataset):
                         patch_ref.y:patch_ref.y + self.in_w,
                         patch_ref.x:patch_ref.x + self.in_w]
 
-        assert im_patch.shape == (self.in_d, self.in_w, self.in_w), (
-            f" shape is {im_patch.shape}")
+        # patch will either be the specified in_d/in_w or the image dimension.
+        # whichever is smaller.
+        expected_patch_d = min(image.shape[0], self.in_d)
+        expected_patch_h = min(image.shape[1], self.in_w)
+        expected_patch_w = min(image.shape[2], self.in_w)
+        expected_shape = (expected_patch_d, expected_patch_h, expected_patch_w)
 
-        assert annot_patch.shape[1:] == (self.in_d, self.in_w, self.in_w), (
-            f" annot is {annot_patch.shape}, and "
-            f" should be ({self.in_d},{self.in_w},{self.in_w})")
+        assert im_patch.shape == expected_shape, (
+            f" shape is {im_patch.shape} but expected shape is {expected_shape}")
+
+        assert annot_patch.shape[1:] == expected_shape, (
+            f" annot.shape[1:] is {annot_patch.shape}, and "
+            f" should be {expected_shape}")
 
         foregrounds = []
         backgrounds = []
@@ -275,12 +221,12 @@ class RPDataset(Dataset):
         annots = []
         for annot_dir in self.annot_dirs:
             annot_path = os.path.join(annot_dir, annot_fname)
-
-            annot = im_utils.load_with_retry(im_utils.load_image, annot_path)
-            classes.append(Path(annot_dir).parts[-2])
-            
-            # pad to provide annotation at same size as input image.
-            annot = np.pad(annot, ((0, 0), (17, 17), (17, 17), (17, 17)), mode='constant')
-            annots.append(annot)
+            if os.path.isfile(annot_path):
+                annot = im_utils.load_with_retry(im_utils.load_image, annot_path)
+                classes.append(Path(annot_dir).parts[-2])
+                
+                # pad to provide annotation at same size as input image.
+                annot = np.pad(annot, ((0, 0), (17, 17), (17, 17), (17, 17)), mode='constant')
+                annots.append(annot)
         return annots, classes
 
