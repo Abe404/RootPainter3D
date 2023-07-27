@@ -15,7 +15,8 @@ disable=trailing-newlines,
         missing-function-docstring,
         missing-class-docstring,
         too-many-instance-attributes,
-        wrong-import-position
+        wrong-import-position,
+        too-many-branches
 
 
 

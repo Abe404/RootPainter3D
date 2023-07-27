@@ -19,17 +19,19 @@ import os
 import time
 import math
 import traceback
-import numpy as np
-import torch
 import copy
+from inspect import currentframe, getframeinfo
+
+import torch
+from torch.nn.functional import softmax
+import torch.nn.functional as F
+import numpy as np
+
 from skimage import img_as_float32
 import im_utils
 from unet3d import UNet3D
 from file_utils import ls
-from torch.nn.functional import softmax
-import torch.nn.functional as F
 from loss import get_batch_loss
-from inspect import currentframe, getframeinfo
 
 cached_model = None
 cached_model_path = None
@@ -50,10 +52,13 @@ def debug_memory(message=''):
     if mem_debug_enabled:
         frameinfo = getframeinfo(currentframe())
         print(frameinfo.filename, frameinfo.lineno, message)
-        print("torch.cuda.memory_allocated: %fGB"%(torch.cuda.memory_allocated(0)/1024/1024/1024))
-        print("torch.cuda.memory_reserved: %fGB"%(torch.cuda.memory_reserved(0)/1024/1024/1024))
-        print("torch.cuda.max_memory_reserved: %fGB"%(torch.cuda.max_memory_reserved(0)/1024/1024/1024))
 
+        print("torch.cuda.memory_allocated: "
+                f"{torch.cuda.memory_allocated(0)/1024/1024/1024:%f}GB")
+        print("torch.cuda.memory_reserved: "
+                f"{torch.cuda.memory_reserved(0)/1024/1024/1024:%f}GB")
+        print("torch.cuda.max_memory_reserved: "
+                f"{torch.cuda.max_memory_reserved(0)/1024/1024/1024:%f}GB")
 
 
 def get_in_w_and_out_w_for_image(im, in_w, out_w):
@@ -109,7 +114,8 @@ def allocate_net(in_w, num_classes):
             batch_classes.append([f'c_{c}' for c in range(num_classes)])
         (batch_loss, _) = get_batch_loss(
              outputs, batch_fg_patches, batch_bg_patches, None,
-             [[None for c in range(num_classes)] for t in batch_fg_patches], # segmentation excluded from loss for now.
+             # segmentation excluded from loss for now.
+             [[None for c in range(num_classes)] for t in batch_fg_patches], 
              batch_classes,
              [f'c_{c}' for c in range(num_classes)],
              compute_loss=True)
@@ -163,7 +169,8 @@ def load_model(model_path, classes):
     # each non-empty channel in the annotation is included with 50% chance.
     # - fg and bg will go in as seprate channels 
     #  so channels are [image, fg_annot, bg_annot]
-    model = UNet3D(num_classes=len(classes), im_channels=1) # 3 channels as annotation may be used as input.
+    # 3 channels as annotation may be used as input.
+    model = UNet3D(num_classes=len(classes), im_channels=1) 
 
     try:
         model.load_state_dict(torch.load(model_path))
@@ -185,7 +192,8 @@ def random_model(classes):
     # as we have a positive and negative output for each structure.
     # disabled for now as auto-complete feature is stalled.
     #model = UNet3D(classes, im_channels=3)
-    model = UNet3D(num_classes=len(classes), im_channels=1) # 3 channels to enable optional annotation as input.
+    # 3 channels to enable optional annotation as input.
+    model = UNet3D(num_classes=len(classes), im_channels=1) 
     model = torch.nn.DataParallel(model)
     if not use_fake_cnn: 
         model.to(device)
@@ -247,9 +255,6 @@ def pad_then_segment_3d(cnn, image, batch_size, in_w, out_w, in_d, out_d):
     in_patch_shape = (in_d, in_w, in_w)
     out_patch_shape = (out_d, out_w, out_w)
 
-    depth_diff = in_patch_shape[0] - out_patch_shape[0]
-    width_diff = in_patch_shape[2] - out_patch_shape[2]
-
     # pad so seg will be size of input image
     image = np.pad(image, ((17, 17), (17, 17), (17, 17)), mode='constant')
 
@@ -264,7 +269,8 @@ def pad_then_segment_3d(cnn, image, batch_size, in_w, out_w, in_d, out_d):
     return pred_maps
 
 
-def segment_3d(cnn, image, batch_size, in_patch_shape, out_patch_shape, auto_complete_enabled=False):
+def segment_3d(cnn, image, batch_size, in_patch_shape,
+               out_patch_shape, auto_complete_enabled=False):
     """
     in_patch_shape and out_patch_shape are (depth, height, width)
     """
