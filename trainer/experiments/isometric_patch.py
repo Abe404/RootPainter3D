@@ -56,7 +56,7 @@ momentum = 0.99
 def plot_dices(iso_dices, orig_dices):
     epochs = []
     dices = []
-    for c in conv_dices:
+    for c in orig_dices:
         epochs.append(c[0])
         dices.append(c[1])
 
