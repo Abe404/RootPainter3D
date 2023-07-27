@@ -49,7 +49,6 @@ def test_get_random_patch_even_fg():
     annots = [annot]
     fname = 'fake_data'
     
-    in_d = 52 
     in_w = 36 + (16*4)
     force_fg = False
 
@@ -63,12 +62,12 @@ def test_get_random_patch_even_fg():
          im_patch)  = im_utils.get_random_patch_3d(annots, segs,
                                                    image, fname,
                                                    force_fg,
-                                                   in_d, in_w)
+                                                   in_w, in_w)
         # in this case where the patch size is smaller than the image,
         # all the patches should have the same size as the in_d, in_w
         assert im_patch.shape == (in_d, in_w, in_w)
         assert len(annot_patches) == 1
-        assert annot_patches[0].shape == (2, in_d, in_w, in_w)
+        assert annot_patches[0].shape == (2, in_w, in_w, in_w)
         annot_patch = annot_patches[0][:, 17:-17, 17:-17, 17:-17]
         total_vox += annot_patch[0].size
         total_bg += np.sum(annot_patch[0])
