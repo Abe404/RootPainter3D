@@ -64,8 +64,8 @@ def test_get_random_patch_even_fg():
                                                    force_fg,
                                                    in_w, in_w)
         # in this case where the patch size is smaller than the image,
-        # all the patches should have the same size as the in_d, in_w
-        assert im_patch.shape == (in_d, in_w, in_w)
+        # all the patches should have the same size as the in_w, in_w
+        assert im_patch.shape == (in_w, in_w, in_w)
         assert len(annot_patches) == 1
         assert annot_patches[0].shape == (2, in_w, in_w, in_w)
         annot_patch = annot_patches[0][:, 17:-17, 17:-17, 17:-17]
@@ -106,8 +106,7 @@ def test_get_random_patch_big():
     # in that specific dimension, patch should be same size as image
     # for other dimensions, it should have same as patch size
 
-    in_d = 300
-    in_w = 40
+    in_w = 34
     force_fg = False
 
     for _ in range(20):
@@ -116,14 +115,13 @@ def test_get_random_patch_big():
          im_patch)  = im_utils.get_random_patch_3d(annots, segs,
                                                    image, fname,
                                                    force_fg,
-                                                   in_d, in_w)
+                                                   300, in_w)
         assert im_patch.shape == (image.shape[0], in_w, in_w)
         assert len(annot_patches) == 1
         assert annot_patches[0].shape == (2, image.shape[0], in_w, in_w)
 
     # in the case where the patch is bigger in all directions, just return the image
-    in_d = 300
-    in_w = 400
+    in_w = 300
     force_fg = False
   
     for _ in range(20):
@@ -132,7 +130,7 @@ def test_get_random_patch_big():
          im_patch)  = im_utils.get_random_patch_3d(annots, segs,
                                                    image, fname,
                                                    force_fg,
-                                                   in_d, in_w)
+                                                   in_w, in_w)
         assert im_patch.shape == image.shape
         assert len(annot_patches) == 1
         assert annot_patches[0].shape == (2, image.shape[0], image.shape[1], image.shape[2])
