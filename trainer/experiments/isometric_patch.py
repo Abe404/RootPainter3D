@@ -25,6 +25,7 @@ import math
 
 import torch
 from torch.utils.data import DataLoader
+import matplotlib.pyplot as plt
 
 # allow imports from parent folder
 currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
@@ -50,6 +51,26 @@ num_workers = 12
 # in_w = 36 + (4*16) # patch size of 100
 learning_rate = 0.01
 momentum = 0.99
+
+
+def plot_dices(iso_dices, orig_dices):
+    epochs = []
+    dices = []
+    for c in conv_dices:
+        epochs.append(c[0])
+        dices.append(c[1])
+
+    plt.scatter(epochs, dices, s=20, alpha=0.2, label='original')
+
+    epochs = []
+    dices = []
+    for c in iso_dices:
+        epochs.append(c[0])
+        dices.append(c[1])
+
+    plt.scatter(epochs, dices, s=20, alpha=0.2, label='iso')
+    plt.legend()
+    plt.savefig('original_vs_isometric_patch.png')
 
 
 def test_isometric_patch():
@@ -108,7 +129,7 @@ def test_isometric_patch():
                 print(f'Train epoch {e + 1} complete in',
                       round(time.time() - start_time, 1), 'seconds')
                 train_metrics = Metrics.sum(train_result)
-                epoch_dices.append((e, train_metrics.dice()))
+                epoch_dices.append((e, float(train_metrics.dice())))
                 print('Train dice:', train_metrics.dice(),
                       'FG predicted', train_metrics.total_pred(),
                       'FG true', train_metrics.total_true(),
@@ -129,14 +150,25 @@ def test_isometric_patch():
         return epoch_dices
 
     # patch sizes are largest possible without error in 48GB GPU.
-    in_w = 36 + (17*16) 
-    conv_dices = train_attempt(tries=10, epoch_lim=10,
+    in_w = 36 + (16*16) 
+    conv_dices = train_attempt(tries=4, epoch_lim=8,
                                in_w=in_w, out_w=in_w-34,
                                in_d=52, out_d=52-34)
      
-    print('conv_dices = ', conv_dices)
     in_w = 36 + (7*16) 
-    iso_dices = train_attempt(tries=10, epoch_lim=10,
+
+    print('conv_dices = ', conv_dices)
+    iso_dices = train_attempt(tries=4, epoch_lim=8,
                               in_w=in_w, out_w=in_w-34,
                               in_d=in_w, out_d=in_w-34)
+
+    print('conv_dices = ', conv_dices)
     print('iso_dices = ', iso_dices)
+
+
+    plot_dices(iso_dices, conv_dices)
+
+
+
+
+
