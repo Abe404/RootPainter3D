@@ -102,11 +102,11 @@ def allocate_net(in_w, num_classes):
     for _ in range(3):
     
         #                      b, c,  d,  h,    w    
-        input_data = np.zeros((4, channels, 52, in_w, in_w))
+        input_data = np.zeros((4, channels, in_w, in_w, in_w))
         optimizer.zero_grad()
         outputs = net(torch.from_numpy(input_data).cuda().float())
-        batch_fg_patches = torch.ones(4, num_classes, 52, in_w, in_w).long().cuda()
-        batch_bg_patches = torch.zeros(4, num_classes, 52, in_w, in_w).long().cuda()
+        batch_fg_patches = torch.ones(4, num_classes, in_w, in_w, in_w).long().cuda()
+        batch_bg_patches = torch.zeros(4, num_classes, in_w, in_w, in_w).long().cuda()
         batch_fg_patches[:, 0, 0] = 0
         batch_bg_patches[:, 0, 0] = 1
         batch_classes = []
@@ -357,7 +357,7 @@ def segment_3d(cnn, image, batch_size, in_patch_shape,
             # add channels for annotation if auto_complete enabled
             patches_for_gpu = F.pad(patches_for_gpu, (0, 0, 0, 0, 0, 0, 0, 2), 'constant', 0)
 
-        # patches shape after padding torch.Size([4, 3, 52, 228, 228])
+        # patches shape after padding torch.Size([4, 3, 228, 228, 228])
         outputs = cnn(patches_for_gpu).detach().cpu()
 
         # bg channel index for each class in network output.
@@ -402,6 +402,6 @@ def add_config_shape(config, in_w, out_w):
         print('found input width of', in_w, 'and output width of', out_w)
     new_config['in_w'] = in_w
     new_config['out_w'] = out_w
-    new_config['in_d'] = 52
-    new_config['out_d'] = 18
+    new_config['in_d'] = in_w
+    new_config['out_d'] = out_w
     return new_config
