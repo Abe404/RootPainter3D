@@ -65,6 +65,7 @@ class PatchRef:
  
     def is_same_region_as(self, other):
         return (self.annot_fname == other.annot_fname and 
+                self.annot_dir == other.annot_dir and
                 self.x == other.x and
                 self.y == other.y and
                 self.z == other.z)
