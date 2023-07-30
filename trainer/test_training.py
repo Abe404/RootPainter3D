@@ -449,6 +449,67 @@ def test_multiclass_validation():
     assert val_metrics.dice() > 0.000001
 
 
+def test_multiclass_converges():
+    """ test that a dice score of 0.8 is possible for both organs when training
+        on a multiclass dataset.
+    """
+    classes = ['liver', 'spleen']
+    batch_size = 1
+
+    train_annot_dirs = [liver_annot_train_dir, spleen_annot_train_dir]
+
+    model = model_utils.random_model(classes)
+
+    # should be some files in the annot dir for this test to work
+    assert os.path.isdir(train_annot_dirs[0])
+    assert os.listdir(train_annot_dirs[0])
+    assert os.path.isdir(train_annot_dirs[1])
+    assert os.listdir(train_annot_dirs[1])
+
+    optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate,
+                                momentum=momentum, nesterov=True)
+
+    dataset = RPDataset(train_annot_dirs,
+                        train_seg_dirs=[None] * len(train_annot_dirs),
+                        dataset_dir=subset_dir_images,
+                        in_w=in_w,
+                        out_w=out_w,
+                        in_d=in_d,
+                        out_d=out_d,
+                        mode=datasets.Modes.TRAIN,
+                        patch_refs=None,
+                        use_seg_in_training=False,
+                        length=batch_size*64)
+
+    def fg_fn():
+        # always force foreground in item for this test
+        # as otherways convergence may be slow.
+        return True
+    dataset.should_force_fg = fg_fn
+
+    loader = DataLoader(dataset, batch_size=batch_size, shuffle=False,
+                        collate_fn=data_utils.collate_fn,
+                        num_workers=0,
+                        drop_last=False, pin_memory=True)
+
+
+    train_dice = 0
+    epoch = 1
+    while train_dice < 0.8:
+        start_time = time.time()
+        train_result = train_utils.train_epoch(model,
+                                               classes,
+                                               loader,
+                                               batch_size,
+                                               optimizer=optimizer,
+                                               step_callback=None,
+                                               stop_fn=None)
+        assert train_result
+        print('Epoch: ', epoch)
+        print('Train epoch complete in', round(time.time() - start_time, 1), 'seconds')
+        train_metrics = Metrics.sum(train_result)
+        print('Train metrics dice', train_metrics.dice())
+
 
 def test_multiclass_validation_missing_annotations():
     """ test validation does not throw exception when multiple classes used.
