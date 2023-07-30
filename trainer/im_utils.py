@@ -263,8 +263,10 @@ def load_train_image_and_annot(dataset_dir, train_seg_dirs, train_annot_dirs, us
         all_annot_dirs = []
         all_seg_dirs = []
 
-        train_seg_dirs = sorted(train_seg_dirs)
+        # puts None values at the end. 
+        train_seg_dirs =  sorted(train_seg_dirs, key=lambda x: (x is None, x))
         train_annot_dirs = sorted(train_annot_dirs)
+
         assert len(train_seg_dirs) == len(train_annot_dirs)
     
         for train_seg_dir, train_annot_dir in zip(train_seg_dirs, train_annot_dirs):
@@ -343,7 +345,8 @@ def load_train_image_and_annot(dataset_dir, train_seg_dirs, train_annot_dirs, us
                 f'should match annots[0][0].shape {annots[0][0].shape}. '
                 ' perhaps there is a dimensions mismatch?'
                 ' Dataset images and annotations should be (Depth, Height, Width).')
-
+        
+        assert len(annots) == len(classes)
         # also return fname for debugging purposes.
         return image, annots, segs, classes, fname
 
