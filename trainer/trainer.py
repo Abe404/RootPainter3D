@@ -122,9 +122,9 @@ class Trainer():
                 # can take a while so checks for
                 # new instructions are also made inside
                 self.val_patch_refs = self.get_new_val_patches_refs()
-                train_metrics = Metrics.sum(self.train_epoch(self.model,
-                                            length=self.get_train_epoch_length()))
-                if train_metrics:
+                train_result = self.train_epoch(self.model, length=self.get_train_epoch_length())
+                if train_result:
+                    train_metrics = Metrics.sum(train_result)
                     self.log_metrics('train', train_metrics)
                     print(train_metrics.__str__(to_use=metrics_to_print))
             if self.training:
