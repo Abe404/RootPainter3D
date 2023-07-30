@@ -135,7 +135,8 @@ class RPDataset(Dataset):
 
         im_patch = im_patch.astype(np.float32)
         
-        assert len(backgrounds) == len(seg_patches)
+        assert len(backgrounds) == len(seg_patches) == len(foregrounds) == len(classes)
+    
         return im_patch, foregrounds, backgrounds, ignore_mask, seg_patches, classes
        
     def get_val_item(self, patch_ref):
