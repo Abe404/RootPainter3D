@@ -297,13 +297,17 @@ def load_train_image_and_annot(dataset_dir, train_seg_dirs, train_annot_dirs, us
 
             # annots and classes associated with fname
             indices = [i for i, f in enumerate(fnames) if f == fname]
-            classes = [all_classes[i] for i in indices]
+
+            possible_classes = [all_classes[i] for i in indices]
             annot_dirs = [all_annot_dirs[i] for i in indices]
             seg_dirs = [all_seg_dirs[i] for i in indices]
+
+            classes = []
             annots = []
             segs = []
 
-            for annot_dir, seg_dir in zip(annot_dirs, seg_dirs): # for each of the classes.
+            # for each of the possible classes.
+            for class_name, annot_dir, seg_dir in zip(possible_classes, annot_dirs, seg_dirs): 
                 annot_fpath = os.path.join(annot_dir, fname)
                 annot = load_image(annot_fpath).astype(int)
 
@@ -315,6 +319,7 @@ def load_train_image_and_annot(dataset_dir, train_seg_dirs, train_annot_dirs, us
 
                     annot = np.pad(annot, ((0, 0), (17,17), (17,17), (17, 17)), mode='constant')
                     annots.append(annot)
+                    classes.append(class_name)
 
                     if use_seg:
                         seg_path = os.path.join(seg_dir, fname)
@@ -327,6 +332,7 @@ def load_train_image_and_annot(dataset_dir, train_seg_dirs, train_annot_dirs, us
                         seg = None
 
                     segs.append(seg)
+
                 else:
                     # print('no foreground for ', fname)
                     pass 

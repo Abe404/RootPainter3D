@@ -454,7 +454,7 @@ def test_multiclass_converges():
         on a multiclass dataset.
     """
     classes = ['liver', 'spleen']
-    batch_size = 1
+    batch_size = 4 
 
     train_annot_dirs = [liver_annot_train_dir, spleen_annot_train_dir]
 
@@ -489,7 +489,7 @@ def test_multiclass_converges():
 
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=False,
                         collate_fn=data_utils.collate_fn,
-                        num_workers=0,
+                        num_workers=num_workers,
                         drop_last=False, pin_memory=True)
 
 
