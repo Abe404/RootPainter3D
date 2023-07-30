@@ -112,6 +112,9 @@ def get_batch_loss(outputs, batch_fg_patches, batch_bg_patches,
 
             # go through each class for this instance.
             for i, classname in enumerate(batch_classes[im_idx]):
+
+                assert len(batch_classes[im_idx]) == len(batch_fg_patches[im_idx]), str(batch_classes[im_idx])
+
                 
                 # if the classname is the class we are interested in
                 if classname == unique_class:
@@ -119,7 +122,6 @@ def get_batch_loss(outputs, batch_fg_patches, batch_bg_patches,
                     # FIXME: where does this 17 come from? It's connected to the specific
                     # network so perhaps we should
                     # load it from some properties/setting from the network class / file?
-
                     # foregorund and background channels
                     fg_patch = batch_fg_patches[im_idx][i][17:-17,17:-17,17:-17]
                     bg_patch = batch_bg_patches[im_idx][i][17:-17,17:-17,17:-17]
