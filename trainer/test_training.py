@@ -458,27 +458,25 @@ def test_multiclass_converges():
 
     train_annot_dirs = [liver_annot_train_dir, spleen_annot_train_dir]
 
-
     # should be some files in the annot dir for this test to work
     assert os.path.isdir(train_annot_dirs[0])
     assert os.listdir(train_annot_dirs[0])
     assert os.path.isdir(train_annot_dirs[1])
     assert os.listdir(train_annot_dirs[1])
-
-    
-    in_w = 36 + (4*16) 
-    out_w = in_w - 34
-    in_d = in_w
-    out_d = out_w
-
+   
+    # use smaller dimensions for multiclass
+    smaller_in_w = 36 + (4*16) 
+    smaller_out_w = smaller_in_w - 34
+    smaller_in_d = smaller_in_w
+    smaller_out_d = smaller_out_w
 
     dataset = RPDataset(train_annot_dirs,
                         train_seg_dirs=[None] * len(train_annot_dirs),
                         dataset_dir=subset_dir_images,
-                        in_w=in_w,
-                        out_w=out_w,
-                        in_d=in_d,
-                        out_d=out_d,
+                        in_w=smaller_in_w,
+                        out_w=smaller_out_w,
+                        in_d=smaller_in_d,
+                        out_d=smaller_out_d,
                         mode=datasets.Modes.TRAIN,
                         patch_refs=None,
                         use_seg_in_training=False,
@@ -494,7 +492,6 @@ def test_multiclass_converges():
                         collate_fn=data_utils.collate_fn,
                         num_workers=num_workers,
                         drop_last=False, pin_memory=True)
-
 
     train_dice = 0
     epoch = 1
@@ -513,7 +510,6 @@ def test_multiclass_converges():
                                                step_callback=None,
                                                stop_fn=None)
         assert train_result
-
 
         train_metrics = Metrics.sum(train_result)
         train_dice = train_metrics.dice()
