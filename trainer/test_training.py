@@ -458,7 +458,6 @@ def test_multiclass_converges():
 
     train_annot_dirs = [liver_annot_train_dir, spleen_annot_train_dir]
 
-    model = model_utils.random_model(classes)
 
     # should be some files in the annot dir for this test to work
     assert os.path.isdir(train_annot_dirs[0])
@@ -466,8 +465,12 @@ def test_multiclass_converges():
     assert os.path.isdir(train_annot_dirs[1])
     assert os.listdir(train_annot_dirs[1])
 
-    optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate,
-                                momentum=momentum, nesterov=True)
+    
+    in_w = 36 + (4*16) 
+    out_w = in_w - 34
+    in_d = in_w
+    out_d = out_w
+
 
     dataset = RPDataset(train_annot_dirs,
                         train_seg_dirs=[None] * len(train_annot_dirs),
@@ -495,7 +498,12 @@ def test_multiclass_converges():
 
     train_dice = 0
     epoch = 1
-    while train_dice < 0.8:
+
+    model = model_utils.random_model(classes)
+    optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate,
+                                momentum=momentum, nesterov=True)
+
+    while train_dice < 0.8 or math.isnan(train_dice):
         start_time = time.time()
         train_result = train_utils.train_epoch(model,
                                                classes,
@@ -505,9 +513,17 @@ def test_multiclass_converges():
                                                step_callback=None,
                                                stop_fn=None)
         assert train_result
+
+
+        train_metrics = Metrics.sum(train_result)
+        train_dice = train_metrics.dice()
+        if math.isnan(train_metrics.dice()):
+            print('Train dice is nan. Re-assigning model to random weights')
+            model = model_utils.random_model(classes)
+            optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate,
+                                        momentum=momentum, nesterov=True)
         print('Epoch: ', epoch)
         print('Train epoch complete in', round(time.time() - start_time, 1), 'seconds')
-        train_metrics = Metrics.sum(train_result)
         print('Train metrics dice', train_metrics.dice())
 
 
